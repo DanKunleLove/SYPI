@@ -1,26 +1,169 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/*
+ * spi AI Design Tokens (from context/ui-context.md)
+ *
+ * Two sets of variables live here:
+ * 1. spi AI tokens (--bg-base, --accent-ai, etc.) — used in our own components
+ * 2. shadcn tokens (--background, --card, etc.) — used by shadcn/ui components
+ *
+ * The shadcn tokens reference our spi AI tokens, so everything stays in sync.
+ * We only define .dark because spi AI is dark-only — no light mode.
+ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  .dark {
+    /* === spi AI tokens === */
+
+    /* Backgrounds */
+    --bg-base: #09090b;
+    --bg-surface: #18181b;
+    --bg-surface-raised: #27272a;
+
+    /* Text */
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+
+    /* Accents */
+    --accent-primary: #6366f1;
+    --accent-hover: #818cf8;
+    --accent-ai: #a78bfa;
+    --accent-ai-glow: #7c3aed;
+
+    /* Borders */
+    --border-default: #27272a;
+    --border-subtle: #3f3f46;
+
+    /* State */
+    --state-error: #ef4444;
+    --state-success: #22c55e;
+    --state-warning: #eab308;
+
+    /* === shadcn/ui tokens (mapped to spi AI tokens) === */
+
+    --background: var(--bg-base);
+    --foreground: var(--text-primary);
+
+    --card: var(--bg-surface);
+    --card-foreground: var(--text-primary);
+
+    --popover: var(--bg-surface);
+    --popover-foreground: var(--text-primary);
+
+    --primary: var(--accent-primary);
+    --primary-foreground: #ffffff;
+
+    --secondary: var(--bg-surface-raised);
+    --secondary-foreground: var(--text-primary);
+
+    --muted: var(--bg-surface-raised);
+    --muted-foreground: var(--text-muted);
+
+    --accent: var(--bg-surface-raised);
+    --accent-foreground: var(--text-primary);
+
+    --destructive: var(--state-error);
+    --destructive-foreground: #ffffff;
+
+    --border: var(--border-default);
+    --input: var(--border-default);
+    --ring: var(--accent-primary);
+
+    --chart-1: #6366f1;
+    --chart-2: #a78bfa;
+    --chart-3: #818cf8;
+    --chart-4: #7c3aed;
+    --chart-5: #4f46e5;
+
+    --sidebar: var(--bg-surface);
+    --sidebar-foreground: var(--text-primary);
+    --sidebar-primary: var(--accent-primary);
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: var(--bg-surface-raised);
+    --sidebar-accent-foreground: var(--text-primary);
+    --sidebar-border: var(--border-default);
+    --sidebar-ring: var(--accent-primary);
+
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/*
+ * @theme inline tells Tailwind 4 about our CSS variables
+ * so you can use them as utility classes.
+ *
+ * For example, --color-primary maps to classes like:
+ *   bg-primary, text-primary, border-primary, etc.
+ *
+ * Without this block, Tailwind wouldn't know these colors exist.
+ */
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+
+  /* shadcn color mappings → Tailwind utilities */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* spi AI custom color mappings → Tailwind utilities */
+  --color-ai: var(--accent-ai);
+  --color-ai-glow: var(--accent-ai-glow);
+  --color-success: var(--state-success);
+  --color-warning: var(--state-warning);
+  --color-error: var(--state-error);
+
+  /* Radius scale */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
