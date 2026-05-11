@@ -17,6 +17,7 @@ Update this file after every meaningful implementation change.
 - All 6 context files populated with spi AI specifications
 - AGENTS.md configured as entry point to context system
 - Unit 01: Design system — shadcn/ui initialized, 9 components added, CSS design tokens defined, dark-only theme enforced, lucide-react installed, cn() utility ready
+- Unit 02: Editor chrome — editor navbar (inline project name, zoom controls, breadcrumb), project sidebar (search, recent projects, Framer Motion slide-in, backdrop overlay), canvas placeholder (dot grid, empty state), prompt bar shell (disabled), editor layout page at /editor. Inspired by n8n/make.com. Framer Motion installed.
 
 ## In Progress
 
