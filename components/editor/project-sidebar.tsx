@@ -56,6 +56,7 @@ export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
+                aria-label="Close sidebar"
                 onClick={onClose}
               >
                 <X className="h-4 w-4" />
@@ -68,6 +69,7 @@ export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 <Input
                   placeholder="Search projects..."
+                  aria-label="Search projects"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-9"

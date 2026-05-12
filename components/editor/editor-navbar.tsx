@@ -22,22 +22,28 @@ export function EditorNavbar({
   onToggleSidebar,
 }: EditorNavbarProps) {
   const [projectName, setProjectName] = useState("Untitled Project");
+  const [draftName, setDraftName] = useState("Untitled Project");
   const [isEditing, setIsEditing] = useState(false);
   const [zoom, setZoom] = useState(100);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
+      setDraftName(projectName);
       inputRef.current.focus();
       inputRef.current.select();
     }
-  }, [isEditing]);
+  }, [isEditing, projectName]);
 
   function handleNameSubmit() {
+    const name = draftName.trim() || "Untitled Project";
+    setProjectName(name);
     setIsEditing(false);
-    if (!projectName.trim()) {
-      setProjectName("Untitled Project");
-    }
+  }
+
+  function handleNameCancel() {
+    setDraftName(projectName);
+    setIsEditing(false);
   }
 
   return (
@@ -48,6 +54,7 @@ export function EditorNavbar({
           variant="ghost"
           size="icon"
           className="h-8 w-8"
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
           onClick={onToggleSidebar}
         >
           {isSidebarOpen ? (
@@ -71,14 +78,12 @@ export function EditorNavbar({
             ref={inputRef}
             type="text"
             aria-label="Project name"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
             onBlur={handleNameSubmit}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleNameSubmit();
-              if (e.key === "Escape") {
-                setIsEditing(false);
-              }
+              if (e.key === "Escape") handleNameCancel();
             }}
             className="rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface-raised)] px-2 py-0.5 text-center text-sm text-[var(--text-primary)] outline-none focus:ring-1 focus:ring-[var(--accent-primary)]"
           />
@@ -101,6 +106,7 @@ export function EditorNavbar({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
+            aria-label="Zoom out"
             onClick={() => setZoom((z) => Math.max(25, z - 10))}
           >
             <Minus className="h-3.5 w-3.5" />
@@ -112,6 +118,7 @@ export function EditorNavbar({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
+            aria-label="Zoom in"
             onClick={() => setZoom((z) => Math.min(200, z + 10))}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -121,6 +128,7 @@ export function EditorNavbar({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
+            aria-label="Fit to view"
             onClick={() => setZoom(100)}
           >
             <Maximize2 className="h-3.5 w-3.5" />

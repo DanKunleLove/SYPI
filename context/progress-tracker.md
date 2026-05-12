@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-- Foundation setup
+- Core infrastructure
 
 ## Current Goal
 
-- Set up project context files and prepare for first build unit
+- Set up authentication and database layer (Units 03-04)
 
 ## Completed
 
@@ -25,10 +25,10 @@ Update this file after every meaningful implementation change.
 
 ## Next Up
 
-- Create build plan (`context/specs/00-build-plan.md`) with ordered feature units
-- Unit 01: Project layout and theming (dark theme, fonts, CSS tokens, root layout)
-- Unit 02: Auth setup (Clerk installation, sign-in/sign-up pages, auth middleware)
-- Unit 03: Database setup (Prisma + PostgreSQL schema, Clerk webhook sync)
+- Unit 03: Auth setup (Clerk installation, sign-in/sign-up pages, auth middleware)
+- Unit 04: Database setup (Prisma + PostgreSQL schema, Clerk webhook sync)
+- Unit 05: Dashboard (project CRUD, project cards, layout)
+- Unit 06: Canvas integration (Liveblocks, nodes, connections)
 
 ## Open Questions
 
