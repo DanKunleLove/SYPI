@@ -2,25 +2,19 @@
 
 import { useState, useRef, useEffect } from "react";
 import {
-  PanelLeftOpen,
-  PanelLeftClose,
   ChevronRight,
   Minus,
   Plus,
   Maximize2,
+  Users,
+  Download,
+  Sparkles,
+  Box,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 
-interface EditorNavbarProps {
-  isSidebarOpen: boolean;
-  onToggleSidebar: () => void;
-}
-
-export function EditorNavbar({
-  isSidebarOpen,
-  onToggleSidebar,
-}: EditorNavbarProps) {
+export function EditorNavbar() {
   const [projectName, setProjectName] = useState("Untitled Project");
   const [draftName, setDraftName] = useState("Untitled Project");
   const [isEditing, setIsEditing] = useState(false);
@@ -48,27 +42,11 @@ export function EditorNavbar({
 
   return (
     <nav className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-3">
-      {/* Left section */}
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
-          onClick={onToggleSidebar}
-        >
-          {isSidebarOpen ? (
-            <PanelLeftClose className="h-4 w-4" />
-          ) : (
-            <PanelLeftOpen className="h-4 w-4" />
-          )}
-        </Button>
-
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-[var(--text-muted)]">Projects</span>
-          <ChevronRight className="h-3 w-3 text-[var(--text-muted)]" />
-          <span className="text-[var(--text-primary)]">{projectName}</span>
-        </div>
+      {/* Left section — breadcrumb */}
+      <div className="flex items-center gap-1.5 text-sm">
+        <span className="text-[var(--text-muted)]">Projects</span>
+        <ChevronRight className="h-3 w-3 text-[var(--text-muted)]" />
+        <span className="text-[var(--text-primary)]">{projectName}</span>
       </div>
 
       {/* Center section — inline editable project name */}
@@ -135,11 +113,46 @@ export function EditorNavbar({
           </Button>
         </div>
 
+        {/* Node count badge */}
+        <div className="flex items-center gap-1.5 rounded-md bg-[var(--bg-surface-raised)] px-2 py-1">
+          <Box className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+          <span className="text-xs text-[var(--text-secondary)]">0 nodes</span>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Share"
+            disabled
+          >
+            <Users className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Export"
+            disabled
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Prominent Generate button */}
+        <Button
+          className="gap-2 bg-[var(--accent-ai)] px-3 text-white hover:bg-[var(--accent-ai)]/90"
+          aria-label="Generate with AI"
+          disabled
+        >
+          <Sparkles className="h-4 w-4" />
+          <span className="text-sm">Generate</span>
+        </Button>
+
         {/* Status dot */}
         <div className="h-2 w-2 rounded-full bg-[var(--state-success)]" />
-
-        {/* Avatar placeholder */}
-        <div className="h-8 w-8 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface-raised)]" />
       </div>
     </nav>
   );

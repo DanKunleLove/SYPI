@@ -4,50 +4,91 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-- Core infrastructure
+- P1 complete — ready for P2.1 (Canvas Node Types)
 
 ## Current Goal
 
-- Set up authentication and database layer (Units 03-04)
+- Next: P2.1 Canvas Node Types + P2.2 Canvas Interactions
 
-## Completed
+## Spec Roadmap
+
+### Completed (Foundation)
+
+| Spec | Name | Status |
+|------|------|--------|
+| 01 | Design System | DONE |
+| 02 | Editor Chrome | DONE |
+| 03 | Auth (Clerk) | DONE |
+| 03.1 | Editor Home, Dialogs & Sidebar Actions | DONE |
+| 03.2 | Prisma Models + Client + Migration | DONE |
+| 03.3 | Project API Routes | DONE |
+| 03.4 | Wire Editor Home to API | DONE |
+| 03.5 | Editor Workspace Shell | DONE |
+| 03.6 | Share Dialog | DONE |
+| 03.7 | Liveblocks Setup | DONE |
+| 03.8 | Base Canvas (React Flow + Liveblocks) | DONE |
+
+### New Phased Roadmap
+
+| Phase | Spec | Name | Status | Dependencies |
+|-------|------|------|--------|--------------|
+| P0 | P0 | Bug Fixes & Codebase Audit | DONE | — |
+| P1 | P1.1 | Database Hardening | DONE | P0 |
+| P1 | P1.2 | Dashboard | DONE | P1.1 |
+| P2 | P2.1 | Canvas Node Types | TODO | P0 |
+| P2 | P2.2 | Canvas Interactions | TODO | P2.1 |
+| P3 | P3.1 | AI Engine (Vercel AI SDK + Trigger.dev) | TODO | P1.1, P2.1 |
+| P3 | P3.2 | Prompt to Canvas | TODO | P3.1, P2.2 |
+| P4 | P4.1 | AI Design Critique | TODO | P3.1 |
+| P4 | P4.2 | Iterative Refinement | TODO | P3.2 |
+| P4 | P4.3 | Smart Suggestions | TODO | P3.1, P4.1 |
+| P5 | P5.1 | System Templates | TODO | P2.1, P2.2 |
+| P5 | P5.2 | Spec Export (Markdown) | TODO | P2.1, P3.1 |
+| P5 | P5.3 | Auto Layout (Dagre) | TODO | P2.1, P2.2 |
+| P5 | P5.4 | Connection Animations | TODO | P2.2 |
+| P6 | P6 | Deployment (Vercel) | TODO | All |
+
+### Build Order (recommended sequence)
+
+```
+P0 -> P1.1 -> P1.2 -> P2.1 -> P2.2 -> P3.1 -> P3.2 -> P4.1 -> P4.2 -> P4.3 -> P5.1 -> P5.2 -> P5.3 -> P5.4 -> P6
+```
+
+Note: P2.x (canvas) can run in parallel with P1.x (database/dashboard) since they touch different parts of the codebase.
+
+## Completed Work Summary
 
 - Project scaffolded with Next.js 16 + React 19 + Tailwind CSS 4
-- Boilerplate cleaned (globals.css stripped, SVGs removed, page.tsx replaced)
-- All 6 context files populated with spi AI specifications
-- AGENTS.md configured as entry point to context system
-- Unit 01: Design system — shadcn/ui initialized, 9 components added, CSS design tokens defined, dark-only theme enforced, lucide-react installed, cn() utility ready
-- Unit 02: Editor chrome — editor navbar (inline project name, zoom controls, breadcrumb), project sidebar (search, recent projects, Framer Motion slide-in, backdrop overlay), canvas placeholder (dot grid, empty state), prompt bar shell (disabled), editor layout page at /editor. Inspired by n8n/make.com. Framer Motion installed.
-
-## In Progress
-
-- None.
-
-## Next Up
-
-- Unit 03: Auth setup (Clerk installation, sign-in/sign-up pages, auth middleware)
-- Unit 04: Database setup (Prisma + PostgreSQL schema, Clerk webhook sync)
-- Unit 05: Dashboard (project CRUD, project cards, layout)
-- Unit 06: Canvas integration (Liveblocks, nodes, connections)
+- Design system: shadcn/ui, CSS design tokens, dark-only theme, Geist fonts
+- Editor chrome: collapsible sidebar, toolbar, canvas area, prompt bar shell
+- Auth: Clerk with dark theme, protected routes, auth pages
+- Editor home: project grid, create/rename/delete dialogs, sidebar projects list
+- Database: Prisma + Neon PostgreSQL, User/Project/Collaborator models
+- API routes: full project CRUD with auth checks
+- Workspace shell: project-aware navbar, canvas, AI sidebar placeholders, status bar
+- Share dialog: invite by email, collaborator list, copy link
+- Liveblocks: room auth, presence, cursor colors, connection status
+- Base canvas: React Flow + Liveblocks, dot grid, minimap, snap-to-grid
+- P0 bug fixes: B1 layout overlap, B3/B4 coming-soon toasts, B5 AI sidebar copy
+- P1.1 Database Hardening: User model with Clerk webhook sync (Svix verified), Collaborator with Role enum (OWNER/EDITOR/VIEWER), AIGeneration model, cascade deletes, proper indexes, seed script
+- P1.2 Dashboard: `/dashboard` page with project grid, "My Projects" / "Shared with Me" tabs, search filter, create/rename/duplicate/delete actions via server actions, empty states, loading skeletons, root redirect for signed-in users
 
 ## Open Questions
 
-- Clerk project credentials (Dan needs to create a Clerk app and get API keys)
-- PostgreSQL provider choice (Vercel Postgres, Supabase, Neon, or other)
-- Liveblocks plan and API keys
-- Trigger.dev project setup and API keys
-- Claude API key for AI generation features
+- Liveblocks API key — Dan needs to add `LIVEBLOCKS_SECRET_KEY` to `.env.local`
+- Clerk webhook — Dan needs to configure webhook endpoint in Clerk dashboard and add `CLERK_WEBHOOK_SECRET` to `.env.local`
+- Trigger.dev project setup and API keys (needed for P3.1)
+- Anthropic API key for Claude (needed for P3.1)
+- Database migration — run `npx prisma migrate dev` to apply new schema (User, Collaborator with roles, AIGeneration)
 
 ## Architecture Decisions
 
 - Dark-only theme — no light mode toggle
 - Canvas state lives in Liveblocks, not in the database
-- All AI processing goes through Trigger.dev background jobs, never in request handlers
-- spi AI differentiators vs Ghost AI: AI design critique, iterative refinement, smart suggestions, auto-layout, connection animations, richer template library
-
-## Session Notes
-
-- Dan is following the JavaScript Mastery Ghost AI tutorial step-by-step
-- Building the same core product but branded as "spi AI" with UI and AI upgrades
-- Currently at the point in the video where context files are set up and building begins
-- Next session: create the build plan and start Unit 01
+- AI: Vercel AI SDK for streaming/interactive, Trigger.dev for heavy background jobs
+- Claude (Anthropic) as the LLM provider
+- Feature specs follow phased micro-spec approach (P0-P6)
+- Old tutorial-style specs (04-17) replaced with production-focused specs
+- Dashboard uses server actions (read-heavy SSR), editor keeps API routes (client-side fetches)
+- User model synced from Clerk via webhook — API routes resolve internal DB user via clerkId
+- Dropped ProjectStatus enum (unused), kept canvasJsonPath (for Vercel Blob)
