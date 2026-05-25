@@ -55,8 +55,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Malformed JSON" }, { status: 400 });
   }
 
-  const name = (body.name as string | undefined)?.trim() || "Untitled Project";
-  const description = (body.description as string | undefined)?.trim() || null;
+  const name =
+    typeof body.name === "string" ? body.name.trim() || "Untitled Project" : "Untitled Project";
+  const description =
+    typeof body.description === "string" ? body.description.trim() || null : null;
 
   const project = await prisma.project.create({
     data: {

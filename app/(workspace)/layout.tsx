@@ -185,16 +185,26 @@ export default function WorkspaceLayout({
 
   const handleDuplicate = useCallback(
     async (id: string) => {
-      const copy = await duplicateProject(id);
-      if (copy) {
-        toast.success("Project duplicated", {
-          description: `"${copy.name}" created.`,
-          duration: 3000,
-        });
-        router.push(`/${copy.id}`);
-      } else {
+      try {
+        const copy = await duplicateProject(id);
+        if (copy) {
+          toast.success("Project duplicated", {
+            description: `"${copy.name}" created.`,
+            duration: 3000,
+          });
+          router.push(`/${copy.id}`);
+        } else {
+          toast.error("Failed to duplicate project", {
+            description: "Please try again.",
+            duration: 4000,
+          });
+        }
+      } catch (error) {
         toast.error("Failed to duplicate project", {
-          description: "Please try again.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred.",
           duration: 4000,
         });
       }

@@ -27,7 +27,7 @@ export async function PATCH(
   }
 
   const body = await request.json().catch(() => ({}));
-  const name = body.name?.trim();
+  const name = typeof body.name === "string" ? body.name.trim() : undefined;
 
   if (!name) {
     return Response.json(

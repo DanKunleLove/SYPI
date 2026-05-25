@@ -47,6 +47,8 @@ export function PresenceAvatars() {
           onClick={() => setExpanded((v) => !v)}
           className="flex items-center -space-x-2 cursor-pointer"
           aria-label={`${allUsers.length} user${allUsers.length !== 1 ? "s" : ""} online`}
+          aria-expanded={expanded}
+          aria-haspopup="true"
         >
           {visibleUsers.map((user, i) => (
             <div
