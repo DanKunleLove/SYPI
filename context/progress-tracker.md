@@ -4,50 +4,149 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-- Core infrastructure
+- P2 complete — ready for P3.1 (AI Engine)
 
 ## Current Goal
 
-- Set up authentication and database layer (Units 03-04)
+- Next: P3.1 AI Engine (Vercel AI SDK + Trigger.dev) + P3.2 Prompt to Canvas
 
-## Completed
+## Spec Roadmap
 
+### Completed (Foundation)
+
+| Spec | Name | Status |
+|------|------|--------|
+| 01 | Design System | DONE |
+| 02 | Editor Chrome | DONE |
+| 03 | Auth (Clerk) | DONE |
+| 03.1 | Editor Home, Dialogs & Sidebar Actions | DONE |
+| 03.2 | Prisma Models + Client + Migration | DONE |
+| 03.3 | Project API Routes | DONE |
+| 03.4 | Wire Editor Home to API | DONE |
+| 03.5 | Editor Workspace Shell | DONE |
+| 03.6 | Share Dialog | DONE |
+| 03.7 | Liveblocks Setup | DONE |
+| 03.8 | Base Canvas (React Flow + Liveblocks) | DONE |
+
+### New Phased Roadmap
+
+| Phase | Spec | Name | Status | Dependencies |
+|-------|------|------|--------|--------------|
+| P0 | P0 | Bug Fixes & Codebase Audit | DONE | — |
+| P1 | P1.1 | Database Hardening | DONE | P0 |
+| P1 | P1.2 | Dashboard | DONE | P1.1 |
+| UI | — | ChatGPT-Style Unified Layout | DONE | P1.2 |
+| UI | — | Canvas Autosave (Vercel Blob) | DONE | P2.1 |
+| P2 | P2.1 | Canvas Node Types | DONE | P0 |
+| P2 | P2.2 | Canvas Interactions | DONE | P2.1 |
+| P2 | — | Node Inspector Panel | DONE | P2.1 |
+| P2 | — | Edge System (Arrows + Delete) | DONE | P2.2 |
+| P2 | — | Presence Avatars + Custom Cursors | DONE | 03.7 |
+| P2 | — | Undo/Redo (Liveblocks History) | DONE | 03.7 |
+| P3 | P3.1 | AI Engine (Vercel AI SDK + Trigger.dev) | TODO | P1.1, P2.1 |
+| P3 | P3.2 | Prompt to Canvas | TODO | P3.1, P2.2 |
+| P4 | P4.1 | AI Design Critique | TODO | P3.1 |
+| P4 | P4.2 | Iterative Refinement | TODO | P3.2 |
+| P4 | P4.3 | Smart Suggestions | TODO | P3.1, P4.1 |
+| P5 | P5.1 | System Templates | TODO | P2.1, P2.2 |
+| P5 | P5.2 | Spec Export (Markdown) | TODO | P2.1, P3.1 |
+| P5 | P5.3 | Auto Layout (Dagre) | TODO | P2.1, P2.2 |
+| P5 | P5.4 | Connection Animations | TODO | P2.2 |
+| P6 | P6 | Deployment (Vercel) | TODO | All |
+
+### Build Order (recommended sequence)
+
+```
+P0 -> P1.1 -> P1.2 -> UI Restructure -> P2.1 -> P2.2 -> P3.1 -> P3.2 -> P4.1 -> P4.2 -> P4.3 -> P5.1 -> P5.2 -> P5.3 -> P5.4 -> P6
+```
+
+## Completed Work Summary
+
+### Foundation (Specs 01–03.8)
 - Project scaffolded with Next.js 16 + React 19 + Tailwind CSS 4
-- Boilerplate cleaned (globals.css stripped, SVGs removed, page.tsx replaced)
-- All 6 context files populated with spi AI specifications
-- AGENTS.md configured as entry point to context system
-- Unit 01: Design system — shadcn/ui initialized, 9 components added, CSS design tokens defined, dark-only theme enforced, lucide-react installed, cn() utility ready
-- Unit 02: Editor chrome — editor navbar (inline project name, zoom controls, breadcrumb), project sidebar (search, recent projects, Framer Motion slide-in, backdrop overlay), canvas placeholder (dot grid, empty state), prompt bar shell (disabled), editor layout page at /editor. Inspired by n8n/make.com. Framer Motion installed.
+- Design system: shadcn/ui, CSS design tokens, dark-only theme, Geist fonts
+- Auth: Clerk with dark theme, protected routes, auth pages
+- Database: Prisma + Neon PostgreSQL, User/Project/Collaborator/AIGeneration models
+- API routes: full project CRUD with auth checks, canvas save/load
+- Share dialog: invite by email, collaborator list, copy link
+- Liveblocks: room auth, presence, cursor colors, connection status
+- Base canvas: React Flow + Liveblocks, dot grid, snap-to-grid
 
-## In Progress
+### UI Restructure (ChatGPT-Style)
+- Unified `(workspace)` route group — sidebar always present across dashboard and canvas
+- `/` = dashboard home (project grid, tabs, search)
+- `/[projectId]` = canvas workspace
+- ChatGPT-style collapsible sidebar: logo, new project, recent/shared projects, search, profile
+- Sidebar collapses to 56px icon rail with logo, +, and avatar
+- Auto-create DB user on first Clerk auth (dev convenience, no webhook required)
 
-- None.
+### P2.1 Canvas Node Types
+- 9 custom node types: Service, Database, Queue, Cache, Gateway, Client, Storage, Function, Custom
+- Each with distinct icon, accent color, type badge
+- Connection handles with +/− indicators (target/source)
+- Double-click to edit label inline (persists to Liveblocks)
+- Double-click description to add/edit (persists to Liveblocks)
+- Animated entry (scale + fade via Framer Motion)
+- Custom color override support
 
-## Next Up
+### P2.2 Canvas Interactions
+- Node palette toolbar (bottom-center): click or drag to add nodes
+- Keyboard shortcuts: Delete, Ctrl+A, Ctrl+D, Ctrl+C/V, Escape
+- Undo/Redo: Ctrl+Z / Ctrl+Y (via Liveblocks history)
+- Canvas toolbar (bottom-left): zoom in/out/fit + undo/redo buttons
+- Custom edge component with delete button (× at midpoint on hover)
+- Directional arrows on edges (MarkerType.ArrowClosed)
+- Animated smooth-step edges
+- Edge selection + deletion via keyboard
+- Drag-select box for multi-select
+- Empty state with "Start from prompt", "Build manually", "Use a template" options
 
-- Unit 03: Auth setup (Clerk installation, sign-in/sign-up pages, auth middleware)
-- Unit 04: Database setup (Prisma + PostgreSQL schema, Clerk webhook sync)
-- Unit 05: Dashboard (project CRUD, project cards, layout)
-- Unit 06: Canvas integration (Liveblocks, nodes, connections)
+### Node Inspector Panel
+- Right panel (360px) slides in when node is clicked
+- Identity section: label, description, category dropdown
+- Color picker: 12-color palette with reset to default
+- System config: dynamic fields per category (Technology, Port, Protocol, Scaling, DB Type, etc.)
+- Connections list: shows linked nodes with direction arrows
+- Notes section: free-form textarea
+- Delete node button
+- Mutually exclusive with AI panel (one right panel at a time)
+
+### Collaboration Features
+- Presence avatars (top-right): shows active users, expandable dropdown
+- Custom cursors: small 16px SVG arrow with colored name label per user
+- Real-time cursor tracking via Liveblocks
+- All node/edge changes sync in real-time across collaborators
+
+### Canvas Persistence (Vercel Blob)
+- PUT /api/projects/[projectId]/canvas — saves canvas JSON to Vercel Blob
+- GET /api/projects/[projectId]/canvas — loads saved canvas from Blob
+- Autosave hook: debounced 3s save on any canvas change
+- Manual save: Ctrl+S keyboard shortcut + save button in toolbar
+- Save status indicator: toolbar icon (save/spinner/checkmark) + status bar text
+- Canvas load on mount: restores from Blob if Liveblocks room is empty
+
+### AI Panel Shell
+- n8n-style right panel, triggered by Generate button
+- Chat tab with input, quick prompts (E-commerce, Chat system, CI/CD)
+- Suggestions tab (placeholder)
+- Spec Preview tab (placeholder)
+- "AI Twin" branding
 
 ## Open Questions
 
-- Clerk project credentials (Dan needs to create a Clerk app and get API keys)
-- PostgreSQL provider choice (Vercel Postgres, Supabase, Neon, or other)
-- Liveblocks plan and API keys
-- Trigger.dev project setup and API keys
-- Claude API key for AI generation features
+- Trigger.dev project setup and API keys (needed for P3.1)
+- Anthropic API key for Claude (needed for P3.1)
+- Clerk webhook — configure in Clerk dashboard for production (dev uses auto-create)
 
 ## Architecture Decisions
 
 - Dark-only theme — no light mode toggle
-- Canvas state lives in Liveblocks, not in the database
-- All AI processing goes through Trigger.dev background jobs, never in request handlers
-- spi AI differentiators vs Ghost AI: AI design critique, iterative refinement, smart suggestions, auto-layout, connection animations, richer template library
-
-## Session Notes
-
-- Dan is following the JavaScript Mastery Ghost AI tutorial step-by-step
-- Building the same core product but branded as "spi AI" with UI and AI upgrades
-- Currently at the point in the video where context files are set up and building begins
-- Next session: create the build plan and start Unit 01
+- Canvas state lives in Liveblocks (real-time) + Vercel Blob (persistence)
+- AI: Vercel AI SDK for streaming/interactive, Trigger.dev for heavy background jobs
+- Claude (Anthropic) as the LLM provider
+- Unified layout: ChatGPT-style sidebar always present, content area switches
+- Right panel: mutually exclusive — AI panel OR node inspector, never both
+- Node config fields flattened into CanvasNodeData (no nested objects) for Liveblocks compatibility
+- Custom cursor via Liveblocks Cursors components prop
+- Autosave debounced 3s + manual Ctrl+S save
+- User auto-created on first auth (no webhook required in dev)
