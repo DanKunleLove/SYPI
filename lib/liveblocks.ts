@@ -8,8 +8,13 @@ const globalForLiveblocks = globalThis as unknown as {
 
 export function getLiveblocks(): Liveblocks {
   if (!globalForLiveblocks.liveblocks) {
+    if (!process.env.LIVEBLOCKS_SECRET_KEY) {
+      throw new Error(
+        "LIVEBLOCKS_SECRET_KEY is not set. Add it to your environment variables."
+      );
+    }
     globalForLiveblocks.liveblocks = new Liveblocks({
-      secret: process.env.LIVEBLOCKS_SECRET_KEY!,
+      secret: process.env.LIVEBLOCKS_SECRET_KEY,
     });
   }
   return globalForLiveblocks.liveblocks;

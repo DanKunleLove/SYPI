@@ -20,6 +20,7 @@ export function useCanvasAutosave({
 }: UseCanvasAutosaveOptions) {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string>("");
   const isMountedRef = useRef(true);
 
@@ -27,6 +28,7 @@ export function useCanvasAutosave({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, []);
 
@@ -53,7 +55,8 @@ export function useCanvasAutosave({
         lastSavedRef.current = snapshot;
         setStatus("saved");
         // Reset to idle after 2s
-        setTimeout(() => {
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = setTimeout(() => {
           if (isMountedRef.current) setStatus("idle");
         }, 2000);
       } else {

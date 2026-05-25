@@ -75,7 +75,7 @@ export async function renameProject(projectId: string, name: string) {
 
   const updated = await prisma.project.update({
     where: { id: projectId },
-    data: { name: name.trim() },
+    data: { name: name.trim() || "Untitled Project" },
   });
 
   revalidatePath("/");
