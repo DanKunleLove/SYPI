@@ -43,4 +43,7 @@ next-env.d.ts
 # claude code local settings
 .claude/*.local.json
 
+# claude code agent skills (auto-installed references)
+.agents/
+
 /app/generated/prisma
