@@ -140,7 +140,7 @@ export function ShareDialog({
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/editor/${projectId}`
+        `${window.location.origin}/${projectId}`
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -343,8 +343,8 @@ export function ShareDialog({
         <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-2">
           <span className="flex-1 truncate text-xs text-[var(--text-muted)]">
             {typeof window !== "undefined"
-              ? `${window.location.origin}/editor/${projectId}`
-              : `/editor/${projectId}`}
+              ? `${window.location.origin}/${projectId}`
+              : `/${projectId}`}
           </span>
           <Button
             variant="ghost"

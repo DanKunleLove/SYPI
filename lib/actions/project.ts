@@ -1,17 +1,13 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { getDbUser } from "@/lib/project-access";
 
-/** Get the internal DB user from Clerk auth */
+/** Get the internal DB user from Clerk auth — auto-creates if missing */
 async function requireUser() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) throw new Error("Unauthorized");
-
-  const user = await prisma.user.findUnique({ where: { clerkId } });
-  if (!user) throw new Error("User not synced");
-
+  const user = await getDbUser();
+  if (!user) throw new Error("Unauthorized");
   return user;
 }
 
@@ -66,7 +62,7 @@ export async function createProject(data: { name: string; description?: string }
     },
   });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/");
   return project;
 }
 
@@ -82,7 +78,7 @@ export async function renameProject(projectId: string, name: string) {
     data: { name: name.trim() },
   });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/");
   return updated;
 }
 
@@ -101,7 +97,7 @@ export async function duplicateProject(projectId: string) {
     },
   });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/");
   return copy;
 }
 
@@ -114,6 +110,6 @@ export async function deleteProject(projectId: string) {
 
   await prisma.project.delete({ where: { id: projectId } });
 
-  revalidatePath("/dashboard");
+  revalidatePath("/");
   return { success: true };
 }

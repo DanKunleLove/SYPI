@@ -1,29 +1,31 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
-import { Sidebar, useSidebarState } from "@/components/editor/sidebar";
-import { EditorNavbar } from "@/components/editor/editor-navbar";
-import { EditorHome, EditorCanvas } from "@/app/editor/page";
+import { Sidebar, useSidebarState } from "@/components/workspace/sidebar";
 import { CreateProjectDialog } from "@/components/editor/create-project-dialog";
 import { RenameProjectDialog } from "@/components/editor/rename-project-dialog";
 import { DeleteProjectDialog } from "@/components/editor/delete-project-dialog";
 import { useProjects } from "@/hooks/use-projects";
 import { useProjectDialogs } from "@/hooks/use-project-dialogs";
+import { useCreateProjectListener } from "@/hooks/use-create-project-event";
 
-export default function EditorLayout({
+export default function WorkspaceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const { collapsed, toggle } = useSidebarState();
+  const router = useRouter();
+  const pathname = usePathname();
+
   const {
     projects,
-    filteredProjects,
-    activeProject,
+    ownedProjects,
+    sharedProjects,
     activeProjectId,
     searchQuery,
     loading,
@@ -44,6 +46,41 @@ export default function EditorLayout({
     close,
   } = useProjectDialogs();
 
+  // Sync activeProjectId with URL
+  useEffect(() => {
+    const match = pathname.match(/^\/([^\/]+)$/);
+    if (match && match[1] !== "") {
+      const projectId = match[1];
+      if (activeProjectId !== projectId) {
+        setActiveProjectId(projectId);
+      }
+    } else if (pathname === "/") {
+      setActiveProjectId(null);
+    }
+  }, [pathname, activeProjectId, setActiveProjectId]);
+
+  // Navigate to project
+  const handleProjectClick = useCallback(
+    (id: string) => {
+      setActiveProjectId(id);
+      router.push(`/${id}`);
+    },
+    [setActiveProjectId, router]
+  );
+
+  // Filter projects by search query
+  const filteredOwned = useMemo(() => {
+    if (!searchQuery.trim()) return ownedProjects;
+    const q = searchQuery.toLowerCase();
+    return ownedProjects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [ownedProjects, searchQuery]);
+
+  const filteredShared = useMemo(() => {
+    if (!searchQuery.trim()) return sharedProjects;
+    const q = searchQuery.toLowerCase();
+    return sharedProjects.filter((p) => p.name.toLowerCase().includes(q));
+  }, [sharedProjects, searchQuery]);
+
   // Keyboard shortcut: [ to toggle sidebar
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -57,6 +94,12 @@ export default function EditorLayout({
     return () => window.removeEventListener("keydown", handleKey);
   }, [toggle]);
 
+  // Listen for "create project" events dispatched from child pages
+  useEffect(() => {
+    const cleanup = useCreateProjectListener(openCreate);
+    return cleanup;
+  }, [openCreate]);
+
   const handleCreate = useCallback(
     async (data: { name: string; description: string; template: string }) => {
       try {
@@ -66,6 +109,7 @@ export default function EditorLayout({
             description: `"${project.name}" is ready.`,
             duration: 3000,
           });
+          router.push(`/${project.id}`);
         } else {
           toast.error("Failed to create project", {
             description: "Please try again.",
@@ -74,12 +118,15 @@ export default function EditorLayout({
         }
       } catch (error) {
         toast.error("Failed to create project", {
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred.",
           duration: 4000,
         });
       }
     },
-    [addProject]
+    [addProject, router]
   );
 
   const handleRename = useCallback(
@@ -96,7 +143,10 @@ export default function EditorLayout({
         }
       } catch (error) {
         toast.error("Failed to rename project", {
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred.",
           duration: 4000,
         });
       }
@@ -113,6 +163,7 @@ export default function EditorLayout({
             description: `"${deleted.name}" has been removed.`,
             duration: 5000,
           });
+          router.push("/");
         } else {
           toast.error("Failed to delete project", {
             description: "Please try again.",
@@ -121,12 +172,15 @@ export default function EditorLayout({
         }
       } catch (error) {
         toast.error("Failed to delete project", {
-          description: error instanceof Error ? error.message : "An unexpected error occurred.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred.",
           duration: 4000,
         });
       }
     },
-    [deleteProject]
+    [deleteProject, router]
   );
 
   const handleDuplicate = useCallback(
@@ -137,6 +191,7 @@ export default function EditorLayout({
           description: `"${copy.name}" created.`,
           duration: 3000,
         });
+        router.push(`/${copy.id}`);
       } else {
         toast.error("Failed to duplicate project", {
           description: "Please try again.",
@@ -144,18 +199,14 @@ export default function EditorLayout({
         });
       }
     },
-    [duplicateProject]
+    [duplicateProject, router]
   );
-
-  const pathname = usePathname();
-  // When on /editor/[roomId], the workspace shell renders as children — skip editor home/canvas
-  const isWorkspaceRoute = pathname !== "/editor" && pathname.startsWith("/editor/");
 
   // Mobile overlay state
   const isMobileOpen = !collapsed;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[var(--bg-base)]">
       {/* Mobile backdrop scrim */}
       <AnimatePresence>
         {isMobileOpen && (
@@ -171,16 +222,17 @@ export default function EditorLayout({
         )}
       </AnimatePresence>
 
-      {/* Sidebar — overlay on mobile, inline on desktop */}
+      {/* Sidebar */}
       <div className="z-50 md:static md:z-auto max-md:fixed max-md:inset-y-0 max-md:left-0">
         <Sidebar
           collapsed={collapsed}
           onToggle={toggle}
-          projects={filteredProjects}
+          ownedProjects={filteredOwned}
+          sharedProjects={filteredShared}
           activeProjectId={activeProjectId}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onProjectClick={setActiveProjectId}
+          onProjectClick={handleProjectClick}
           onNewProject={openCreate}
           onRenameProject={openRename}
           onDeleteProject={openDelete}
@@ -188,25 +240,9 @@ export default function EditorLayout({
         />
       </div>
 
-      {/* Main content */}
+      {/* Main content — children switch between home and canvas */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <EditorNavbar />
-        <main className="relative flex flex-1 flex-col overflow-hidden">
-          {isWorkspaceRoute ? (
-            children
-          ) : (
-            <>
-              {activeProject ? <EditorCanvas /> : (
-                <EditorHome
-                  projects={projects}
-                  loading={loading}
-                  onNewProject={openCreate}
-                  onProjectClick={setActiveProjectId}
-                />
-              )}
-            </>
-          )}
-        </main>
+        {children}
       </div>
 
       {/* Dialogs */}
@@ -228,7 +264,6 @@ export default function EditorLayout({
         onDelete={handleDelete}
       />
 
-      {/* Toast container */}
       <Toaster position="bottom-right" />
     </div>
   );

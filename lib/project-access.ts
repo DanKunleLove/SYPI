@@ -2,12 +2,30 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import type { Project } from "@/app/generated/prisma/client";
 
-/** Resolve the internal User record from Clerk auth. Returns null if unauthenticated or user not synced. */
+/** Resolve the internal User record from Clerk auth. Auto-creates if missing (dev convenience). */
 export async function getDbUser() {
   const { userId: clerkId } = await auth();
   if (!clerkId) return null;
 
-  const user = await prisma.user.findUnique({ where: { clerkId } });
+  const existing = await prisma.user.findUnique({ where: { clerkId } });
+  if (existing) return existing;
+
+  // User authenticated via Clerk but not in DB — auto-create (handles missing webhook in dev)
+  const clerkUser = await currentUser();
+  if (!clerkUser) return null;
+
+  const email = clerkUser.emailAddresses?.[0]?.emailAddress;
+  if (!email) return null;
+
+  const user = await prisma.user.create({
+    data: {
+      clerkId,
+      email,
+      name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || null,
+      imageUrl: clerkUser.imageUrl ?? null,
+    },
+  });
+
   return user;
 }
 
@@ -28,11 +46,8 @@ type AccessResult =
 
 /** Fetch a project and verify the caller has access */
 export async function getProjectWithAccess(projectId: string): Promise<AccessResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { project: null, role: null, reason: "unauthenticated" };
-
-  const dbUser = await prisma.user.findUnique({ where: { clerkId } });
-  if (!dbUser) return { project: null, role: null, reason: "user-not-synced" };
+  const dbUser = await getDbUser();
+  if (!dbUser) return { project: null, role: null, reason: "unauthenticated" };
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },

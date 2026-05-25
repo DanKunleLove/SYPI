@@ -29,6 +29,8 @@ function toUiProject(api: ApiProject, index: number): Project {
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [ownedProjects, setOwnedProjects] = useState<Project[]>([]);
+  const [sharedProjects, setSharedProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -41,8 +43,12 @@ export function useProjects() {
         return;
       }
       const data = await res.json();
-      const mapped = (data.projects as ApiProject[]).map(toUiProject);
-      setProjects(mapped);
+      const mappedOwned = (data.owned as ApiProject[] ?? []).map((p, i) => toUiProject(p, i));
+      const mappedShared = (data.shared as ApiProject[] ?? []).map((p, i) => toUiProject(p, i + 100)); // offset colors
+      
+      setOwnedProjects(mappedOwned);
+      setSharedProjects(mappedShared);
+      setProjects([...mappedOwned, ...mappedShared]);
     } catch (error) {
       console.error("Failed to fetch projects:", error);
     } finally {
@@ -77,10 +83,16 @@ export function useProjects() {
 
       const { project: apiProject } = await res.json();
       let project: Project | null = null;
+      
       setProjects((prev) => {
         project = toUiProject(apiProject, prev.length);
         return [project, ...prev];
       });
+      setOwnedProjects((prev) => {
+        if (!project) return prev;
+        return [project, ...prev];
+      });
+      
       setActiveProjectId(apiProject.id);
       return project;
     },
@@ -97,11 +109,12 @@ export function useProjects() {
 
       if (!res.ok) return false;
 
-      setProjects((prev) =>
-        prev.map((p) =>
-          p.id === id ? { ...p, name: newName, slug: slugify(newName) } : p
-        )
-      );
+      const updateName = (p: Project) =>
+        p.id === id ? { ...p, name: newName, slug: slugify(newName) } : p;
+
+      setProjects((prev) => prev.map(updateName));
+      setOwnedProjects((prev) => prev.map(updateName));
+      setSharedProjects((prev) => prev.map(updateName));
       return true;
     },
     []
@@ -113,10 +126,14 @@ export function useProjects() {
       if (!res.ok) return null;
 
       let target: Project | null = null;
+      
       setProjects((prev) => {
         target = prev.find((p) => p.id === id) ?? null;
         return prev.filter((p) => p.id !== id);
       });
+      setOwnedProjects((prev) => prev.filter((p) => p.id !== id));
+      setSharedProjects((prev) => prev.filter((p) => p.id !== id));
+      
       setActiveProjectId((prev) => (prev === id ? null : prev));
       return target;
     },
@@ -125,11 +142,10 @@ export function useProjects() {
 
   const duplicateProject = useCallback(
     async (id: string): Promise<Project | null> => {
-      // Read current state synchronously via a temporary variable
       let original: Project | null = null;
       setProjects((prev) => {
         original = prev.find((p) => p.id === id) ?? null;
-        return prev; // no mutation, just reading
+        return prev;
       });
       if (!original) return null;
 
@@ -146,6 +162,7 @@ export function useProjects() {
 
       const { project: apiProject } = await res.json();
       let copy: Project | null = null;
+      
       setProjects((prev) => {
         copy = toUiProject(apiProject, prev.length);
         const idx = prev.findIndex((p) => p.id === id);
@@ -153,6 +170,17 @@ export function useProjects() {
         next.splice(idx + 1, 0, copy);
         return next;
       });
+      setOwnedProjects((prev) => {
+        if (!copy) return prev;
+        const idx = prev.findIndex((p) => p.id === id);
+        const next = [...prev];
+        if (idx === -1) {
+          return [copy, ...prev];
+        }
+        next.splice(idx + 1, 0, copy);
+        return next;
+      });
+      
       return copy;
     },
     []
@@ -160,6 +188,8 @@ export function useProjects() {
 
   return {
     projects,
+    ownedProjects,
+    sharedProjects,
     filteredProjects,
     activeProject,
     activeProjectId,

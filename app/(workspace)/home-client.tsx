@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Search, GitBranch, PanelLeftOpen } from "lucide-react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { useSidebarState } from "@/components/workspace/sidebar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DashboardNavbar } from "@/components/dashboard/dashboard-navbar";
 import { ProjectGrid } from "@/components/dashboard/project-grid";
-import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import {
   createProject,
   renameProject,
@@ -16,8 +16,9 @@ import {
 } from "@/lib/actions/project";
 import type { ProjectCardData } from "@/components/dashboard/project-card";
 import { toast } from "sonner";
+import { dispatchCreateProject } from "@/hooks/use-create-project-event";
 
-export function DashboardClient({
+export function HomeClient({
   myProjects: initialMyProjects,
   sharedProjects: initialSharedProjects,
 }: {
@@ -25,12 +26,10 @@ export function DashboardClient({
   sharedProjects: ProjectCardData[];
 }) {
   const router = useRouter();
+  const { collapsed, toggle: toggleSidebar } = useSidebarState();
   const [, startTransition] = useTransition();
   const [tab, setTab] = useState<"my" | "shared">("my");
   const [searchQuery, setSearchQuery] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const myProjects = initialMyProjects;
   const sharedProjects = initialSharedProjects;
@@ -56,7 +55,7 @@ export function DashboardClient({
   }, [sharedProjects, searchQuery]);
 
   function handleOpen(id: string) {
-    router.push(`/editor/${id}`);
+    router.push(`/${id}`);
   }
 
   function handleRename(id: string) {
@@ -98,20 +97,52 @@ export function DashboardClient({
   }
 
   function handleShare(id: string) {
-    router.push(`/editor/${id}?share=true`);
-  }
-
-  async function handleCreate(data: { name: string; description: string }) {
-    const project = await createProject(data);
-    router.push(`/editor/${project.id}`);
+    router.push(`/${id}?share=true`);
   }
 
   return (
-    <>
-      <DashboardNavbar searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Top bar */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-6 gap-4">
+        <div className="flex items-center gap-2">
+          {collapsed && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              aria-label="Open sidebar"
+              onClick={toggleSidebar}
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </Button>
+          )}
+          <GitBranch className="h-5 w-5 text-[var(--accent-primary)]" />
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            Dashboard
+          </span>
+        </div>
 
+        {/* Search */}
+        <div className="relative max-w-sm flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            type="text"
+            placeholder="Search projects..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] py-1.5 pl-9 pr-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-colors focus:border-[var(--border-subtle)]"
+          />
+        </div>
+      </div>
+
+      {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-5xl px-6 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="mx-auto max-w-5xl px-6 py-8"
+        >
           {/* Header */}
           <div className="mb-6 flex items-center justify-between">
             <Tabs
@@ -126,7 +157,7 @@ export function DashboardClient({
 
             <Button
               className="gap-2"
-              onClick={() => setCreateOpen(true)}
+              onClick={dispatchCreateProject}
             >
               <Plus className="h-4 w-4" />
               New Project
@@ -143,7 +174,7 @@ export function DashboardClient({
               onDuplicate={handleDuplicate}
               onDelete={handleDelete}
               onShare={handleShare}
-              onCreateProject={() => setCreateOpen(true)}
+              onCreateProject={dispatchCreateProject}
             />
           ) : (
             <ProjectGrid
@@ -156,14 +187,8 @@ export function DashboardClient({
               onShare={handleShare}
             />
           )}
-        </div>
+        </motion.div>
       </div>
-
-      <CreateProjectDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onSubmit={handleCreate}
-      />
-    </>
+    </div>
   );
 }

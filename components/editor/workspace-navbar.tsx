@@ -23,7 +23,7 @@ export function WorkspaceNavbar({
       {/* Left — back + breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
         <Link
-          href="/editor"
+          href="/"
           aria-label="Back to projects"
           className={buttonVariants({ variant: "ghost", size: "icon", className: "h-7 w-7 text-[var(--text-muted)] hover:text-[var(--text-primary)]" })}
         >

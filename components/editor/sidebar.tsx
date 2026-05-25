@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -45,10 +45,14 @@ const NAV_ITEMS: NavItem[] = [
   { icon: Settings, label: "Settings", href: "#", section: "tools" },
 ];
 
+import { ChevronDown, ChevronRight } from "lucide-react";
+
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
   projects: Project[];
+  ownedProjects: Project[];
+  sharedProjects: Project[];
   activeProjectId: string | null;
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -63,6 +67,8 @@ export function Sidebar({
   collapsed,
   onToggle,
   projects,
+  ownedProjects,
+  sharedProjects,
   activeProjectId,
   searchQuery,
   onSearchChange,
@@ -74,7 +80,12 @@ export function Sidebar({
 }: SidebarProps) {
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
+  const [isOwnedExpanded, setIsOwnedExpanded] = useState(true);
+  const [isSharedExpanded, setIsSharedExpanded] = useState(true);
   const [mounted, setMounted] = useState(false);
+
+  const profileContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => setMounted(true), []);
 
   const sections = [
@@ -82,15 +93,90 @@ export function Sidebar({
     { key: "tools" as const, label: "TOOLS" },
   ];
 
+  // Programmatic click-dispatcher to trigger Clerk popup on row clicks
+  const handleProfileClick = useCallback(() => {
+    if (!profileContainerRef.current) return;
+    const clerkButton = profileContainerRef.current.querySelector("button.cl-userButtonTrigger");
+    if (clerkButton instanceof HTMLElement) {
+      clerkButton.click();
+    } else {
+      const anyButton = profileContainerRef.current.querySelector("button");
+      if (anyButton instanceof HTMLElement) {
+        anyButton.click();
+      }
+    }
+  }, []);
+
+  const renderProjectItem = (project: Project) => {
+    const isActive = project.id === activeProjectId;
+    const isHovered = project.id === hoveredProjectId;
+    return (
+      <div
+        key={project.id}
+        className={cn(
+          "group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
+          isActive
+            ? "bg-[var(--bg-surface-raised)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)]"
+        )}
+        onClick={() => onProjectClick(project.id)}
+        onMouseEnter={() => setHoveredProjectId(project.id)}
+        onMouseLeave={() => setHoveredProjectId(null)}
+      >
+        {/* Active indicator bar */}
+        {isActive && (
+          <motion.div
+            layoutId="project-active"
+            className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--accent-primary)]"
+            transition={{ duration: 0.15, ease: "easeOut" }}
+          />
+        )}
+
+        {/* Color dot */}
+        <div
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ backgroundColor: project.color }}
+        />
+
+        {/* Name */}
+        <span className="flex-1 truncate text-xs">
+          {project.name}
+        </span>
+
+        {/* Context menu */}
+        <div
+          className={cn(
+            "shrink-0 transition-opacity",
+            isHovered || isActive ? "opacity-100" : "opacity-0"
+          )}
+        >
+          <ProjectContextMenu
+            project={project}
+            onRename={onRenameProject}
+            onDelete={onDeleteProject}
+            onDuplicate={onDuplicateProject}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <motion.aside
       animate={{ width: collapsed ? 48 : 240 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="flex h-full shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-surface)]"
     >
-      {/* Logo area */}
-      <div className="flex h-12 items-center border-b border-[var(--border-default)] px-3">
-        <div className="flex items-center gap-2 overflow-hidden">
+      {/* Logo and Collapse Top area */}
+      <div
+        className={cn(
+          "flex h-12 items-center border-b border-[var(--border-default)] px-3 justify-between",
+          collapsed && "justify-center cursor-pointer"
+        )}
+        onClick={collapsed ? onToggle : undefined}
+        title={collapsed ? "Expand sidebar" : undefined}
+      >
+        <div className="flex items-center gap-2 overflow-hidden select-none">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-primary)]">
             <span className="text-xs font-bold text-white">S</span>
           </div>
@@ -105,6 +191,20 @@ export function Sidebar({
             </motion.span>
           )}
         </div>
+        {!collapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0"
+            aria-label="Collapse sidebar"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* New Project button */}
@@ -134,18 +234,8 @@ export function Sidebar({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="flex flex-col overflow-hidden border-b border-[var(--border-default)]"
           >
-            {/* Section header */}
-            <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Projects
-              </p>
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--bg-surface-raised)] px-1 text-[10px] text-[var(--text-muted)]">
-                {projects.length}
-              </span>
-            </div>
-
             {/* Search */}
-            <div className="px-2 pb-2">
+            <div className="px-2 pt-2 pb-2">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
                 <Input
@@ -157,70 +247,92 @@ export function Sidebar({
               </div>
             </div>
 
-            {/* Project list */}
-            <ScrollArea className="max-h-44">
-              <div className="px-2 pb-2">
-                {projects.length === 0 ? (
-                  <p className="px-2 py-3 text-center text-xs text-[var(--text-muted)]">
-                    {searchQuery ? "No projects found" : "No projects yet"}
-                  </p>
-                ) : (
-                  <div className="space-y-0.5">
-                    {projects.map((project) => {
-                      const isActive = project.id === activeProjectId;
-                      const isHovered = project.id === hoveredProjectId;
-                      return (
-                        <div
-                          key={project.id}
-                          className={cn(
-                            "group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer",
-                            isActive
-                              ? "bg-[var(--bg-surface-raised)] text-[var(--text-primary)]"
-                              : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)]"
-                          )}
-                          onClick={() => onProjectClick(project.id)}
-                          onMouseEnter={() => setHoveredProjectId(project.id)}
-                          onMouseLeave={() => setHoveredProjectId(null)}
-                        >
-                          {/* Active indicator */}
-                          {isActive && (
-                            <motion.div
-                              layoutId="project-active"
-                              className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--accent-primary)]"
-                              transition={{ duration: 0.15, ease: "easeOut" }}
-                            />
-                          )}
+            {/* Scrollable list area */}
+            <ScrollArea className="max-h-64">
+              <div className="px-2 pb-2 space-y-3">
+                {/* 1. Owned Projects Folder */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setIsOwnedExpanded(!isOwnedExpanded)}
+                    className="flex w-full items-center justify-between px-1 py-1 hover:text-[var(--text-primary)] transition-colors select-none text-[var(--text-muted)]"
+                  >
+                    <div className="flex items-center gap-1">
+                      {isOwnedExpanded ? (
+                        <ChevronDown className="h-3 w-3 shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 shrink-0" />
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-wider">
+                        My Projects
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-semibold bg-[var(--bg-surface-raised)] text-[var(--text-muted)] px-1 rounded">
+                      {ownedProjects.length}
+                    </span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isOwnedExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeInOut" }}
+                        className="overflow-hidden mt-1 pl-1 space-y-0.5"
+                      >
+                        {ownedProjects.length === 0 ? (
+                          <p className="px-2 py-1.5 text-left text-[11px] text-[var(--text-muted)]">
+                            {searchQuery ? "No matches" : "No owned projects"}
+                          </p>
+                        ) : (
+                          ownedProjects.map(renderProjectItem)
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
 
-                          {/* Color dot */}
-                          <div
-                            className="h-2 w-2 shrink-0 rounded-full"
-                            style={{ backgroundColor: project.color }}
-                          />
-
-                          {/* Name */}
-                          <span className="flex-1 truncate text-xs">
-                            {project.name}
-                          </span>
-
-                          {/* Context menu */}
-                          <div
-                            className={cn(
-                              "shrink-0 transition-opacity",
-                              isHovered || isActive ? "opacity-100" : "opacity-0"
-                            )}
-                          >
-                            <ProjectContextMenu
-                              project={project}
-                              onRename={onRenameProject}
-                              onDelete={onDeleteProject}
-                              onDuplicate={onDuplicateProject}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* 2. Shared Projects Folder */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSharedExpanded(!isSharedExpanded)}
+                    className="flex w-full items-center justify-between px-1 py-1 hover:text-[var(--text-primary)] transition-colors select-none text-[var(--text-muted)]"
+                  >
+                    <div className="flex items-center gap-1">
+                      {isSharedExpanded ? (
+                        <ChevronDown className="h-3 w-3 shrink-0" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 shrink-0" />
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-wider">
+                        Shared with Me
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-semibold bg-[var(--bg-surface-raised)] text-[var(--text-muted)] px-1 rounded">
+                      {sharedProjects.length}
+                    </span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isSharedExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeInOut" }}
+                        className="overflow-hidden mt-1 pl-1 space-y-0.5"
+                      >
+                        {sharedProjects.length === 0 ? (
+                          <p className="px-2 py-1.5 text-left text-[11px] text-[var(--text-muted)]">
+                            {searchQuery ? "No matches" : "None shared"}
+                          </p>
+                        ) : (
+                          sharedProjects.map(renderProjectItem)
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </ScrollArea>
           </motion.div>
@@ -287,27 +399,37 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* User area */}
-      <div className="border-t border-[var(--border-default)] px-2 py-3">
-        <div className={cn("flex items-center", collapsed ? "justify-center" : "px-1 gap-2")}>
-          {mounted && (
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "h-8 w-8",
-                },
-              }}
-            />
-          )}
+      {/* User area - Entire row clickable */}
+      <div
+        ref={profileContainerRef}
+        onClick={handleProfileClick}
+        title={collapsed ? "Manage Profile" : undefined}
+        className={cn(
+          "group border-t border-[var(--border-default)] px-2 py-2.5 cursor-pointer transition-colors duration-150 hover:bg-[var(--bg-surface-raised)]/60 select-none",
+          collapsed && "py-3"
+        )}
+      >
+        <div className={cn("flex items-center", collapsed ? "justify-center" : "px-1 gap-2.5")}>
+          <div className="shrink-0 pointer-events-none">
+            {mounted && (
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "h-7 w-7",
+                  },
+                }}
+              />
+            )}
+          </div>
           {!collapsed && (
-            <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.05, duration: 0.15 }}
-              className="truncate text-sm text-[var(--text-secondary)]"
-            >
-              Profile
-            </motion.span>
+            <div className="flex flex-1 flex-col overflow-hidden items-start">
+              <span className="truncate text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-hover)] text-left w-full">
+                Active Account
+              </span>
+              <span className="truncate text-[10px] text-[var(--text-muted)] text-left w-full">
+                Profile & Settings
+              </span>
+            </div>
           )}
         </div>
       </div>

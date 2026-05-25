@@ -4,38 +4,122 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
-  MiniMap,
   useReactFlow,
+  MarkerType,
+  type NodeTypes,
+  type EdgeTypes,
 } from "@xyflow/react";
 import { useLiveblocksFlow, Cursors } from "@liveblocks/react-flow";
-import { useCallback, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { GitBranch, MessageSquare, LayoutTemplate, Upload, Mouse, ZoomIn } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  GitBranch,
+  MessageSquare,
+  LayoutTemplate,
+  Mouse,
+  ZoomIn,
+  Wrench,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PromptBar } from "@/components/editor/prompt-bar";
-import type { CanvasNode, CanvasEdge } from "@/types/canvas";
+import { SystemNode } from "@/components/canvas/system-node";
+import { CustomEdge } from "@/components/canvas/custom-edge";
+import { NodePalette } from "@/components/canvas/node-palette";
+import { PresenceAvatars } from "@/components/canvas/presence-avatars";
+import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
+import { CustomCursor } from "@/components/canvas/custom-cursor";
+import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
+import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave";
+import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
+import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
 import "@xyflow/react/dist/style.css";
 
+const nodeTypes: NodeTypes = {
+  systemNode: SystemNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  custom: CustomEdge,
+};
+
 interface WorkspaceCanvasProps {
+  projectId: string;
   onNodeCountChange?: (count: number) => void;
   onZoomChange?: (zoom: number) => void;
+  onNodeSelect?: (nodeId: string | null) => void;
+  onSaveStatusChange?: (status: SaveStatus) => void;
+  onSaveReady?: (saveFn: () => Promise<void>) => void;
 }
 
 export function WorkspaceCanvas({
+  projectId,
   onNodeCountChange,
   onZoomChange,
+  onNodeSelect,
+  onSaveReady,
+  onSaveStatusChange,
 }: WorkspaceCanvasProps) {
   const flowResult = useLiveblocksFlow<CanvasNode, CanvasEdge>({
     suspense: true,
   });
-  // suspense: true guarantees nodes/edges are never null
   const nodes = flowResult.nodes as CanvasNode[];
   const edges = flowResult.edges as CanvasEdge[];
   const { onNodesChange, onEdgesChange, onConnect, onDelete } = flowResult;
 
   const reactFlowInstance = useReactFlow();
   const prevNodeCount = useRef(nodes.length);
+  const [showEmptyState, setShowEmptyState] = useState(true);
+  const hasLoadedRef = useRef(false);
+
+  // Register keyboard shortcuts
+  useCanvasShortcuts();
+
+  // Autosave canvas to Vercel Blob (debounced 3s)
+  const { status: saveStatus, save: manualSave } = useCanvasAutosave({
+    projectId,
+    nodes,
+    edges,
+  });
+
+  // Notify parent of save status changes
+  useEffect(() => {
+    onSaveStatusChange?.(saveStatus);
+  }, [saveStatus, onSaveStatusChange]);
+
+  // Expose manual save function to parent
+  useEffect(() => {
+    onSaveReady?.(manualSave);
+  }, [manualSave, onSaveReady]);
+
+  // Load saved canvas on mount (if Liveblocks room is empty)
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    if (nodes.length > 0 || edges.length > 0) {
+      hasLoadedRef.current = true;
+      return;
+    }
+
+    hasLoadedRef.current = true;
+
+    fetch(`/api/projects/${projectId}/canvas`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.nodes?.length > 0) {
+          reactFlowInstance.addNodes(
+            data.nodes.map((n: Record<string, unknown>) => ({
+              ...n,
+              type: (n.type as string) || "systemNode",
+            }))
+          );
+        }
+        if (data.edges?.length > 0) {
+          reactFlowInstance.addEdges(data.edges);
+        }
+      })
+      .catch(() => {
+        // Silent fail — canvas starts empty
+      });
+  }, [projectId, nodes.length, edges.length, reactFlowInstance]);
 
   // Report node count changes
   useEffect(() => {
@@ -45,33 +129,132 @@ export function WorkspaceCanvas({
     }
   }, [nodes.length, onNodeCountChange]);
 
+  // Hide empty state once nodes exist
+  useEffect(() => {
+    if (nodes.length > 0) {
+      setShowEmptyState(false);
+    }
+  }, [nodes.length]);
+
   // Report zoom changes
   const handleMoveEnd = useCallback(() => {
     const zoom = reactFlowInstance.getZoom();
     onZoomChange?.(Math.round(zoom * 100));
   }, [reactFlowInstance, onZoomChange]);
 
+  // Handle drop from node palette drag
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const category = e.dataTransfer.getData("application/spi-node-type") as NodeCategory;
+      if (!category) return;
+
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+
+      const newNode = {
+        id: generateNodeId(),
+        type: "systemNode",
+        position,
+        data: createNodeData(category),
+      };
+
+      reactFlowInstance.addNodes(newNode);
+      setShowEmptyState(false);
+    },
+    [reactFlowInstance]
+  );
+
+  // Node click → notify parent to open inspector
+  const handleNodeClick = useCallback(
+    (_: React.MouseEvent, node: CanvasNode) => {
+      onNodeSelect?.(node.id);
+    },
+    [onNodeSelect]
+  );
+
+  // Canvas background click → deselect / close inspector
+  const handlePaneClick = useCallback(() => {
+    onNodeSelect?.(null);
+  }, [onNodeSelect]);
+
+  // Start building manually — dismiss empty state
+  const handleStartManual = useCallback(() => {
+    setShowEmptyState(false);
+  }, []);
+
   const isEmpty = nodes.length === 0;
 
   return (
     <div className="relative flex-1 overflow-hidden">
+      {/* Animated radial glow */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 z-0"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1, ease: "easeOut" }}
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 50% at 50% 50%, rgba(99,102,241,0.04) 0%, transparent 70%)",
+        }}
+      />
+      <motion.div
+        className="pointer-events-none absolute inset-0 z-0"
+        animate={{
+          opacity: [0.3, 0.6, 0.3],
+          scale: [1, 1.05, 1],
+        }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+        style={{
+          background:
+            "radial-gradient(ellipse 40% 40% at 50% 40%, rgba(167,139,250,0.03) 0%, transparent 70%)",
+        }}
+      />
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onDelete={onDelete}
         onMoveEnd={handleMoveEnd}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
         fitView
         snapToGrid
         snapGrid={[16, 16]}
+        selectionOnDrag
+        selectNodesOnDrag
+        elementsSelectable
         connectionLineStyle={{
           stroke: "var(--accent-primary)",
           strokeWidth: 2,
         }}
         defaultEdgeOptions={{
-          type: "smoothstep",
+          type: "custom",
+          animated: true,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 16,
+            height: 16,
+            color: "var(--border-subtle)",
+          },
           style: {
             stroke: "var(--border-subtle)",
             strokeWidth: 2,
@@ -80,8 +263,8 @@ export function WorkspaceCanvas({
         proOptions={{ hideAttribution: true }}
         style={{ backgroundColor: "var(--bg-base)" }}
       >
-        {/* Collaborative cursors */}
-        <Cursors />
+        {/* Collaborative cursors — custom small cursor with name label */}
+        <Cursors components={{ Cursor: CustomCursor }} />
 
         {/* Dot grid background */}
         <Background
@@ -91,62 +274,43 @@ export function WorkspaceCanvas({
           color="var(--border-default)"
         />
 
-        {/* MiniMap styled to match dark theme */}
-        <MiniMap
-          nodeColor={miniMapNodeColor}
-          maskColor="rgba(0, 0, 0, 0.7)"
-          style={{
-            backgroundColor: "var(--bg-surface)",
-            borderRadius: 8,
-            border: "1px solid var(--border-default)",
-          }}
-          pannable
-          zoomable
-        />
       </ReactFlow>
 
-      {/* Empty state overlay — shown when no nodes exist */}
-      {isEmpty && <EmptyState />}
+      {/* Presence avatars — top right */}
+      <PresenceAvatars />
 
-      {/* Prompt bar */}
-      <PromptBar />
+      {/* Canvas toolbar — bottom left (zoom + undo/redo) */}
+      <CanvasToolbar />
+
+      {/* Empty state overlay */}
+      <AnimatePresence>
+        {isEmpty && showEmptyState && (
+          <EmptyState onStartManual={handleStartManual} />
+        )}
+      </AnimatePresence>
+
+      {/* Node palette */}
+      {(!showEmptyState || !isEmpty) && <NodePalette />}
     </div>
   );
 }
 
-/** Maps node category to a MiniMap color. */
-function miniMapNodeColor(node: CanvasNode): string {
-  const category = node.data?.nodeCategory;
-  switch (category) {
-    case "database":
-      return "#22c55e"; // green-500
-    case "queue":
-      return "#eab308"; // yellow-500
-    case "gateway":
-      return "#6366f1"; // indigo-500
-    case "cache":
-      return "#f97316"; // orange-500
-    case "client":
-      return "#06b6d4"; // cyan-500
-    case "storage":
-      return "#8b5cf6"; // violet-500
-    case "compute":
-      return "#ec4899"; // pink-500
-    default:
-      return "#a1a1aa"; // zinc-400
-  }
-}
-
-function EmptyState() {
+function EmptyState({ onStartManual }: { onStartManual: () => void }) {
   return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.2 } }}
+      className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+    >
       <motion.div
-        initial={{ opacity: 0, y: 12 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
         className="pointer-events-auto flex flex-col items-center gap-6 text-center"
       >
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-surface)]">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--bg-surface)] shadow-lg shadow-black/20">
           <GitBranch className="h-8 w-8 text-[var(--text-muted)]" />
         </div>
         <div>
@@ -154,11 +318,10 @@ function EmptyState() {
             Describe your system architecture
           </h2>
           <p className="mt-1.5 max-w-md text-sm text-[var(--text-secondary)]">
-            Start with a prompt, pick a template, or import an existing design
+            Start with a prompt, build manually, or pick a template
           </p>
         </div>
 
-        {/* Quick-start actions */}
         <div className="flex gap-3">
           <QuickAction
             icon={MessageSquare}
@@ -167,20 +330,19 @@ function EmptyState() {
             accent
           />
           <QuickAction
+            icon={Wrench}
+            label="Build manually"
+            description="Drag and drop nodes"
+            onClick={onStartManual}
+          />
+          <QuickAction
             icon={LayoutTemplate}
             label="Use a template"
             description="Pre-built architectures"
             disabled
           />
-          <QuickAction
-            icon={Upload}
-            label="Import existing"
-            description="Upload a diagram"
-            disabled
-          />
         </div>
 
-        {/* Keyboard hints */}
         <div className="flex items-center gap-4 text-[11px] text-[var(--text-muted)]">
           <span className="flex items-center gap-1.5">
             <Mouse className="h-3 w-3" />
@@ -192,7 +354,7 @@ function EmptyState() {
           </span>
         </div>
       </motion.div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -202,17 +364,20 @@ function QuickAction({
   description,
   accent,
   disabled,
+  onClick,
 }: {
   icon: typeof MessageSquare;
   label: string;
   description: string;
   accent?: boolean;
   disabled?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <Button
       variant="ghost"
       disabled={disabled}
+      onClick={onClick}
       className={`flex h-auto flex-col gap-1.5 rounded-xl border p-4 ${
         accent
           ? "border-[var(--accent-ai)]/30 bg-[var(--accent-ai)]/5 hover:border-[var(--accent-ai)]/60 hover:bg-[var(--accent-ai)]/10"

@@ -55,6 +55,7 @@ export function WorkspaceShell({ project }: WorkspaceShellProps) {
           <div className="flex flex-1 overflow-hidden">
             {/* Canvas */}
             <WorkspaceCanvas
+              projectId={project.id}
               onNodeCountChange={handleNodeCountChange}
               onZoomChange={handleZoomChange}
             />

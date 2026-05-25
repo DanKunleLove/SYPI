@@ -14,7 +14,7 @@ export function DashboardNavbar({
   return (
     <nav className="flex h-14 shrink-0 items-center gap-4 border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-6">
       {/* Logo */}
-      <Link href="/dashboard" className="flex items-center gap-2">
+      <Link href="/" className="flex items-center gap-2">
         <GitBranch className="h-5 w-5 text-[var(--accent-primary)]" />
         <span className="text-sm font-semibold text-[var(--text-primary)]">
           spi AI

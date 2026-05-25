@@ -1,9 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { getMyProjects, getSharedProjects } from "@/lib/actions/project";
-import { DashboardClient } from "./dashboard-client";
+import { HomeClient } from "./home-client";
 
-export default async function DashboardPage() {
+export default async function HomePage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
   }));
 
   return (
-    <DashboardClient
+    <HomeClient
       myProjects={myProjectCards}
       sharedProjects={sharedProjectCards}
     />

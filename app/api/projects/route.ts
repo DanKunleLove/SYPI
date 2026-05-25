@@ -8,12 +8,37 @@ export async function GET() {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const projects = await prisma.project.findMany({
+  // 1. Fetch owned projects
+  const owned = await prisma.project.findMany({
     where: { userId: user.id },
     orderBy: { updatedAt: "desc" },
   });
 
-  return Response.json({ projects });
+  // 2. Fetch collaborated/shared projects
+  const collaborations = await prisma.collaborator.findMany({
+    where: {
+      OR: [
+        { userId: user.id },
+        { email: user.email.toLowerCase() }
+      ],
+      // Exclude projects owned by the user themselves
+      project: {
+        NOT: { userId: user.id }
+      }
+    },
+    include: {
+      project: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const shared = collaborations.map((c) => c.project);
+
+  return Response.json({
+    owned,
+    shared,
+    projects: [...owned, ...shared],
+  });
 }
 
 export async function POST(request: Request) {

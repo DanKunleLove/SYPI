@@ -25,6 +25,27 @@ export interface CanvasNodeData {
   description?: string;
   nodeCategory?: NodeCategory;
   status?: NodeStatus;
+  /** User-overridden color (takes priority over category default) */
+  customColor?: string;
+  /** System configuration — flattened for Liveblocks compatibility */
+  configTechnology?: string;
+  configPort?: string;
+  configProtocol?: string;
+  configScaling?: string;
+  configDbType?: string;
+  configReplication?: string;
+  configQueueType?: string;
+  configCacheType?: string;
+  configTtl?: string;
+  configAuthMethod?: string;
+  configRateLimit?: string;
+  configRuntime?: string;
+  configMemory?: string;
+  configTimeout?: string;
+  configPlatform?: string;
+  configFramework?: string;
+  configStorageType?: string;
+  notes?: string;
   [key: string]: unknown;
 }
 

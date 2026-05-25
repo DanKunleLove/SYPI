@@ -1,21 +1,21 @@
 import { getProjectWithAccess } from "@/lib/project-access";
 import { AccessDenied } from "@/components/editor/access-denied";
-import { WorkspaceShell } from "@/components/editor/workspace-shell";
+import { ProjectWorkspace } from "@/components/workspace/project-workspace";
 
-export default async function WorkspacePage({
+export default async function ProjectPage({
   params,
 }: {
-  params: Promise<{ roomId: string }>;
+  params: Promise<{ projectId: string }>;
 }) {
-  const { roomId } = await params;
-  const { project, reason } = await getProjectWithAccess(roomId);
+  const { projectId } = await params;
+  const { project } = await getProjectWithAccess(projectId);
 
   if (!project) {
     return <AccessDenied />;
   }
 
   return (
-    <WorkspaceShell
+    <ProjectWorkspace
       project={{
         id: project.id,
         name: project.name,
