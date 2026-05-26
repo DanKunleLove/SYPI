@@ -74,11 +74,13 @@ export function WorkspaceCanvas({
   // Register keyboard shortcuts
   useCanvasShortcuts();
 
-  // Autosave canvas to Vercel Blob (debounced 3s)
+  // Manual save only — no autosave, no performance impact
+  const getNodes = useCallback(() => reactFlowInstance.getNodes(), [reactFlowInstance]);
+  const getEdges = useCallback(() => reactFlowInstance.getEdges(), [reactFlowInstance]);
   const { status: saveStatus, save: manualSave } = useCanvasAutosave({
     projectId,
-    nodes,
-    edges,
+    getNodes,
+    getEdges,
   });
 
   // Notify parent of save status changes

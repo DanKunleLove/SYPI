@@ -209,20 +209,21 @@ export function NodeInspector({ open, nodeId, onClose }: NodeInspectorProps) {
                   {configFields.map((field) => (
                     <FieldRow key={field.key} label={field.label}>
                       {field.type === "select" ? (
-                        <select
-                          value={(nodeData[field.key] as string) ?? ""}
-                          title={field.label}
-                          aria-label={field.label}
-                          onChange={(e) => updateField(field.key, e.target.value)}
-                          className="h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-base)] px-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent-primary)]"
-                        >
-                          <option value="">Select...</option>
-                          {field.options?.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                        </select>
+                        <>
+                          <input
+                            list={`datalist-${field.key}`}
+                            value={(nodeData[field.key] as string) ?? ""}
+                            placeholder={`Select or type ${field.label.toLowerCase()}...`}
+                            aria-label={field.label}
+                            onChange={(e) => updateField(field.key, e.target.value)}
+                            className="h-8 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-base)] px-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--accent-primary)]"
+                          />
+                          <datalist id={`datalist-${field.key}`}>
+                            {field.options?.map((opt) => (
+                              <option key={opt} value={opt} />
+                            ))}
+                          </datalist>
+                        </>
                       ) : (
                         <Input
                           value={(nodeData[field.key] as string) ?? ""}
