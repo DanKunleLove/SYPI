@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../../../../../../trigger/example.ts"],
-  "sourcesContent": ["import { task, logger } from \"@trigger.dev/sdk\";\n\nexport const helloWorldTask = task({\n  id: \"hello-world\",\n  maxDuration: 30,\n  run: async (payload: { message: string }) => {\n    logger.log(\"Hello world task started\", { payload });\n\n    // Simulate work\n    await new Promise((resolve) => setTimeout(resolve, 1000));\n\n    logger.log(\"Hello world task completed\");\n\n    return {\n      success: true,\n      message: `Processed: ${payload.message}`,\n    };\n  },\n});\n"],
-  "mappings": ";;;;;;;;;;;AAAA;AAEO,IAAM,iBAAiB,KAAK;AAAA,EACjC,IAAI;AAAA,EACJ,aAAa;AAAA,EACb,KAAK,8BAAO,YAAiC;AAC3C,WAAO,IAAI,4BAA4B,EAAE,QAAQ,CAAC;AAGlD,UAAM,IAAI,QAAQ,CAAC,YAAY,WAAW,SAAS,GAAI,CAAC;AAExD,WAAO,IAAI,4BAA4B;AAEvC,WAAO;AAAA,MACL,SAAS;AAAA,MACT,SAAS,cAAc,QAAQ,OAAO;AAAA,IACxC;AAAA,EACF,GAZK;AAaP,CAAC;",
-  "names": []
-}
