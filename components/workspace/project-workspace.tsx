@@ -57,7 +57,7 @@ export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
   // Ctrl+S for manual save
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         saveFnRef.current?.();
       }

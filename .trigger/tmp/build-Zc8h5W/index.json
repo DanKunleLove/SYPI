@@ -1,0 +1,23 @@
+{
+  "configPath": "C:\\Users\\HomePC\\Desktop\\spi-ai\\.trigger\\tmp\\build-Zc8h5W\\Desktop\\spi-ai\\trigger.config.mjs",
+  "customConditions": [
+  ],
+  "prompts": [
+  ],
+  "queues": [
+  ],
+  "runtime": "node",
+  "runtimeVersion": "22.19.0",
+  "tasks": [
+    {
+      "entryPoint": "C:\\Users\\HomePC\\Desktop\\spi-ai\\.trigger\\tmp\\build-Zc8h5W\\Desktop\\spi-ai\\trigger\\example.mjs",
+      "filePath": "trigger/example.ts",
+      "id": "hello-world",
+      "maxDuration": 30
+    }
+  ],
+  "timings": {
+    "trigger/example.ts": 4.558700000000044
+  },
+  "workerEntryPoint": "C:\\Users\\HomePC\\Desktop\\spi-ai\\.trigger\\tmp\\build-Zc8h5W\\AppData\\Local\\npm-cache\\_npx\\f51a09bd0abf5f10\\node_modules\\trigger.dev\\dist\\esm\\entryPoints\\dev-run-worker.mjs"
+}

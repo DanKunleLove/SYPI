@@ -373,7 +373,6 @@ function ProjectContextMenu({
             type="button"
             className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-base)] hover:text-[var(--text-primary)]"
             onClick={(e) => e.stopPropagation()}
-            aria-label={`Actions for ${project.name}`}
           />
         }
       >
