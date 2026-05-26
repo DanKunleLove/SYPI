@@ -1,6 +1,6 @@
 # From Idea to Product: The AI-Driven Developer's Playbook
 
-### By JavaScript Mastery
+### By Adelusi Dan Kunle
 
 ---
 
@@ -976,24 +976,9 @@ every session grounded in the actual state of the project.
 
 For the full workflow — how to review AI output, handle
 bugs, add new features without breaking existing ones,
-and deploy to production — watch the complete Ghost AI
-build on the JavaScript Mastery YouTube channel.
+and deploy to production.
 
 ---
-
-## What's Next
-
-### Join the Agentic Dev Course Waitlist
-
-This guide is the foundation. The course goes deeper —
-advanced agent patterns, complex builds, production AI
-workflows, and everything in between.
-
-[Join the Waitlist →](https://jsmastery.com/waitlist/ultimate-backend-course)
-
----
-
-[Watch the full build on JavaScript Mastery YouTube Channel →](https://youtube.com/@javascriptmastery)
 
 _Built with the Six-File Context System._
-_JavaScript Mastery · 2026_
+_Adelusi Dan Kunle · 2026_
