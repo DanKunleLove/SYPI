@@ -51,11 +51,23 @@ model AIGeneration {
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   prompt    String
-  status    String   @default("pending")
+  type      String   @default("generation") // generation | url-analysis | critique | refinement
+  status    String   @default("pending")    // pending | running | completed | failed
   result    Json?
   error     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([projectId])
+}
+
+model TaskRun {
+  id        String   @id @default(cuid())
+  runId     String   @unique
+  projectId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@index([runId])
+  @@index([projectId, userId])
 }

@@ -5,6 +5,7 @@ import {
   Users,
   Download,
   Sparkles,
+  Shield,
   Box,
   PanelLeftOpen,
   Save,
@@ -23,6 +24,7 @@ interface WorkspaceToolbarProps {
   onToggleSidebar: () => void;
   onOpenShare: () => void;
   onToggleAiPanel: () => void;
+  onToggleCritique: () => void;
   onManualSave: () => void;
 }
 
@@ -35,6 +37,7 @@ export function WorkspaceToolbar({
   onToggleSidebar,
   onOpenShare,
   onToggleAiPanel,
+  onToggleCritique,
   onManualSave,
 }: WorkspaceToolbarProps) {
   return (
@@ -115,6 +118,17 @@ export function WorkspaceToolbar({
           disabled
         >
           <Download className="h-4 w-4" />
+        </Button>
+
+        {/* Review — opens critique panel */}
+        <Button
+          variant="ghost"
+          className="gap-1.5 px-2.5"
+          aria-label="Review architecture"
+          onClick={onToggleCritique}
+        >
+          <Shield className="h-4 w-4" />
+          <span className="text-sm hidden sm:inline">Review</span>
         </Button>
 
         {/* Generate — opens AI panel */}

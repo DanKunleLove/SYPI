@@ -6,6 +6,8 @@ import { WorkspaceToolbar } from "@/components/workspace/workspace-toolbar";
 import { WorkspaceCanvas } from "@/components/editor/workspace-canvas";
 import { AiPanel } from "@/components/workspace/ai-panel";
 import { NodeInspector } from "@/components/workspace/node-inspector";
+import { CritiquePanel } from "@/components/editor/critique-panel";
+import { useCritique } from "@/hooks/use-critique";
 import { StatusBar } from "@/components/editor/status-bar";
 import { ShareDialog } from "@/components/editor/share-dialog";
 import { LiveblocksRoom } from "@/components/editor/liveblocks-room";
@@ -15,6 +17,7 @@ import type { SaveStatus } from "@/hooks/use-canvas-autosave";
 type RightPanelMode =
   | { type: "closed" }
   | { type: "ai" }
+  | { type: "critique" }
   | { type: "inspector"; nodeId: string };
 
 interface ProjectWorkspaceProps {
@@ -26,6 +29,18 @@ interface ProjectWorkspaceProps {
 }
 
 export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
+  // Providers must wrap the content so hooks like useCritique (which call
+  // useReactFlow / useEventListener) run *inside* both contexts.
+  return (
+    <LiveblocksRoom roomId={project.id}>
+      <ReactFlowProvider>
+        <WorkspaceContent project={project} />
+      </ReactFlowProvider>
+    </LiveblocksRoom>
+  );
+}
+
+function WorkspaceContent({ project }: ProjectWorkspaceProps) {
   const [rightPanel, setRightPanel] = useState<RightPanelMode>({ type: "closed" });
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [nodeCount, setNodeCount] = useState(0);
@@ -84,6 +99,17 @@ export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
     );
   }, []);
 
+  // Review button → open critique panel and start critique
+  const critique = useCritique({ projectId: project.id });
+
+  const handleToggleCritique = useCallback(() => {
+    setRightPanel((prev) => {
+      if (prev.type === "critique") return { type: "closed" };
+      critique.startCritique();
+      return { type: "critique" };
+    });
+  }, [critique]);
+
   const handleCloseRightPanel = useCallback(() => {
     setRightPanel({ type: "closed" });
   }, []);
@@ -98,10 +124,8 @@ export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
           : "Draft";
 
   return (
-    <LiveblocksRoom roomId={project.id}>
-      <ReactFlowProvider>
-        <div className="flex h-full flex-col overflow-hidden">
-          <WorkspaceToolbar
+    <div className="flex h-full flex-col overflow-hidden">
+      <WorkspaceToolbar
             projectName={project.name}
             nodeCount={nodeCount}
             zoom={zoom}
@@ -110,6 +134,7 @@ export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
             onToggleSidebar={toggle}
             onOpenShare={() => setShareDialogOpen(true)}
             onToggleAiPanel={handleToggleAiPanel}
+            onToggleCritique={handleToggleCritique}
             onManualSave={handleManualSave}
           />
 
@@ -128,11 +153,22 @@ export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
               onNodeSelect={handleNodeSelect}
               onSaveStatusChange={handleSaveStatusChange}
               onSaveReady={handleSaveReady}
+              onOpenAiPanel={() => setRightPanel({ type: "ai" })}
             />
 
             <AiPanel
               open={rightPanel.type === "ai"}
               onClose={handleCloseRightPanel}
+              projectId={project.id}
+            />
+            <CritiquePanel
+              open={rightPanel.type === "critique"}
+              onClose={handleCloseRightPanel}
+              status={critique.status}
+              issues={critique.issues}
+              summary={critique.summary}
+              onDismissIssue={critique.dismissIssue}
+              onFocusNode={critique.focusNode}
             />
             <NodeInspector
               open={rightPanel.type === "inspector"}
@@ -146,8 +182,6 @@ export function ProjectWorkspace({ project }: ProjectWorkspaceProps) {
             nodeCount={nodeCount}
             zoom={zoom}
           />
-        </div>
-      </ReactFlowProvider>
-    </LiveblocksRoom>
+    </div>
   );
 }

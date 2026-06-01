@@ -24,12 +24,26 @@ declare global {
 
     // Custom events for broadcasting actions across the room
     RoomEvent:
-      | { type: "AI_GENERATION_START" }
-      | { type: "AI_GENERATION_COMPLETE" }
+      | { type: "AI_GENERATION_START"; generationId: string }
+      | { type: "AI_GENERATION_COMPLETE"; generationId: string }
+      | { type: "AI_STATUS_UPDATE"; message: string; step: string }
       | { type: "NODE_HIGHLIGHT"; nodeId: string };
 
     // Custom metadata set on threads
     ThreadMetadata: {};
+
+    // Feed metadata (for ai-chat and ai-status-feed)
+    FeedMetadata: {
+      type: "ai-chat" | "ai-status";
+    };
+
+    // Feed message data shape
+    FeedMessageData: {
+      role: "user" | "assistant" | "system";
+      content: string;
+      sender?: string;
+      step?: string;
+    };
 
     // Custom room info set with resolveRoomsInfo
     RoomInfo: {

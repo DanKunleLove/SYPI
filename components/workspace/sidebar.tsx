@@ -14,8 +14,8 @@ import {
   ChevronDown,
   ChevronRight,
   PanelLeftOpen,
-  GitBranch,
 } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 import { UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,19 +160,7 @@ export function Sidebar({
           title={collapsed ? "Expand sidebar" : "Home"}
           className="flex items-center gap-2.5 overflow-hidden select-none group"
         >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-primary)] transition-colors group-hover:bg-[var(--accent-hover)]">
-            <GitBranch className="h-4 w-4 text-white" />
-          </div>
-          {!collapsed && (
-            <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.05, duration: 0.15 }}
-              className="whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]"
-            >
-              spi AI
-            </motion.span>
-          )}
+          <Logo showText={!collapsed} />
         </button>
         {!collapsed && (
           <Button

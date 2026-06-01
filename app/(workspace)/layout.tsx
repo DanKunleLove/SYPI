@@ -135,6 +135,9 @@ export default function WorkspaceLayout({
         const ok = await renameProject(id, newName);
         if (ok) {
           toast.success("Project renamed", { duration: 3000 });
+          // The canvas header reads the project name from the server-rendered
+          // page, so refresh it to reflect the new name (sidebar already updated).
+          router.refresh();
         } else {
           toast.error("Failed to rename project", {
             description: "Please try again.",
@@ -151,7 +154,7 @@ export default function WorkspaceLayout({
         });
       }
     },
-    [renameProject]
+    [renameProject, router]
   );
 
   const handleDelete = useCallback(

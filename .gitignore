@@ -53,3 +53,6 @@ next-env.d.ts
 .trigger/active-runs.json
 .trigger/dev.lock
 .trigger/watchdog.pid
+
+# Claude Code transient locks
+.claude/scheduled_tasks.lock

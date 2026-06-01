@@ -1,4 +1,5 @@
 import { Cpu, Users, FileText } from "lucide-react";
+import { Logo } from "@/components/brand/logo";
 
 const FEATURES = [
   {
@@ -31,14 +32,7 @@ export default function AuthLayout({
       {/* Left panel — branding (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-[var(--bg-surface)] p-14">
         {/* Logo */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-primary)]">
-            <span className="text-sm font-bold text-white">S</span>
-          </div>
-          <span className="text-xl font-semibold text-[var(--text-primary)]">
-            spi AI
-          </span>
-        </div>
+        <Logo size="lg" />
 
         {/* Tagline + features */}
         <div className="space-y-12">
@@ -82,14 +76,7 @@ export default function AuthLayout({
       {/* Right panel — Clerk form */}
       <div className="flex flex-1 flex-col items-center justify-center p-6">
         {/* Mobile logo (hidden on desktop) */}
-        <div className="mb-10 flex items-center gap-2.5 lg:hidden">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-primary)]">
-            <span className="text-sm font-bold text-white">S</span>
-          </div>
-          <span className="text-xl font-semibold text-[var(--text-primary)]">
-            spi AI
-          </span>
-        </div>
+        <Logo size="lg" className="mb-10 lg:hidden" />
 
         {children}
       </div>

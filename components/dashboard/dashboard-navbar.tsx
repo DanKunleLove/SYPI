@@ -1,8 +1,9 @@
 "use client";
 
-import { Search, GitBranch } from "lucide-react";
+import { Search } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 
 export function DashboardNavbar({
   searchQuery,
@@ -14,11 +15,8 @@ export function DashboardNavbar({
   return (
     <nav className="flex h-14 shrink-0 items-center gap-4 border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-6">
       {/* Logo */}
-      <Link href="/" className="flex items-center gap-2">
-        <GitBranch className="h-5 w-5 text-[var(--accent-primary)]" />
-        <span className="text-sm font-semibold text-[var(--text-primary)]">
-          spi AI
-        </span>
+      <Link href="/" className="group flex items-center">
+        <Logo />
       </Link>
 
       {/* Search */}

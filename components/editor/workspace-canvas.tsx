@@ -49,6 +49,7 @@ interface WorkspaceCanvasProps {
   onNodeSelect?: (nodeId: string | null) => void;
   onSaveStatusChange?: (status: SaveStatus) => void;
   onSaveReady?: (saveFn: () => Promise<void>) => void;
+  onOpenAiPanel?: () => void;
 }
 
 export function WorkspaceCanvas({
@@ -58,6 +59,7 @@ export function WorkspaceCanvas({
   onNodeSelect,
   onSaveReady,
   onSaveStatusChange,
+  onOpenAiPanel,
 }: WorkspaceCanvasProps) {
   const flowResult = useLiveblocksFlow<CanvasNode, CanvasEdge>({
     suspense: true,
@@ -287,7 +289,10 @@ export function WorkspaceCanvas({
       {/* Empty state overlay */}
       <AnimatePresence>
         {isEmpty && showEmptyState && (
-          <EmptyState onStartManual={handleStartManual} />
+          <EmptyState
+            onStartManual={handleStartManual}
+            onStartFromPrompt={onOpenAiPanel}
+          />
         )}
       </AnimatePresence>
 
@@ -297,7 +302,13 @@ export function WorkspaceCanvas({
   );
 }
 
-function EmptyState({ onStartManual }: { onStartManual: () => void }) {
+function EmptyState({
+  onStartManual,
+  onStartFromPrompt,
+}: {
+  onStartManual: () => void;
+  onStartFromPrompt?: () => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -330,6 +341,7 @@ function EmptyState({ onStartManual }: { onStartManual: () => void }) {
             label="Start from prompt"
             description="Describe your system"
             accent
+            onClick={onStartFromPrompt}
           />
           <QuickAction
             icon={Wrench}
