@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { isToolUIPart } from "ai";
 import { useReactFlow } from "@xyflow/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,12 +17,15 @@ import {
   Globe,
   Check,
   Pencil,
+  Copy,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/use-ai-chat";
 import { useGeneration } from "@/hooks/use-generation";
 import { serializeCanvasForAI } from "@/lib/ai/canvas-context";
+import { generateSpecMarkdown } from "@/lib/spec";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
@@ -47,9 +50,10 @@ interface AiPanelProps {
   open: boolean;
   onClose: () => void;
   projectId: string;
+  projectName: string;
 }
 
-export function AiPanel({ open, onClose, projectId }: AiPanelProps) {
+export function AiPanel({ open, onClose, projectId, projectName }: AiPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -131,11 +135,7 @@ export function AiPanel({ open, onClose, projectId }: AiPanelProps) {
                 description="Contextual recommendations for your architecture will appear here as you build your canvas."
               />
             ) : (
-              <PlaceholderTab
-                icon={FileText}
-                title="Spec Preview"
-                description="A live preview of your generated Markdown specification will appear here."
-              />
+              <SpecTab projectId={projectId} projectName={projectName} />
             )}
           </div>
         </motion.aside>
@@ -599,6 +599,136 @@ function ChatTab({
         <p className="mt-1.5 text-center text-[10px] text-[var(--text-muted)]">
           Ctrl+Enter to send
         </p>
+      </div>
+    </>
+  );
+}
+
+function SpecTab({
+  projectId,
+  projectName,
+}: {
+  projectId: string;
+  projectName: string;
+}) {
+  const reactFlow = useReactFlow();
+  const [overview, setOverview] = useState<string | null>(null);
+  const [enhancing, setEnhancing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const nodeCount = reactFlow.getNodes().length;
+
+  // Recomputes when the AI overview changes; reads the canvas at compute time.
+  const spec = useMemo(
+    () =>
+      generateSpecMarkdown({
+        projectName,
+        nodes: reactFlow.getNodes() as CanvasNode[],
+        edges: reactFlow.getEdges() as CanvasEdge[],
+        overview: overview ?? undefined,
+        date: new Date().toISOString().slice(0, 10),
+      }),
+    [reactFlow, projectName, overview]
+  );
+
+  const handleCopy = useCallback(async () => {
+    await navigator.clipboard.writeText(spec).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [spec]);
+
+  const handleDownload = useCallback(() => {
+    const blob = new Blob([spec], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safe =
+      (projectName || "architecture").replace(/[^a-z0-9]+/gi, "-").toLowerCase() ||
+      "architecture";
+    a.href = url;
+    a.download = `${safe}-spec.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [spec, projectName]);
+
+  const handleEnhance = useCallback(async () => {
+    setEnhancing(true);
+    try {
+      const canvasContext = serializeCanvasForAI(
+        reactFlow.getNodes() as CanvasNode[],
+        reactFlow.getEdges() as CanvasEdge[]
+      );
+      const res = await fetch("/api/ai/spec", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, canvasContext }),
+      });
+      if (!res.ok) throw new Error("Failed to enhance");
+      const data = await res.json();
+      if (typeof data.overview === "string") setOverview(data.overview);
+    } catch {
+      // Graceful: keep the deterministic spec without an AI overview.
+    } finally {
+      setEnhancing(false);
+    }
+  }, [reactFlow, projectId]);
+
+  if (nodeCount === 0) {
+    return (
+      <PlaceholderTab
+        icon={FileText}
+        title="Spec Preview"
+        description="Add components to the canvas to generate a technical spec."
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <pre className="whitespace-pre-wrap break-words p-4 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]">
+          {spec}
+        </pre>
+      </div>
+      <div className="flex items-center gap-2 border-t border-[var(--border-default)] p-3 shrink-0">
+        <Button
+          onClick={handleEnhance}
+          disabled={enhancing}
+          variant="ghost"
+          className="gap-1.5 border border-[var(--border-default)] text-xs text-[var(--text-secondary)]"
+        >
+          {enhancing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
+          )}
+          {overview ? "Regenerate overview" : "Enhance with AI"}
+        </Button>
+        <div className="ml-auto flex gap-1.5">
+          <Button
+            onClick={handleCopy}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            title="Copy Markdown"
+            aria-label="Copy Markdown"
+          >
+            {copied ? (
+              <Check className="h-4 w-4 text-[var(--state-success)]" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            onClick={handleDownload}
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            title="Download .md"
+            aria-label="Download Markdown"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </>
   );

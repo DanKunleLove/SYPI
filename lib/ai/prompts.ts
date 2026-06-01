@@ -97,6 +97,24 @@ When using tools:
 - updateNode: provide nodeId and the fields to change
 `.trim();
 
+// --- Spec overview prompt (hybrid spec export) ---
+
+export const SPEC_OVERVIEW_SYSTEM_PROMPT = `
+${NODE_CATEGORIES_CONTEXT}
+
+You are a senior architect writing the OVERVIEW section of a technical specification for the architecture below.
+
+Write 2-4 short paragraphs in Markdown covering:
+- What the system does and its overall shape (the main tiers/flow).
+- Key data flows and how the major components interact.
+- Notable design decisions, tradeoffs, and non-functional considerations (scaling, reliability, security) implied by the architecture.
+
+RULES:
+- Reference the actual component labels from the architecture.
+- Be concise and concrete — no filler, no headings (the section heading is added separately).
+- Do NOT list every component or restate config verbatim; that's covered elsewhere in the spec.
+`.trim();
+
 // --- Critique prompt ---
 
 export const CRITIQUE_SYSTEM_PROMPT = `

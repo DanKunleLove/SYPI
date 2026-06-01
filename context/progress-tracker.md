@@ -38,7 +38,14 @@ Code-review (high) of the pre-push diff: authz is solid (all AI mutation routes 
 
 Deferred (pre-prod, noted): server-side rate limiting on AI routes; transaction/orphan-handling around design route's create+trigger sequence; HTTP status-code refinement (404/401 vs 403); project-workspace.tsx whitespace reindent (run formatter).
 
-Roadmap (Dan's stated priorities, not yet built): BYOK + model picker in settings (Gemini default, later Anthropic/OpenAI); deeper research during planning; (future) autonomous follow-up agents.
+### Spec export (P5.2 — hybrid)
+
+The "Spec" tab is now real (was a placeholder). Hybrid approach:
+- `lib/spec.ts` `generateSpecMarkdown()` — deterministic Markdown built from the canvas graph (component table, connections with edge labels, per-component config/notes details). Instant, no AI cost.
+- `app/api/ai/spec/route.ts` + `SPEC_OVERVIEW_SYSTEM_PROMPT` — optional AI-written Overview section (Gemini flash), layered on top. Auth + project-access checked.
+- `ai-panel.tsx` `SpecTab` — renders the spec, **Copy** + **Download .md**, and **Enhance with AI** (fetches the overview; degrades gracefully on failure). Empty state when no nodes. `AiPanel` now takes `projectName` (passed from project-workspace).
+
+Roadmap (Dan's stated priorities, not yet built): more export formats (Mermaid/OpenAPI/IaC); BYOK + model picker; self-critique loop; image-to-architecture; deeper research during planning; (future) autonomous follow-up agents.
 
 ### 2026-05-31 Generation hang fix + AI surface consolidation
 

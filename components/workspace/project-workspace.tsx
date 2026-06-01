@@ -160,6 +160,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               open={rightPanel.type === "ai"}
               onClose={handleCloseRightPanel}
               projectId={project.id}
+              projectName={project.name}
             />
             <CritiquePanel
               open={rightPanel.type === "critique"}
