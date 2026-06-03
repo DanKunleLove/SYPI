@@ -1,6 +1,6 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
@@ -38,7 +38,15 @@ export function DashboardNavbar({
             avatarBox: "h-8 w-8",
           },
         }}
-      />
+      >
+        <UserButton.MenuItems>
+          <UserButton.Link
+            label="Models & API keys"
+            labelIcon={<SlidersHorizontal className="h-4 w-4" />}
+            href="/settings"
+          />
+        </UserButton.MenuItems>
+      </UserButton>
     </nav>
   );
 }

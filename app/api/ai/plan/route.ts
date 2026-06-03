@@ -1,5 +1,5 @@
 import { streamText } from "ai";
-import { getModel } from "@/lib/ai/index";
+import { getModel, resolveModelForUser } from "@/lib/ai/index";
 import { PLANNING_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { getDbUser } from "@/lib/project-access";
 
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     : prompt;
 
   const result = streamText({
-    model: getModel("flash"),
+    model: (await resolveModelForUser(user.id, "flash")) ?? getModel("flash"),
     system: PLANNING_SYSTEM_PROMPT,
     prompt: userPrompt,
   });

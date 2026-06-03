@@ -6,7 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
-import { getModel } from "@/lib/ai/index";
+import { resolveModelForProject } from "@/lib/ai/index";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     : CHAT_SYSTEM_PROMPT;
 
   const result = streamText({
-    model: getModel("flash"),
+    model: await resolveModelForProject(projectId, "flash"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages as UIMessage[]),
     tools: {

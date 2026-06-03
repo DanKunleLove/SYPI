@@ -1,6 +1,6 @@
 import { task, logger, metadata } from "@trigger.dev/sdk";
 import { generateObject } from "ai";
-import { getModel } from "@/lib/ai/index";
+import { resolveModelForProject } from "@/lib/ai/index";
 import { REFINEMENT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { RefinementOutputSchema } from "@/lib/ai/schemas";
 import { prisma } from "@/lib/prisma";
@@ -42,7 +42,7 @@ export const refineArchitectureTask = task({
       metadata.set("step", "Generating changes...");
 
       const result = await generateObject({
-        model: getModel("pro"),
+        model: await resolveModelForProject(projectId, "pro"),
         schema: RefinementOutputSchema,
         system: REFINEMENT_SYSTEM_PROMPT,
         prompt: `User request: ${prompt}\n\n${canvasContext}`,

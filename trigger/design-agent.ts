@@ -1,7 +1,7 @@
 import { task, logger, metadata } from "@trigger.dev/sdk";
 import { generateObject, generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { getModel } from "@/lib/ai/index";
+import { resolveModelForProject } from "@/lib/ai/index";
 import {
   GENERATION_SYSTEM_PROMPT,
   URL_ANALYSIS_SYSTEM_PROMPT,
@@ -100,7 +100,7 @@ export const designAgentTask = task({
       await broadcastStatus("generating", "Generating architecture...");
 
       const result = await generateObject({
-        model: getModel("pro"),
+        model: await resolveModelForProject(projectId, "pro"),
         schema: ArchitectureOutputSchema,
         system: systemPrompt,
         prompt: userPrompt,

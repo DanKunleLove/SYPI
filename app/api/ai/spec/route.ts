@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { getModel } from "@/lib/ai/index";
+import { resolveModelForProject } from "@/lib/ai/index";
 import { SPEC_OVERVIEW_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
   try {
     const { text } = await generateText({
-      model: getModel("flash"),
+      model: await resolveModelForProject(projectId, "flash"),
       system: SPEC_OVERVIEW_SYSTEM_PROMPT,
       prompt: `Write the overview for this architecture:\n\n${canvasContext}`,
     });

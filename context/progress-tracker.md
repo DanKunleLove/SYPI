@@ -45,7 +45,21 @@ The "Spec" tab is now real (was a placeholder). Hybrid approach:
 - `app/api/ai/spec/route.ts` + `SPEC_OVERVIEW_SYSTEM_PROMPT` — optional AI-written Overview section (Gemini flash), layered on top. Auth + project-access checked.
 - `ai-panel.tsx` `SpecTab` — renders the spec, **Copy** + **Download .md**, and **Enhance with AI** (fetches the overview; degrades gracefully on failure). Empty state when no nodes. `AiPanel` now takes `projectName` (passed from project-workspace).
 
-Roadmap (Dan's stated priorities, not yet built): more export formats (Mermaid/OpenAPI/IaC); BYOK + model picker; self-critique loop; image-to-architecture; deeper research during planning; (future) autonomous follow-up agents.
+Roadmap (Dan's stated priorities): more export formats (Mermaid/OpenAPI/IaC); ~~BYOK + model picker~~ (done — see P5.3); self-critique loop; image-to-architecture; deeper research during planning; (future) autonomous follow-up agents.
+
+### BYOK + model picker (P5.3)
+
+Users bring their own provider keys; generation routes to the chosen model. Providers: **Anthropic (Claude)**, **OpenAI (GPT)**, **Google (Gemini)**. Per-user default model.
+
+- `lib/crypto.ts` — AES-256-GCM encrypt/decrypt for keys at rest. Key derived via scrypt from **`ENCRYPTION_SECRET`** env (NEW required env to use BYOK; without it, saving a key returns a clear 500 and nothing is stored in plaintext). Generate one with `openssl rand -base64 32`.
+- `lib/ai/providers.ts` — provider registry (label, console URL, model list, tier defaults, SDK `create(apiKey, modelId)`); `parseModelRef`/`formatModelRef` for the `"provider:modelId"` storage format; only whitelisted models accepted.
+- `lib/ai/index.ts` — `resolveModelForUser(userId, tier)` reads the user's keys + `defaultModel` (honors explicit default if its provider has a key, else strongest available provider's tier default; null when no keys). `resolveModelForProject(projectId, tier)` resolves from the **project owner's** keys, falling back to the platform Gemini key. `getModel()` kept as the platform fallback.
+- Prisma: `UserApiKey { userId, provider, encryptedKey, last4, @@unique([userId, provider]) }` + `User.defaultModel`. Migration `20260601195403_byok_api_keys` applied.
+- Routes: `app/api/settings/keys` (GET catalog+configured state w/ last-4 only, POST upsert, DELETE), `app/api/settings/model` (PUT default, validates provider key exists). Encrypted keys never returned to the client.
+- UI: `/settings` page (`app/(workspace)/settings/`) + `components/settings/model-settings.tsx` — default-model `<select>`, per-provider key cards (masked last-4 badge, "Get key" link, save/replace/remove). Linked from the Clerk `UserButton` menu ("Models & API keys").
+- Wiring: chat/spec + design/critique/refine tasks use `resolveModelForProject` (owner-keyed); plan route uses `resolveModelForUser` (acting user, no projectId). design-agent's URL-research step stays on platform Gemini (Google Search grounding is Gemini-only).
+- **Trigger.dev note**: for BYOK to work inside generation, `ENCRYPTION_SECRET` must be set in the Trigger.dev env (dev: in `.env`; prod: synced). Only needed once an owner has BYOK keys — fallback path never decrypts.
+- tsc + `next build` exit 0.
 
 ### 2026-05-31 Generation hang fix + AI surface consolidation
 

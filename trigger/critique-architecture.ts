@@ -1,6 +1,6 @@
 import { task, logger, metadata } from "@trigger.dev/sdk";
 import { generateObject } from "ai";
-import { getModel } from "@/lib/ai/index";
+import { resolveModelForProject } from "@/lib/ai/index";
 import { CRITIQUE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { CritiqueOutputSchema } from "@/lib/ai/schemas";
 import { prisma } from "@/lib/prisma";
@@ -38,7 +38,7 @@ export const critiqueArchitectureTask = task({
 
     try {
       const result = await generateObject({
-        model: getModel("pro"),
+        model: await resolveModelForProject(projectId, "pro"),
         schema: CritiqueOutputSchema,
         system: CRITIQUE_SYSTEM_PROMPT,
         prompt: `Review this architecture and identify issues:\n\n${canvasContext}`,
