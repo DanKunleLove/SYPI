@@ -47,6 +47,24 @@ The "Spec" tab is now real (was a placeholder). Hybrid approach:
 
 Roadmap (Dan's stated priorities): more export formats (Mermaid/OpenAPI/IaC); ~~BYOK + model picker~~ (done — see P5.3); self-critique loop; image-to-architecture; deeper research during planning; (future) autonomous follow-up agents.
 
+### Team collaboration plan (C → B → A, started 2026-06-04)
+
+From a backend-dev friend's feedback. Building order: **C (UX) → B (comments) → A (orgs)**. See [[spi-ai-product-direction]].
+
+**Phase C — UX fixes (DONE, commit 6f6ca45):**
+- "Projects" breadcrumb in the canvas toolbar is now a `<Link href="/">` (was a dead span).
+- Export toolbar button enabled → opens the AI Twin panel on the **Spec** tab (`AiPanel` gained `initialTab`; `project-workspace` rightPanel ai mode gained optional `tab`).
+- Collapsed-sidebar logo already reopened the sidebar (`onClick={collapsed ? onToggle : home}`) — no change needed.
+
+**Phase B — comments + @mentions + email (DONE, build green):**
+- **Comments** via Liveblocks Comments (`@liveblocks/react-ui` already installed). New `components/editor/comments-panel.tsx` (regular `useThreads` from `@liveblocks/react` so opening it doesn't suspend the whole workspace; `Thread` + `Composer`; imports `styles.css` + dark `media-query.css`). New right-panel mode `"comments"` + a MessageSquare toolbar toggle (`onToggleComments`).
+- **@mentions**: `LiveblocksProvider` now has `resolveUsers` + `resolveMentionSuggestions` (liveblocks-room.tsx), backed by `GET /api/projects/[projectId]/members` — returns account-holding members keyed by **clerkId** (the Liveblocks userId from `prepareSession`), with name/avatar/cursorColor/email. Members fetch is cached per room.
+- **Email on mention/reply**: `POST /api/webhooks/liveblocks` (`WebhookHandler` + `isThreadNotificationEvent`) → looks up the recipient's email (User by clerkId) + project, sends via `lib/email.ts` (Resend). Graceful no-op when `RESEND_API_KEY` unset (logs + skips). Webhook path is public via existing `/api/webhooks(.*)` matcher.
+- **NEW env (all optional — features degrade without them):** `RESEND_API_KEY`, `EMAIL_FROM` (default `onboarding@resend.dev`), `LIVEBLOCKS_WEBHOOK_SECRET_KEY`, `NEXT_PUBLIC_APP_URL` (for the email deep link). Dashboard step: add a Liveblocks "notification" webhook → `/api/webhooks/liveblocks`.
+- **Deferred (B v2):** node-anchored comment pins on the canvas (currently project-room-level threads); Liveblocks dark theme is via prefers-color-scheme (could force-match the app theme).
+
+**Phase A — teams/orgs (NOT STARTED):** Clerk Organizations + discipline labels (PM/FE/BE/Security/Designer) separate from permission roles.
+
 ### BYOK + model picker (P5.3)
 
 Users bring their own provider keys; generation routes to the chosen model. Providers: **Anthropic (Claude)**, **OpenAI (GPT)**, **Google (Gemini)**. Per-user default model.

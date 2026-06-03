@@ -11,6 +11,7 @@ import {
   Save,
   Check,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ interface WorkspaceToolbarProps {
   onOpenShare: () => void;
   onToggleAiPanel: () => void;
   onToggleCritique: () => void;
+  onToggleComments: () => void;
   onManualSave: () => void;
   onExport: () => void;
 }
@@ -40,6 +42,7 @@ export function WorkspaceToolbar({
   onOpenShare,
   onToggleAiPanel,
   onToggleCritique,
+  onToggleComments,
   onManualSave,
   onExport,
 }: WorkspaceToolbarProps) {
@@ -104,6 +107,18 @@ export function WorkspaceToolbar({
           ) : (
             <Save className="h-4 w-4" />
           )}
+        </Button>
+
+        {/* Comments */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Comments"
+          title="Comments"
+          onClick={onToggleComments}
+        >
+          <MessageSquare className="h-4 w-4" />
         </Button>
 
         {/* Share */}

@@ -7,6 +7,7 @@ import { WorkspaceCanvas } from "@/components/editor/workspace-canvas";
 import { AiPanel } from "@/components/workspace/ai-panel";
 import { NodeInspector } from "@/components/workspace/node-inspector";
 import { CritiquePanel } from "@/components/editor/critique-panel";
+import { CommentsPanel } from "@/components/editor/comments-panel";
 import { useCritique } from "@/hooks/use-critique";
 import { StatusBar } from "@/components/editor/status-bar";
 import { ShareDialog } from "@/components/editor/share-dialog";
@@ -18,6 +19,7 @@ type RightPanelMode =
   | { type: "closed" }
   | { type: "ai"; tab?: "chat" | "spec" }
   | { type: "critique" }
+  | { type: "comments" }
   | { type: "inspector"; nodeId: string };
 
 interface ProjectWorkspaceProps {
@@ -115,6 +117,13 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
     });
   }, [critique]);
 
+  // Comments button → toggle comments panel
+  const handleToggleComments = useCallback(() => {
+    setRightPanel((prev) =>
+      prev.type === "comments" ? { type: "closed" } : { type: "comments" }
+    );
+  }, []);
+
   const handleCloseRightPanel = useCallback(() => {
     setRightPanel({ type: "closed" });
   }, []);
@@ -140,6 +149,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
             onOpenShare={() => setShareDialogOpen(true)}
             onToggleAiPanel={handleToggleAiPanel}
             onToggleCritique={handleToggleCritique}
+            onToggleComments={handleToggleComments}
             onManualSave={handleManualSave}
             onExport={handleExport}
           />
@@ -177,6 +187,10 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               summary={critique.summary}
               onDismissIssue={critique.dismissIssue}
               onFocusNode={critique.focusNode}
+            />
+            <CommentsPanel
+              open={rightPanel.type === "comments"}
+              onClose={handleCloseRightPanel}
             />
             <NodeInspector
               open={rightPanel.type === "inspector"}
