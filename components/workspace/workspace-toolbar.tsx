@@ -12,6 +12,7 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { SaveStatus } from "@/hooks/use-canvas-autosave";
 
@@ -26,6 +27,7 @@ interface WorkspaceToolbarProps {
   onToggleAiPanel: () => void;
   onToggleCritique: () => void;
   onManualSave: () => void;
+  onExport: () => void;
 }
 
 export function WorkspaceToolbar({
@@ -39,6 +41,7 @@ export function WorkspaceToolbar({
   onToggleAiPanel,
   onToggleCritique,
   onManualSave,
+  onExport,
 }: WorkspaceToolbarProps) {
   return (
     <nav className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--border-default)] bg-[var(--bg-surface)] px-3 gap-2">
@@ -55,7 +58,12 @@ export function WorkspaceToolbar({
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
         )}
-        <span className="text-[var(--text-muted)] shrink-0">Projects</span>
+        <Link
+          href="/"
+          className="text-[var(--text-muted)] shrink-0 rounded px-1 transition-colors hover:text-[var(--text-primary)] hover:underline"
+        >
+          Projects
+        </Link>
         <ChevronRight className="h-3 w-3 text-[var(--text-muted)] shrink-0" />
         <span className="truncate font-medium text-[var(--text-primary)]">
           {projectName}
@@ -109,13 +117,14 @@ export function WorkspaceToolbar({
           <Users className="h-4 w-4" />
         </Button>
 
-        {/* Export */}
+        {/* Export — opens the AI panel's Spec tab */}
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          aria-label="Export"
-          disabled
+          aria-label="Export spec"
+          title="Export spec"
+          onClick={onExport}
         >
           <Download className="h-4 w-4" />
         </Button>

@@ -16,7 +16,7 @@ import type { SaveStatus } from "@/hooks/use-canvas-autosave";
 
 type RightPanelMode =
   | { type: "closed" }
-  | { type: "ai" }
+  | { type: "ai"; tab?: "chat" | "spec" }
   | { type: "critique" }
   | { type: "inspector"; nodeId: string };
 
@@ -99,6 +99,11 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
     );
   }, []);
 
+  // Export button → open AI panel on the Spec tab
+  const handleExport = useCallback(() => {
+    setRightPanel({ type: "ai", tab: "spec" });
+  }, []);
+
   // Review button → open critique panel and start critique
   const critique = useCritique({ projectId: project.id });
 
@@ -136,6 +141,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
             onToggleAiPanel={handleToggleAiPanel}
             onToggleCritique={handleToggleCritique}
             onManualSave={handleManualSave}
+            onExport={handleExport}
           />
 
           <ShareDialog
@@ -161,6 +167,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               onClose={handleCloseRightPanel}
               projectId={project.id}
               projectName={project.name}
+              initialTab={rightPanel.type === "ai" ? rightPanel.tab : undefined}
             />
             <CritiquePanel
               open={rightPanel.type === "critique"}

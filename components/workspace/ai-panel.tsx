@@ -51,11 +51,20 @@ interface AiPanelProps {
   onClose: () => void;
   projectId: string;
   projectName: string;
+  /** Tab to show when the panel opens (e.g. "spec" from the Export button). */
+  initialTab?: TabId;
 }
 
-export function AiPanel({ open, onClose, projectId, projectName }: AiPanelProps) {
+export function AiPanel({ open, onClose, projectId, projectName, initialTab }: AiPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // When opened with a requested tab (Export → Spec), switch to it.
+  useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [open, initialTab]);
 
   useEffect(() => {
     if (open && inputRef.current) {
