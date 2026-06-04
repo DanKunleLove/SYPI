@@ -18,6 +18,8 @@ import {
   UserPlus,
   X,
   Loader2,
+  Globe,
+  Link2,
 } from "lucide-react";
 
 interface Collaborator {
@@ -64,6 +66,9 @@ export function ShareDialog({
   const [copied, setCopied] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [generatingToken, setGeneratingToken] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
 
   const fetchCollaborators = useCallback(async () => {
     setLoading(true);
@@ -186,6 +191,27 @@ export function ShareDialog({
     } catch {
       // Clipboard API not available
     }
+  };
+
+  const handleGenerateShareLink = async () => {
+    setGeneratingToken(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/share`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setShareToken(data.token);
+      }
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareToken) return;
+    const url = `${window.location.origin}/share/${shareToken}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setShareLinkCopied(true);
+    setTimeout(() => setShareLinkCopied(false), 2000);
   };
 
   const getInitial = (name: string | null, email: string) => {
@@ -404,7 +430,58 @@ export function ShareDialog({
           )}
         </ScrollArea>
 
-        {/* Copy link */}
+        {/* Public share link (view-only, no auth) */}
+        {isOwner && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Globe className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
+              <span className="text-xs font-medium text-[var(--text-primary)]">
+                Public share link
+              </span>
+              <span className="ml-auto rounded-full bg-[var(--bg-surface-raised)] px-1.5 py-0.5 text-[9px] text-[var(--text-muted)]">
+                View only · no login required
+              </span>
+            </div>
+            {shareToken ? (
+              <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-2">
+                <span className="flex-1 truncate text-xs text-[var(--text-muted)]">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/share/${shareToken}`
+                    : `/share/${shareToken}`}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={handleCopyShareLink}
+                  aria-label="Copy share link"
+                >
+                  {shareLinkCopied ? (
+                    <Check className="h-3.5 w-3.5 text-[var(--state-success)]" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5 text-[var(--text-secondary)]" />
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                disabled={generatingToken}
+                onClick={handleGenerateShareLink}
+                className="w-full gap-2 border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)] hover:border-[var(--accent-ai)]/40 hover:text-[var(--accent-ai)]"
+              >
+                {generatingToken ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Link2 className="h-3.5 w-3.5" />
+                )}
+                Generate share link
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Copy collaborator link */}
         <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-2">
           <span className="flex-1 truncate text-xs text-[var(--text-muted)]">
             {typeof window !== "undefined"

@@ -39,6 +39,7 @@ model Project {
   description    String?
   canvasJsonPath String?
   thumbnailUrl   String?
+  shareToken     String?  @unique
   userId         String
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   collaborators  Collaborator[]
