@@ -14,6 +14,7 @@ model User {
   ownedProjects  Project[]
   collaborations Collaborator[]
   apiKeys        UserApiKey[]
+  templates      CanvasTemplate[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -77,6 +78,27 @@ model AIGeneration {
   updatedAt DateTime @updatedAt
 
   @@index([projectId])
+}
+
+/**
+ * User-saved canvas templates.
+ * isPublic=true → visible in the template picker to all users.
+ * isPublic=false → private, only visible to the creator.
+ */
+model CanvasTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  category    String   @default("custom")  // web | data | infra | mobile | custom
+  isPublic    Boolean  @default(false)
+  schema      Json     // spi-schema.json structure
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isPublic])
 }
 
 model TaskRun {

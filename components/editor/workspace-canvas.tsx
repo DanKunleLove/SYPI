@@ -20,6 +20,7 @@ import {
   ZoomIn,
   Wrench,
   X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SystemNode } from "@/components/canvas/system-node";
@@ -36,6 +37,7 @@ import { SuggestionChip } from "@/components/canvas/suggestion-chip";
 import { OnboardingOverlay } from "@/components/editor/onboarding-overlay";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 import type { Suggestion } from "@/lib/ai/suggestions";
+import type { SpiSchema } from "@/lib/export";
 
 import "@xyflow/react/dist/style.css";
 
@@ -202,16 +204,17 @@ export function WorkspaceCanvas({
     setShowEmptyState(false);
   }, []);
 
-  // Load a system template onto the canvas
+  // Load a template onto the canvas — built-in (by id) or user template (by schema)
   const handleLoadTemplate = useCallback(
-    (templateId: string) => {
-      const template = SYSTEM_TEMPLATES.find((t) => t.id === templateId);
-      if (!template) return;
+    (templateId: string, userSchema?: SpiSchema) => {
+      // User template: schema is passed directly
+      const schema = userSchema ?? SYSTEM_TEMPLATES.find((t) => t.id === templateId)?.schema;
+      if (!schema) return;
       reactFlowInstance.addNodes(
-        template.schema.nodes.map((n) => ({ ...n, type: n.type || "systemNode" }))
+        schema.nodes.map((n) => ({ ...n, type: n.type || "systemNode" }))
       );
       reactFlowInstance.addEdges(
-        template.schema.edges.map((e) => ({
+        schema.edges.map((e) => ({
           ...e,
           type: e.type || "custom",
           animated: true,
@@ -349,7 +352,7 @@ export function WorkspaceCanvas({
       <AnimatePresence>
         {showTemplates && (
           <TemplatePicker
-            onSelect={handleLoadTemplate}
+            onSelect={(id, schema) => handleLoadTemplate(id, schema)}
             onClose={() => setShowTemplates(false)}
           />
         )}
@@ -480,13 +483,65 @@ const CATEGORY_COLORS: Record<string, string> = {
   mobile: "var(--state-warning)",
 };
 
+interface UserTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  category: string;
+  schema: SpiSchema;
+  user?: { name: string | null } | null;
+}
+
 function TemplatePicker({
   onSelect,
   onClose,
 }: {
-  onSelect: (id: string) => void;
+  onSelect: (id: string, schema?: SpiSchema) => void;
   onClose: () => void;
 }) {
+  const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
+  const [communityTemplates, setCommunityTemplates] = useState<UserTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => (r.ok ? r.json() : { own: [], community: [] }))
+      .then((d) => {
+        setUserTemplates(d.own ?? []);
+        setCommunityTemplates(d.community ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const renderCard = (name: string, description: string | null | undefined, nodes: number, edges: number, accent: string, onClick: () => void, badge?: string) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-4 text-left transition-all hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface-raised)]"
+    >
+      <div className="flex items-center gap-2">
+        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: accent }} />
+        <span className="flex-1 truncate text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-ai)]">
+          {name}
+        </span>
+        {badge && (
+          <span className="rounded-full bg-[var(--accent-primary)]/10 px-1.5 py-0.5 text-[9px] text-[var(--accent-primary)]">
+            {badge}
+          </span>
+        )}
+      </div>
+      {description && (
+        <p className="text-[11px] leading-relaxed text-[var(--text-muted)] line-clamp-2">
+          {description}
+        </p>
+      )}
+      <p className="text-[10px] text-[var(--text-muted)]">
+        {nodes} components · {edges} connections
+      </p>
+    </button>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -500,7 +555,7 @@ function TemplatePicker({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className="relative w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 shadow-2xl"
+        className="relative w-full max-w-lg max-h-[80vh] overflow-y-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 shadow-2xl"
       >
         <button
           type="button"
@@ -513,36 +568,78 @@ function TemplatePicker({
         <div className="mb-5">
           <h2 className="text-base font-semibold text-[var(--text-primary)]">System Templates</h2>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Start with a pre-built architecture. You can customize it after loading.
+            Load a pre-built architecture. You can customize it after loading.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {SYSTEM_TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onSelect(t.id)}
-              className="group flex flex-col gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-4 text-left transition-all hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface-raised)]"
-            >
-              <div className="flex items-center gap-2">
-                <div
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: CATEGORY_COLORS[t.category] ?? "var(--accent-primary)" }}
-                />
-                <span className="text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-ai)]">
-                  {t.name}
-                </span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
-                {t.description}
-              </p>
-              <p className="text-[10px] text-[var(--text-muted)]">
-                {t.schema.nodes.length} components · {t.schema.edges.length} connections
-              </p>
-            </button>
-          ))}
+        {/* My templates */}
+        {!loading && userTemplates.length > 0 && (
+          <div className="mb-5">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              My templates
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {userTemplates.map((t) =>
+                renderCard(
+                  t.name,
+                  t.description,
+                  t.schema.nodes.length,
+                  t.schema.edges.length,
+                  CATEGORY_COLORS[t.category as keyof typeof CATEGORY_COLORS] ?? "var(--accent-ai)",
+                  () => onSelect(t.id, t.schema),
+                  t.user?.name ?? undefined
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Built-in templates */}
+        <div className="mb-5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Built-in
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {SYSTEM_TEMPLATES.map((t) =>
+              renderCard(
+                t.name,
+                t.description,
+                t.schema.nodes.length,
+                t.schema.edges.length,
+                CATEGORY_COLORS[t.category] ?? "var(--accent-primary)",
+                () => onSelect(t.id)
+              )
+            )}
+          </div>
         </div>
+
+        {/* Community templates */}
+        {!loading && communityTemplates.length > 0 && (
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Community
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {communityTemplates.map((t) =>
+                renderCard(
+                  t.name,
+                  t.description,
+                  t.schema.nodes.length,
+                  t.schema.edges.length,
+                  CATEGORY_COLORS[t.category as keyof typeof CATEGORY_COLORS] ?? "var(--accent-primary)",
+                  () => onSelect(t.id, t.schema),
+                  t.user?.name ?? undefined
+                )
+              )}
+            </div>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--text-muted)]" />
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );

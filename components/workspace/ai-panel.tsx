@@ -26,7 +26,9 @@ import {
   ChevronDown,
   ChevronUp,
   Zap,
+  LayoutTemplate,
 } from "lucide-react";
+import { SaveTemplateDialog } from "@/components/editor/save-template-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/use-ai-chat";
@@ -36,6 +38,7 @@ import { useCanvasExport } from "@/hooks/use-canvas-export";
 import { serializeCanvasForAI } from "@/lib/ai/canvas-context";
 import { generateSpecMarkdown } from "@/lib/spec";
 import {
+  generateSpiSchema,
   generateMermaid,
   generateLovablePrompt,
   generateV0Prompt,
@@ -673,6 +676,7 @@ function SpecTab({
   const importRef = useRef<HTMLInputElement>(null);
 
   const { exportPng, exporting } = useCanvasExport(projectName);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
 
   const nodeCount = reactFlow.getNodes().length;
   const nodes = reactFlow.getNodes() as CanvasNode[];
@@ -877,6 +881,16 @@ function SpecTab({
           </div>
         </div>
 
+        {/* Save as template */}
+        <Button
+          onClick={() => setSaveTemplateOpen(true)}
+          variant="ghost"
+          className="w-full gap-1.5 border border-[var(--border-default)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
+          <LayoutTemplate className="h-3.5 w-3.5" />
+          Save as template
+        </Button>
+
         {/* Export formats toggle */}
         <button
           type="button"
@@ -971,6 +985,12 @@ function SpecTab({
           )}
         </div>
       </div>
+
+      <SaveTemplateDialog
+        open={saveTemplateOpen}
+        onClose={() => setSaveTemplateOpen(false)}
+        schema={generateSpiSchema(nodes, edges, projectName)}
+      />
     </>
   );
 }
