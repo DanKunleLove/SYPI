@@ -1,0 +1,41 @@
+---
+title: API keys (BYOK)
+description: Bring your own API keys to power generation with Claude, GPT, or Gemini.
+---
+
+spi AI supports **Bring Your Own Key (BYOK)** — you can use your own API keys from Anthropic, OpenAI, or Google instead of spi AI's shared infrastructure.
+
+## Why use your own key?
+
+- **Higher rate limits** — your project isn't competing with other users
+- **Model choice** — access Claude Opus, GPT-4o, or Gemini Pro even if not available on the spi AI free tier
+- **Cost transparency** — API costs go directly to your provider account
+
+## Adding a key
+
+1. Go to **Settings** (click your avatar → Models & API keys)
+2. Find the provider you want to configure
+3. Click the key field, paste your API key, and click **Save**
+4. Your key is encrypted at rest using AES-256-GCM — it is never returned to the browser after saving
+
+## Supported providers
+
+| Provider | Models available |
+|----------|-----------------|
+| **Anthropic** | Claude Opus 4, Claude Sonnet 4 |
+| **OpenAI** | GPT-4o, GPT-4o mini |
+| **Google** | Gemini 2.5 Pro, Gemini 2.5 Flash |
+
+## Setting a default model
+
+After adding at least one key, use the **Default model** dropdown in Settings to choose which model spi AI uses for generation by default.
+
+The default model applies to all AI operations for your projects (generation, chat, critique, spec enhancement). URL analysis always uses Google Gemini (required for Google Search grounding).
+
+## Removing a key
+
+Click the **Remove** button next to any provider in Settings. The encrypted key is deleted from the database immediately. Generation falls back to the spi AI platform key.
+
+<Warning>
+  Keep your API keys secure. If you suspect a key has been compromised, revoke it from your provider's dashboard and add a new one in spi AI Settings.
+</Warning>

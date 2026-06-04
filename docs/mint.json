@@ -1,0 +1,88 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "spi AI",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#a78bfa",
+    "light": "#c4b5fd",
+    "dark": "#7c3aed",
+    "anchors": {
+      "from": "#a78bfa",
+      "to": "#6366f1"
+    }
+  },
+  "topbarLinks": [
+    { "name": "App", "url": "https://spi.ai/dashboard" }
+  ],
+  "topbarCtaButton": {
+    "name": "Get started",
+    "url": "https://spi.ai/sign-up"
+  },
+  "tabs": [
+    { "name": "Guides", "url": "guides" },
+    { "name": "Reference", "url": "reference" }
+  ],
+  "anchors": [
+    { "name": "GitHub", "icon": "github", "url": "https://github.com/DanKunleLove/spi-ai" }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "guides/introduction",
+        "guides/quickstart",
+        "guides/first-system"
+      ]
+    },
+    {
+      "group": "Canvas",
+      "pages": [
+        "guides/canvas-basics",
+        "guides/node-types",
+        "guides/connections",
+        "guides/templates"
+      ]
+    },
+    {
+      "group": "AI Twin",
+      "pages": [
+        "guides/ai-generate",
+        "guides/ai-chat",
+        "guides/ai-review",
+        "guides/ai-suggestions"
+      ]
+    },
+    {
+      "group": "Export & Handoff",
+      "pages": [
+        "guides/export-overview",
+        "guides/export-png",
+        "guides/export-mermaid",
+        "guides/export-agent-bundle",
+        "guides/export-vibe-coder"
+      ]
+    },
+    {
+      "group": "Collaboration",
+      "pages": [
+        "guides/invite-team",
+        "guides/comments",
+        "guides/share"
+      ]
+    },
+    {
+      "group": "Settings",
+      "pages": [
+        "guides/api-keys",
+        "guides/model-picker"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/DanKunleLove/spi-ai"
+  }
+}

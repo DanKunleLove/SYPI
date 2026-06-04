@@ -1,0 +1,50 @@
+---
+title: Node types
+description: The 9 node categories and what each one represents.
+---
+
+Every node on the canvas has a **category** that determines its icon, accent colour, and the configuration fields shown in the inspector.
+
+| Category | Icon colour | Use for |
+|----------|------------|---------|
+| **Service** | Indigo | Backend microservices, APIs, business logic |
+| **Database** | Amber | Relational or document databases (PostgreSQL, MongoDB) |
+| **Cache** | Green | In-memory stores (Redis, Memcached) |
+| **Queue** | Orange | Message brokers (Kafka, RabbitMQ, SQS) |
+| **Gateway** | Violet | API gateways, load balancers, reverse proxies |
+| **Client** | Cyan | Frontend apps, mobile clients, CLIs |
+| **Storage** | Yellow | Object stores, CDNs, file systems (S3, GCS) |
+| **Compute** | Pink | Serverless functions, workers, background jobs (Lambda, Trigger.dev) |
+| **Custom** | Grey | Anything that doesn't fit the above |
+
+## Adding nodes
+
+**From the palette** — The icon row at the bottom-centre of the canvas. Click to add at the viewport centre; drag to place anywhere.
+
+**From the AI Twin** — Generating or chatting will automatically add the right node types.
+
+## Editing a node
+
+Click any node to open the **Node Inspector** panel on the right. From there you can:
+
+- Edit the **label** and **description**
+- Change the **category** (updates the icon and colour)
+- Set a **custom accent colour** (12-colour picker)
+- Fill in **system config** fields (technology, port, protocol, etc.)
+- Add free-form **notes**
+- **Delete** the node
+
+Double-click a node directly on the canvas to edit its label inline.
+
+## Configuration fields
+
+The inspector shows category-appropriate fields:
+
+- **Service**: Technology, Port, Protocol, Scaling
+- **Database**: Database Type, Replication
+- **Cache**: Cache Type, TTL
+- **Queue**: Queue Type
+- **Gateway**: Auth Method, Rate Limit
+- **Compute**: Runtime, Memory, Timeout
+- **Client**: Platform, Framework
+- **Storage**: Storage Type

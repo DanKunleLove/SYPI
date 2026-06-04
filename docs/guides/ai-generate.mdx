@@ -1,0 +1,66 @@
+---
+title: AI generation
+description: How the plan-then-execute generation flow works.
+---
+
+The AI Twin generates system architectures using a **plan-then-execute** flow designed to keep you in control.
+
+## The flow
+
+```
+You describe a system
+      ↓
+AI drafts a plan (components, decisions, flows)
+      ↓
+You review and approve (or refine)
+      ↓
+AI builds the canvas node by node
+      ↓
+AI reports what it built
+```
+
+This prevents surprises. You see exactly what will be created before it touches your canvas.
+
+## Opening the AI Twin
+
+Click **Generate** in the top toolbar. The panel opens with **Generate** mode selected by default.
+
+## Modes
+
+| Mode | What it does |
+|------|-------------|
+| **Generate** | Plan-first generation from a text description |
+| **Chat** | Conversational canvas editing (add/remove/update nodes via chat) |
+| **URL** | Paste a URL — the AI researches the site's tech stack and generates the architecture |
+
+## Writing a good prompt
+
+Be specific about:
+- The system **type** (e-commerce, real-time chat, data pipeline, etc.)
+- The **technology** choices you've already made
+- The **scale** if relevant (high-traffic, multi-region, etc.)
+
+**Good:**
+```
+Event-driven e-commerce backend with Node.js microservices, Kafka for order events,
+Redis cache in front of PostgreSQL, and a Next.js storefront
+```
+
+**Vague:**
+```
+Build me a shopping app
+```
+
+## Refining a generated canvas
+
+After generation, switch to **Chat** mode to make targeted changes:
+
+> "Add a CDN in front of the Web Frontend"
+> "Remove the Notification Service and replace it with a third-party email provider"
+> "Add replication to the User Database"
+
+The AI modifies the existing canvas — it doesn't start over.
+
+## Bring Your Own Key (BYOK)
+
+By default, generation uses spi AI's Gemini API key. You can use your own Claude, GPT, or Gemini key from **Settings → Models & API keys**. Your own key is used for all AI operations for your projects.

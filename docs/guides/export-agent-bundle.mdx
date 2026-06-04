@@ -1,0 +1,51 @@
+---
+title: Agent Bundle
+description: Export your architecture as a ZIP your AI coding agent can implement.
+---
+
+The **Agent Bundle** is spi AI's killer feature for AI-assisted development. It packages your canvas into a structured ZIP that an AI coding agent (Claude Code, GitHub Copilot, Codex, Cursor) can read and use as a blueprint to implement your system.
+
+## What's in the bundle
+
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Agent context — tells Claude Code what to build, the component breakdown, data flows, and implementation conventions |
+| `ARCHITECTURE.md` | Full human-readable Markdown spec with components, connections, and config details |
+| `spi-schema.json` | Machine-readable canvas export — import it back into spi AI at any time |
+| `TASKS.md` | Ordered implementation task list, phase by phase, with dependency indicators |
+
+## Downloading the bundle
+
+1. Open the **Spec** tab in the AI Twin panel (or click the Export button in the toolbar)
+2. Click **Export formats** to expand the export options
+3. Click **Download .zip** next to **Agent Bundle**
+
+## Using with Claude Code
+
+1. Unzip the bundle into your project directory
+2. Run Claude Code: `claude`
+3. Claude Code automatically reads `CLAUDE.md` and understands your system
+4. Ask it to start implementing: "Start with Phase 1 from TASKS.md"
+
+The `TASKS.md` breaks the work into phases:
+- **Phase 0**: Project setup
+- **Phase 1**: Data layer
+- **Phase 2**: Infrastructure
+- **Phase 3**: Backend services
+- **Phase 4**: Frontend
+- **Phase 5**: Integration & testing
+- **Phase 6**: Production readiness
+
+## Re-importing the schema
+
+The `spi-schema.json` inside the bundle can be imported back into spi AI:
+
+1. Open the Spec tab
+2. Click **Import spi-schema.json**
+3. Select the file
+
+This loads the architecture onto the canvas, including all node positions, labels, descriptions, and connections.
+
+<Note>
+  Importing replaces the current canvas. Make sure to save or export first if you want to keep the existing design.
+</Note>
