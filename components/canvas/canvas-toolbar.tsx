@@ -1,21 +1,67 @@
 "use client";
 
 import { useReactFlow } from "@xyflow/react";
+import { useLiveblocksFlow } from "@liveblocks/react-flow";
 import { useHistory, useCanUndo, useCanRedo } from "@liveblocks/react/suspense";
 import { motion } from "framer-motion";
-import { Undo2, Redo2, Minus, Plus, Maximize2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Undo2, Redo2, Minus, Plus, Maximize2, LayoutGrid } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
+
+const TIER_MAP: Record<NodeCategory, number> = {
+  client: 0,
+  gateway: 1,
+  service: 2,
+  compute: 2,
+  queue: 3,
+  cache: 3,
+  database: 4,
+  storage: 4,
+  custom: 2,
+};
+const H_GAP = 250;
+const V_GAP = 200;
 
 export function CanvasToolbar() {
   const reactFlow = useReactFlow();
+  const { nodes } = useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const history = useHistory();
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
+
+  const handleAutoLayout = () => {
+    if (nodes.length === 0) return;
+
+    // Group nodes by tier while preserving full node objects (IDs intact)
+    const tierGroups = new Map<number, CanvasNode[]>();
+    for (const node of nodes) {
+      const cat = (node.data.nodeCategory as NodeCategory) || "custom";
+      const tier = TIER_MAP[cat] ?? 2;
+      const group = tierGroups.get(tier) ?? [];
+      group.push(node);
+      tierGroups.set(tier, group);
+    }
+
+    const sortedTiers = [...tierGroups.keys()].sort((a, b) => a - b);
+    let maxWidth = 0;
+    for (const [, g] of tierGroups) maxWidth = Math.max(maxWidth, (g.length - 1) * H_GAP);
+
+    const updated: CanvasNode[] = [];
+    for (const tier of sortedTiers) {
+      const group = tierGroups.get(tier)!;
+      const tierWidth = (group.length - 1) * H_GAP;
+      const startX = (maxWidth - tierWidth) / 2;
+      const y = tier * V_GAP;
+      group.forEach((n, i) => updated.push({ ...n, position: { x: startX + i * H_GAP, y } }));
+    }
+
+    reactFlow.setNodes(updated);
+    setTimeout(() => reactFlow.fitView({ duration: 400, padding: 0.15 }), 60);
+  };
 
   return (
     <motion.div
@@ -72,6 +118,27 @@ export function CanvasToolbar() {
             <Plus className="h-3.5 w-3.5" />
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">Zoom in</TooltipContent>
+        </Tooltip>
+
+        {/* Separator */}
+        <div className="mx-0.5 h-5 w-px bg-[var(--border-default)]" />
+
+        {/* Auto-layout */}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label="Auto-layout (tidy)"
+                disabled={nodes.length === 0}
+                onClick={handleAutoLayout}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-30"
+              />
+            }
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Auto-layout</TooltipContent>
         </Tooltip>
 
         {/* Separator */}

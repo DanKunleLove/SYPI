@@ -12,11 +12,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { slugify, type Project } from "@/lib/mock-projects";
+import { slugify } from "@/lib/mock-projects";
 
 interface RenameProjectDialogProps {
   open: boolean;
-  project: Project | null;
+  project: { id: string; name: string } | null;
   onClose: () => void;
   onRename: (id: string, newName: string) => void | Promise<void>;
 }
@@ -51,7 +51,7 @@ function RenameProjectForm({
   onClose,
   onRename,
 }: {
-  project: Project;
+  project: { id: string; name: string };
   onClose: () => void;
   onRename: (id: string, newName: string) => void | Promise<void>;
 }) {

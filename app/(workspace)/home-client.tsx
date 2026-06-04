@@ -2,14 +2,16 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, GitBranch, PanelLeftOpen } from "lucide-react";
+import { Plus, Search, PanelLeftOpen } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/brand/logo";
 import { useSidebarState } from "@/components/workspace/sidebar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectGrid } from "@/components/dashboard/project-grid";
+import { RenameProjectDialog } from "@/components/editor/rename-project-dialog";
+import { DeleteProjectDialog } from "@/components/editor/delete-project-dialog";
 import {
-  createProject,
   renameProject,
   duplicateProject,
   deleteProject,
@@ -30,6 +32,8 @@ export function HomeClient({
   const [, startTransition] = useTransition();
   const [tab, setTab] = useState<"my" | "shared">("my");
   const [searchQuery, setSearchQuery] = useState("");
+  const [renameTarget, setRenameTarget] = useState<ProjectCardData | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectCardData | null>(null);
 
   const myProjects = initialMyProjects;
   const sharedProjects = initialSharedProjects;
@@ -59,12 +63,16 @@ export function HomeClient({
   }
 
   function handleRename(id: string) {
-    const name = prompt("New name:");
-    if (!name?.trim()) return;
+    const project = [...myProjects, ...sharedProjects].find((p) => p.id === id);
+    if (project) setRenameTarget(project);
+  }
+
+  async function handleRenameConfirm(id: string, newName: string) {
     startTransition(async () => {
       try {
-        await renameProject(id, name);
+        await renameProject(id, newName);
         router.refresh();
+        setRenameTarget(null);
       } catch {
         toast.error("Failed to rename project");
       }
@@ -84,12 +92,17 @@ export function HomeClient({
   }
 
   function handleDelete(id: string) {
-    if (!confirm("Delete this project? This cannot be undone.")) return;
+    const project = [...myProjects, ...sharedProjects].find((p) => p.id === id);
+    if (project) setDeleteTarget(project);
+  }
+
+  async function handleDeleteConfirm(id: string) {
     startTransition(async () => {
       try {
         await deleteProject(id);
         router.refresh();
         toast.success("Project deleted");
+        setDeleteTarget(null);
       } catch {
         toast.error("Failed to delete project");
       }
@@ -116,7 +129,7 @@ export function HomeClient({
               <PanelLeftOpen className="h-4 w-4" />
             </Button>
           )}
-          <GitBranch className="h-5 w-5 text-[var(--accent-primary)]" />
+          <Logo size="sm" showText={false} />
           <span className="text-sm font-semibold text-[var(--text-primary)]">
             Dashboard
           </span>
@@ -189,6 +202,20 @@ export function HomeClient({
           )}
         </motion.div>
       </div>
+
+      {/* Proper dialogs — no window.prompt / window.confirm */}
+      <RenameProjectDialog
+        open={!!renameTarget}
+        project={renameTarget}
+        onClose={() => setRenameTarget(null)}
+        onRename={handleRenameConfirm}
+      />
+      <DeleteProjectDialog
+        open={!!deleteTarget}
+        project={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDelete={handleDeleteConfirm}
+      />
     </div>
   );
 }

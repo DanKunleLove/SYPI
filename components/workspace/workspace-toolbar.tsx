@@ -164,9 +164,6 @@ export function WorkspaceToolbar({
           <Sparkles className="h-4 w-4" />
           <span className="text-sm hidden sm:inline">Generate</span>
         </Button>
-
-        {/* Connection status dot */}
-        <div className="h-2 w-2 rounded-full bg-[var(--state-success)]" />
       </div>
     </nav>
   );

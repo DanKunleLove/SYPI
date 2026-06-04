@@ -19,6 +19,7 @@ import {
   Mouse,
   ZoomIn,
   Wrench,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SystemNode } from "@/components/canvas/system-node";
@@ -30,6 +31,7 @@ import { CustomCursor } from "@/components/canvas/custom-cursor";
 import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
 import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
+import { SYSTEM_TEMPLATES } from "@/lib/templates";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
 import "@xyflow/react/dist/style.css";
@@ -71,6 +73,7 @@ export function WorkspaceCanvas({
   const reactFlowInstance = useReactFlow();
   const prevNodeCount = useRef(nodes.length);
   const [showEmptyState, setShowEmptyState] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
   const hasLoadedRef = useRef(false);
 
   // Register keyboard shortcuts
@@ -194,6 +197,29 @@ export function WorkspaceCanvas({
     setShowEmptyState(false);
   }, []);
 
+  // Load a system template onto the canvas
+  const handleLoadTemplate = useCallback(
+    (templateId: string) => {
+      const template = SYSTEM_TEMPLATES.find((t) => t.id === templateId);
+      if (!template) return;
+      reactFlowInstance.addNodes(
+        template.schema.nodes.map((n) => ({ ...n, type: n.type || "systemNode" }))
+      );
+      reactFlowInstance.addEdges(
+        template.schema.edges.map((e) => ({
+          ...e,
+          type: e.type || "custom",
+          animated: true,
+          data: e.data ?? {},
+        }))
+      );
+      setShowEmptyState(false);
+      setShowTemplates(false);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 100);
+    },
+    [reactFlowInstance]
+  );
+
   const isEmpty = nodes.length === 0;
 
   return (
@@ -292,6 +318,17 @@ export function WorkspaceCanvas({
           <EmptyState
             onStartManual={handleStartManual}
             onStartFromPrompt={onOpenAiPanel}
+            onShowTemplates={() => setShowTemplates(true)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Template picker modal */}
+      <AnimatePresence>
+        {showTemplates && (
+          <TemplatePicker
+            onSelect={handleLoadTemplate}
+            onClose={() => setShowTemplates(false)}
           />
         )}
       </AnimatePresence>
@@ -305,9 +342,11 @@ export function WorkspaceCanvas({
 function EmptyState({
   onStartManual,
   onStartFromPrompt,
+  onShowTemplates,
 }: {
   onStartManual: () => void;
   onStartFromPrompt?: () => void;
+  onShowTemplates?: () => void;
 }) {
   return (
     <motion.div
@@ -353,7 +392,7 @@ function EmptyState({
             icon={LayoutTemplate}
             label="Use a template"
             description="Pre-built architectures"
-            disabled
+            onClick={onShowTemplates}
           />
         </div>
 
@@ -406,5 +445,80 @@ function QuickAction({
       </span>
       <span className="text-[11px] text-[var(--text-muted)]">{description}</span>
     </Button>
+  );
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  web: "var(--accent-primary)",
+  data: "var(--state-success)",
+  infra: "var(--accent-ai)",
+  mobile: "var(--state-warning)",
+};
+
+function TemplatePicker({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="relative w-full max-w-lg rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-6 shadow-2xl"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)]"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="mb-5">
+          <h2 className="text-base font-semibold text-[var(--text-primary)]">System Templates</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            Start with a pre-built architecture. You can customize it after loading.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {SYSTEM_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onSelect(t.id)}
+              className="group flex flex-col gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-4 text-left transition-all hover:border-[var(--border-subtle)] hover:bg-[var(--bg-surface-raised)]"
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: CATEGORY_COLORS[t.category] ?? "var(--accent-primary)" }}
+                />
+                <span className="text-xs font-medium text-[var(--text-primary)] group-hover:text-[var(--accent-ai)]">
+                  {t.name}
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
+                {t.description}
+              </p>
+              <p className="text-[10px] text-[var(--text-muted)]">
+                {t.schema.nodes.length} components · {t.schema.edges.length} connections
+              </p>
+            </button>
+          ))}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

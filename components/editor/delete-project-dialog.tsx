@@ -10,11 +10,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TriangleAlert } from "lucide-react";
-import type { Project } from "@/lib/mock-projects";
-
 interface DeleteProjectDialogProps {
   open: boolean;
-  project: Project | null;
+  project: { id: string; name: string } | null;
   onClose: () => void;
   onDelete: (id: string) => void | Promise<void>;
 }

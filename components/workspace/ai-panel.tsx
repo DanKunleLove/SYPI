@@ -19,13 +19,29 @@ import {
   Pencil,
   Copy,
   Download,
+  Image,
+  Code2,
+  Package,
+  Upload,
+  ChevronDown,
+  ChevronUp,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/use-ai-chat";
 import { useGeneration } from "@/hooks/use-generation";
+import { useCanvasExport } from "@/hooks/use-canvas-export";
 import { serializeCanvasForAI } from "@/lib/ai/canvas-context";
 import { generateSpecMarkdown } from "@/lib/spec";
+import {
+  generateMermaid,
+  generateLovablePrompt,
+  generateV0Prompt,
+  downloadAgentBundle,
+  downloadSpiSchema,
+  parseSpiSchema,
+} from "@/lib/export";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
@@ -623,49 +639,64 @@ function SpecTab({
   const reactFlow = useReactFlow();
   const [overview, setOverview] = useState<string | null>(null);
   const [enhancing, setEnhancing] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [bundling, setBundling] = useState(false);
+  const [showExports, setShowExports] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const { exportPng, exporting } = useCanvasExport(projectName);
 
   const nodeCount = reactFlow.getNodes().length;
+  const nodes = reactFlow.getNodes() as CanvasNode[];
+  const edges = reactFlow.getEdges() as CanvasEdge[];
 
-  // Recomputes when the AI overview changes; reads the canvas at compute time.
   const spec = useMemo(
     () =>
       generateSpecMarkdown({
         projectName,
-        nodes: reactFlow.getNodes() as CanvasNode[],
-        edges: reactFlow.getEdges() as CanvasEdge[],
+        nodes,
+        edges,
         overview: overview ?? undefined,
         date: new Date().toISOString().slice(0, 10),
       }),
-    [reactFlow, projectName, overview]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reactFlow, projectName, overview, nodeCount]
   );
 
-  const handleCopy = useCallback(async () => {
-    await navigator.clipboard.writeText(spec).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [spec]);
+  const copyText = useCallback(async (text: string, key: string) => {
+    await navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1800);
+  }, []);
 
-  const handleDownload = useCallback(() => {
+  const handleDownloadMd = useCallback(() => {
     const blob = new Blob([spec], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safe =
-      (projectName || "architecture").replace(/[^a-z0-9]+/gi, "-").toLowerCase() ||
-      "architecture";
+    const safe = (projectName || "architecture").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     a.href = url;
     a.download = `${safe}-spec.md`;
     a.click();
     URL.revokeObjectURL(url);
   }, [spec, projectName]);
 
+  const handleDownloadMermaid = useCallback(() => {
+    const mermaid = generateMermaid(nodes, edges);
+    const blob = new Blob([mermaid], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safe = (projectName || "architecture").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    a.href = url;
+    a.download = `${safe}-diagram.mmd`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [nodes, edges, projectName]);
+
   const handleEnhance = useCallback(async () => {
     setEnhancing(true);
     try {
-      const canvasContext = serializeCanvasForAI(
-        reactFlow.getNodes() as CanvasNode[],
-        reactFlow.getEdges() as CanvasEdge[]
-      );
+      const canvasContext = serializeCanvasForAI(nodes, edges);
       const res = await fetch("/api/ai/spec", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -679,67 +710,300 @@ function SpecTab({
     } finally {
       setEnhancing(false);
     }
-  }, [reactFlow, projectId]);
+  }, [nodes, edges, projectId]);
+
+  const handleAgentBundle = useCallback(async () => {
+    setBundling(true);
+    try {
+      await downloadAgentBundle(nodes, edges, projectName, spec);
+    } finally {
+      setBundling(false);
+    }
+  }, [nodes, edges, projectName, spec]);
+
+  const handleImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setImportError(null);
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const json = JSON.parse(ev.target?.result as string);
+          const schema = parseSpiSchema(json);
+          if (!schema) {
+            setImportError("Invalid spi-schema.json — check the file format.");
+            return;
+          }
+          // Clear existing canvas and load the imported architecture
+          const currentNodes = reactFlow.getNodes();
+          const currentEdges = reactFlow.getEdges();
+          if (currentNodes.length > 0) {
+            reactFlow.deleteElements({ nodes: currentNodes, edges: currentEdges });
+          }
+          if (schema.nodes.length > 0) {
+            reactFlow.addNodes(
+              schema.nodes.map((n) => ({
+                ...n,
+                type: n.type || "systemNode",
+              }))
+            );
+          }
+          if (schema.edges.length > 0) {
+            reactFlow.addEdges(schema.edges.map((e) => ({ ...e, type: e.type || "custom" })));
+          }
+          setTimeout(() => reactFlow.fitView({ duration: 400 }), 100);
+        } catch {
+          setImportError("Could not parse file — make sure it's valid JSON.");
+        }
+        // Reset input so the same file can be re-imported
+        if (importRef.current) importRef.current.value = "";
+      };
+      reader.readAsText(file);
+    },
+    [reactFlow]
+  );
 
   if (nodeCount === 0) {
     return (
-      <PlaceholderTab
-        icon={FileText}
-        title="Spec Preview"
-        description="Add components to the canvas to generate a technical spec."
-      />
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-ai)]/10">
+          <FileText className="h-6 w-6 text-[var(--accent-ai)]" />
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-medium text-[var(--text-primary)]">Spec &amp; Export</p>
+          <p className="mt-1 max-w-[240px] text-xs text-[var(--text-muted)]">
+            Build your canvas to generate specs, export images, and create AI agent bundles.
+          </p>
+        </div>
+        {/* Import even when canvas is empty */}
+        <div className="w-full border-t border-[var(--border-default)] pt-4">
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <Button
+            onClick={() => importRef.current?.click()}
+            variant="ghost"
+            className="w-full gap-2 border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-secondary)] hover:border-[var(--accent-ai)]/40 hover:text-[var(--accent-ai)]"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import spi-schema.json
+          </Button>
+          {importError && (
+            <p className="mt-2 text-center text-[11px] text-[var(--state-error)]">{importError}</p>
+          )}
+        </div>
+      </div>
     );
   }
 
+  const mermaid = generateMermaid(nodes, edges);
+  const lovablePrompt = generateLovablePrompt(nodes, edges, projectName);
+  const v0Prompt = generateV0Prompt(nodes, edges, projectName);
+
   return (
     <>
+      {/* Spec preview */}
       <div className="flex flex-1 flex-col overflow-y-auto">
         <pre className="whitespace-pre-wrap break-words p-4 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]">
           {spec}
         </pre>
       </div>
-      <div className="flex items-center gap-2 border-t border-[var(--border-default)] p-3 shrink-0">
-        <Button
-          onClick={handleEnhance}
-          disabled={enhancing}
-          variant="ghost"
-          className="gap-1.5 border border-[var(--border-default)] text-xs text-[var(--text-secondary)]"
-        >
-          {enhancing ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
-          )}
-          {overview ? "Regenerate overview" : "Enhance with AI"}
-        </Button>
-        <div className="ml-auto flex gap-1.5">
+
+      {/* Primary actions */}
+      <div className="border-t border-[var(--border-default)] p-3 shrink-0 space-y-2">
+        <div className="flex items-center gap-2">
           <Button
-            onClick={handleCopy}
+            onClick={handleEnhance}
+            disabled={enhancing}
             variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            title="Copy Markdown"
-            aria-label="Copy Markdown"
+            className="gap-1.5 border border-[var(--border-default)] text-xs text-[var(--text-secondary)]"
           >
-            {copied ? (
-              <Check className="h-4 w-4 text-[var(--state-success)]" />
+            {enhancing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Copy className="h-4 w-4" />
+              <Sparkles className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
             )}
+            {overview ? "Re-enhance" : "Enhance with AI"}
           </Button>
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              onClick={() => copyText(spec, "md")}
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              title="Copy Markdown"
+            >
+              {copiedKey === "md" ? (
+                <Check className="h-3.5 w-3.5 text-[var(--state-success)]" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </Button>
+            <Button
+              onClick={handleDownloadMd}
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              title="Download .md"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Export formats toggle */}
+        <button
+          type="button"
+          onClick={() => setShowExports((v) => !v)}
+          className="flex w-full items-center justify-between rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-2 text-xs text-[var(--text-secondary)] transition-colors hover:border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
+        >
+          <span className="font-medium">Export formats</span>
+          {showExports ? (
+            <ChevronUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
+        </button>
+
+        {showExports && (
+          <div className="space-y-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] p-2">
+            {/* PNG */}
+            <ExportRow
+              icon={Image}
+              label="PNG Image"
+              description="High-res diagram for slides & docs"
+              actionLabel={exporting ? "Exporting…" : "Download"}
+              loading={exporting}
+              onClick={exportPng}
+            />
+
+            {/* Mermaid */}
+            <ExportRow
+              icon={Code2}
+              label="Mermaid Diagram"
+              description="Flowchart for GitHub & Notion"
+              actionLabel="Download .mmd"
+              onCopy={() => copyText(mermaid, "mermaid")}
+              copied={copiedKey === "mermaid"}
+              onClick={handleDownloadMermaid}
+            />
+
+            {/* Agent Bundle */}
+            <ExportRow
+              icon={Package}
+              label="Agent Bundle"
+              description="CLAUDE.md + schema + tasks (.zip)"
+              actionLabel={bundling ? "Bundling…" : "Download .zip"}
+              loading={bundling}
+              onClick={handleAgentBundle}
+            />
+
+            {/* Lovable */}
+            <ExportRow
+              icon={Zap}
+              label="For Lovable"
+              description="Ready-to-paste build prompt"
+              actionLabel="Copy"
+              onCopy={() => copyText(lovablePrompt, "lovable")}
+              copied={copiedKey === "lovable"}
+            />
+
+            {/* v0 */}
+            <ExportRow
+              icon={Sparkles}
+              label="For v0"
+              description="Component-focused build prompt"
+              actionLabel="Copy"
+              onCopy={() => copyText(v0Prompt, "v0")}
+              copied={copiedKey === "v0"}
+            />
+
+            {/* Schema */}
+            <ExportRow
+              icon={FileText}
+              label="spi-schema.json"
+              description="Raw canvas data — re-import anytime"
+              actionLabel="Download"
+              onClick={() => downloadSpiSchema(nodes, edges, projectName)}
+            />
+          </div>
+        )}
+
+        {/* Import */}
+        <div>
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
           <Button
-            onClick={handleDownload}
+            onClick={() => { setImportError(null); importRef.current?.click(); }}
             variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            title="Download .md"
-            aria-label="Download Markdown"
+            className="w-full gap-2 border border-dashed border-[var(--border-default)] text-xs text-[var(--text-muted)] hover:border-[var(--accent-ai)]/40 hover:text-[var(--accent-ai)]"
           >
-            <Download className="h-4 w-4" />
+            <Upload className="h-3.5 w-3.5" />
+            Import spi-schema.json
           </Button>
+          {importError && (
+            <p className="mt-1.5 text-center text-[11px] text-[var(--state-error)]">{importError}</p>
+          )}
         </div>
       </div>
     </>
+  );
+}
+
+function ExportRow({
+  icon: Icon,
+  label,
+  description,
+  actionLabel,
+  loading,
+  copied,
+  onClick,
+  onCopy,
+}: {
+  icon: typeof FileText;
+  label: string;
+  description: string;
+  actionLabel: string;
+  loading?: boolean;
+  copied?: boolean;
+  onClick?: () => void;
+  onCopy?: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--bg-surface)]">
+        <Icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-medium text-[var(--text-primary)]">{label}</p>
+        <p className="text-[10px] text-[var(--text-muted)]">{description}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {onCopy && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            onClick={onCopy}
+            title="Copy to clipboard"
+          >
+            {copied ? (
+              <Check className="h-3 w-3 text-[var(--state-success)]" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
+        )}
+        {onClick && (
+          <Button
+            variant="ghost"
+            disabled={loading}
+            onClick={onClick}
+            className="h-6 px-2 text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : actionLabel}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 

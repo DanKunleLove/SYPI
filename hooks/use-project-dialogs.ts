@@ -1,13 +1,18 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { Project } from "@/lib/mock-projects";
 
 export type DialogType = "create" | "rename" | "delete" | null;
 
+/** Minimum shape required by the rename/delete dialogs */
+export interface ProjectRef {
+  id: string;
+  name: string;
+}
+
 interface DialogState {
   type: DialogType;
-  targetProject: Project | null;
+  targetProject: ProjectRef | null;
 }
 
 export function useProjectDialogs() {
@@ -20,11 +25,11 @@ export function useProjectDialogs() {
     setState({ type: "create", targetProject: null });
   }, []);
 
-  const openRename = useCallback((project: Project) => {
+  const openRename = useCallback((project: ProjectRef) => {
     setState({ type: "rename", targetProject: project });
   }, []);
 
-  const openDelete = useCallback((project: Project) => {
+  const openDelete = useCallback((project: ProjectRef) => {
     setState({ type: "delete", targetProject: project });
   }, []);
 
