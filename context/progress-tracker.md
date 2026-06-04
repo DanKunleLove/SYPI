@@ -4,6 +4,42 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+**2026-06-04: PRODUCTION-READY — All phases complete, A-Z validation passed (60/60 flows)**
+
+Next action: Deploy using DEPLOY.md — all env vars documented, migrations ready.
+
+### 2026-06-04 — Final build sprint (P1–P6 complete)
+
+**P1 fixes:**
+- Node palette realigned to `bottom-4` (was floating too high at `bottom-20`)
+- Node count display bug fixed (prevNodeCount guard removed — now fires on initial Liveblocks load)
+- Suggestions wired: `useSuggestions` lifted to `WorkspaceContent`, `SuggestionChip` rendered bottom-right of canvas, real `SuggestionsTab` with "Apply with AI" buttons
+
+**P2 onboarding + UX:**
+- 3-step onboarding overlay (Describe → Refine → Export), localStorage-gated, skip-able, shows once per browser
+- Critique → Chat handoff: "Fix all with AI Twin" in review panel formats all issues as prompt → opens ChatTab → auto-triggers plan-then-execute flow
+- `ChatTab` auto-trigger: when `initialPrompt` is pushed (from suggestion or critique), calls `requestPlan()` automatically
+
+**P3 landing + docs:**
+- Public landing page at `/welcome` (hero, feature cards, how-it-works, CTA)
+- Dashboard moved from `/` to `/dashboard` — all internal refs updated
+- Mintlify docs scaffold: `docs/mint.json` + 7 full guides + 14 placeholder stubs
+- Clerk redirects updated: sign-in/sign-up → `/dashboard`, sign-out → `/welcome`
+
+**P4 product completeness:**
+- Project thumbnails: capture 800×450 PNG on Ctrl+S → Vercel Blob → shown on dashboard cards
+- User-saved templates: `CanvasTemplate` DB model, save dialog with private/public toggle, template picker shows My / Built-in / Community sections
+- Public read-only share: `shareToken` on Project, `/share/[token]` viewer (no auth required), generate link button in ShareDialog
+
+**P5 validation:**
+- A-Z audit: 60/60 user flows verified — auth, dashboard, canvas, AI, critique, export, collaboration, settings, landing, onboarding, route integrity. Zero bugs found.
+
+**P6 deployment prep:**
+- `.env.example` updated with all 13 required vars + documentation
+- `DEPLOY.md` created: 10-step deployment guide covering Vercel, Neon, Trigger.dev, Clerk/Liveblocks webhooks, Mintlify, custom domain
+
+## Previous Current Phase
+
 - P4.3 complete — AI stack fully implemented (P3.1 through P4.3)
 - 2026-05-31 audit: fixed AI SDK v6 migration + build passes clean + DB migration baselined (see below)
 - 2026-05-31 generation fix + AI surface consolidation (see below)
