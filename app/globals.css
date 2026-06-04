@@ -103,6 +103,25 @@
   html {
     @apply font-sans;
   }
+
+  /* Premium type rendering: Inter OpenType features + crisp smoothing */
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.006em;
+  }
+
+  /* Tight, confident headings (Linear/Stripe-style display tracking) */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.02em;
+  }
+
+  code, pre, kbd, samp {
+    font-feature-settings: normal;
+    letter-spacing: 0;
+  }
 }
 
 /*
@@ -115,9 +134,9 @@
  * Without this block, Tailwind wouldn't know these colors exist.
  */
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-sans-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-ui), ui-monospace, monospace;
 
   /* shadcn color mappings → Tailwind utilities */
   --color-background: var(--background);

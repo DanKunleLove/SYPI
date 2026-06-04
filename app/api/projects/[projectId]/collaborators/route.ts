@@ -55,6 +55,7 @@ export async function GET(
           id: c.id,
           email: c.email,
           role: c.role,
+          title: c.title,
           name: clerkUser
             ? `${clerkUser.firstName ?? ""} ${clerkUser.lastName ?? ""}`.trim() || null
             : null,
@@ -66,6 +67,7 @@ export async function GET(
           id: c.id,
           email: c.email,
           role: c.role,
+          title: c.title,
           name: null,
           imageUrl: null,
           hasAccount: false,
@@ -170,6 +172,7 @@ export async function POST(
         id: collaborator.id,
         email: collaborator.email,
         role: collaborator.role,
+        title: collaborator.title,
         name,
         imageUrl,
         hasAccount,

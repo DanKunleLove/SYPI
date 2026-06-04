@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sans = Inter({
+  variable: "--font-sans-ui",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const mono = JetBrains_Mono({
+  variable: "--font-mono-ui",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -29,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${sans.variable} ${mono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ClerkProvider
@@ -47,7 +49,7 @@ export default function RootLayout({
               colorInputText: "#fafafa",
               colorForeground: "#fafafa",
               colorTextOnPrimaryBackground: "#ffffff",
-              fontFamily: "Geist, sans-serif",
+              fontFamily: "Inter, sans-serif",
             },
             elements: {
               socialButtonsBlockButtonText: { color: "#fafafa" },

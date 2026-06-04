@@ -26,6 +26,12 @@ interface Collaborator {
   name: string | null;
   imageUrl: string | null;
   hasAccount: boolean;
+  role: string;
+  title: string | null;
+}
+
+function roleLabel(role: string): string {
+  return role === "VIEWER" ? "Viewer" : "Editor";
 }
 
 interface Owner {
@@ -114,6 +120,39 @@ export function ShareDialog({
     } finally {
       setInviting(false);
     }
+  };
+
+  const patchCollaborator = useCallback(
+    async (id: string, data: { title?: string | null; role?: string }) => {
+      try {
+        await fetch(`/api/projects/${projectId}/collaborators/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      } catch {
+        // best-effort; the optimistic value stays until next fetch
+      }
+    },
+    [projectId]
+  );
+
+  const handleTitleChange = (id: string, value: string) => {
+    setCollaborators((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title: value } : c))
+    );
+  };
+
+  const saveTitle = (id: string) => {
+    const c = collaborators.find((x) => x.id === id);
+    patchCollaborator(id, { title: c?.title ?? "" });
+  };
+
+  const handleRoleChange = (id: string, role: string) => {
+    setCollaborators((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, role } : c))
+    );
+    patchCollaborator(id, { role });
   };
 
   const handleRemove = async (collaboratorId: string) => {
@@ -274,20 +313,46 @@ export function ShareDialog({
                     )}
                   </div>
 
-                  {/* Badge */}
-                  {c.hasAccount ? (
-                    <Badge
-                      variant="secondary"
-                      className="shrink-0 border-none bg-[var(--bg-surface-raised)] text-[var(--text-secondary)] text-[10px]"
-                    >
-                      Editor
-                    </Badge>
+                  {/* Role / title */}
+                  {isOwner ? (
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <input
+                        value={c.title ?? ""}
+                        onChange={(e) => handleTitleChange(c.id, e.target.value)}
+                        onBlur={() => saveTitle(c.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        placeholder="Add role…"
+                        maxLength={60}
+                        aria-label={`Role for ${c.name ?? c.email}`}
+                        className="h-7 w-24 rounded-md border border-[var(--border-default)] bg-[var(--bg-base)] px-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-subtle)]"
+                      />
+                      {c.hasAccount && (
+                        <select
+                          value={c.role}
+                          onChange={(e) => handleRoleChange(c.id, e.target.value)}
+                          aria-label={`Access for ${c.name ?? c.email}`}
+                          className="h-7 rounded-md border border-[var(--border-default)] bg-[var(--bg-base)] px-1 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--border-subtle)]"
+                        >
+                          <option value="EDITOR">Editor</option>
+                          <option value="VIEWER">Viewer</option>
+                        </select>
+                      )}
+                    </div>
                   ) : (
                     <Badge
-                      variant="outline"
-                      className="shrink-0 border-[var(--border-subtle)] text-[var(--text-muted)] text-[10px]"
+                      variant={c.hasAccount ? "secondary" : "outline"}
+                      className={
+                        c.hasAccount
+                          ? "shrink-0 border-none bg-[var(--bg-surface-raised)] text-[var(--text-secondary)] text-[10px]"
+                          : "shrink-0 border-[var(--border-subtle)] text-[var(--text-muted)] text-[10px]"
+                      }
                     >
-                      Invited
+                      {c.title || (c.hasAccount ? roleLabel(c.role) : "Invited")}
                     </Badge>
                   )}
 

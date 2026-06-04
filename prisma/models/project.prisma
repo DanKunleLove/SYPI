@@ -55,6 +55,7 @@ model Collaborator {
   user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   email     String
   role      Role     @default(EDITOR)
+  title     String? // free-text discipline/role set by the owner (e.g. "Backend Lead", "Security")
   createdAt DateTime @default(now())
 
   @@unique([projectId, email])
