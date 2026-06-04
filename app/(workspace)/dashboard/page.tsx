@@ -25,6 +25,7 @@ export default async function DashboardPage() {
     description: p.description,
     updatedAt: p.updatedAt.toISOString(),
     collaboratorCount: p._count.collaborators,
+    thumbnailUrl: p.thumbnailUrl ?? null,
   }));
 
   const sharedProjectCards = sharedProjects.map((p) => ({
@@ -33,6 +34,7 @@ export default async function DashboardPage() {
     description: p.description,
     updatedAt: p.updatedAt.toISOString(),
     collaboratorCount: p._count.collaborators,
+    thumbnailUrl: p.thumbnailUrl ?? null,
     owner: p.owner,
   }));
 

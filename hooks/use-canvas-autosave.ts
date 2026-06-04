@@ -10,6 +10,32 @@ interface UseManualSaveOptions {
   getEdges: () => unknown[];
 }
 
+async function captureThumbnail(projectId: string): Promise<void> {
+  try {
+    const { toPng } = await import("html-to-image");
+    const container = document.querySelector<HTMLElement>(".react-flow");
+    if (!container) return;
+
+    const dataUrl = await toPng(container, {
+      backgroundColor: "#09090b",
+      width: 800,
+      height: 450,
+      style: { width: "800px", height: "450px" },
+      pixelRatio: 1,
+      skipFonts: false,
+    });
+
+    // Fire-and-forget upload — never blocks save
+    fetch(`/api/projects/${projectId}/thumbnail`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dataUrl }),
+    }).catch(() => {});
+  } catch {
+    // Best-effort — thumbnail failure never surfaces to the user
+  }
+}
+
 /**
  * Manual-only save hook. No autosave, no debounce.
  * Save triggers only on explicit user action (Ctrl+S or save button).
@@ -41,6 +67,8 @@ export function useCanvasAutosave({
         setStatus("saved");
         if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
         idleTimerRef.current = setTimeout(() => setStatus("idle"), 2000);
+        // Capture thumbnail in background after successful save
+        captureThumbnail(projectId);
       } else {
         setStatus("error");
       }

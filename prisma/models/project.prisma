@@ -37,6 +37,7 @@ model Project {
   name           String         @default("Untitled Project")
   description    String?
   canvasJsonPath String?
+  thumbnailUrl   String?
   userId         String
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   collaborators  Collaborator[]
