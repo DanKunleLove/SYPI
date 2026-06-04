@@ -62,7 +62,7 @@ export function WorkspaceToolbar({
           </Button>
         )}
         <Link
-          href="/"
+          href="/dashboard"
           className="text-[var(--text-muted)] shrink-0 rounded px-1 transition-colors hover:text-[var(--text-primary)] hover:underline"
         >
           Projects

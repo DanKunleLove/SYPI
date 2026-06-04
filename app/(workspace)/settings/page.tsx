@@ -6,7 +6,7 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto h-full w-full max-w-2xl overflow-y-auto px-6 py-10">
       <Link
-        href="/"
+        href="/dashboard"
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
       >
         <ArrowLeft className="h-4 w-4" />

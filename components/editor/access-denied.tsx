@@ -27,7 +27,7 @@ export function AccessDenied() {
           This project doesn&apos;t exist or you don&apos;t have permission to
           view it.
         </p>
-        <Link href="/" className={buttonVariants({ className: "mt-2" })}>
+        <Link href="/dashboard" className={buttonVariants({ className: "mt-2" })}>
           Back to Projects
         </Link>
       </motion.div>

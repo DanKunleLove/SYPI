@@ -54,7 +54,7 @@ export default function WorkspaceLayout({
       if (activeProjectId !== projectId) {
         setActiveProjectId(projectId);
       }
-    } else if (pathname === "/") {
+    } else if (pathname === "/dashboard") {
       setActiveProjectId(null);
     }
   }, [pathname, activeProjectId, setActiveProjectId]);
@@ -166,7 +166,7 @@ export default function WorkspaceLayout({
             description: `"${deleted.name}" has been removed.`,
             duration: 5000,
           });
-          router.push("/");
+          router.push("/dashboard");
         } else {
           toast.error("Failed to delete project", {
             description: "Please try again.",

@@ -71,7 +71,7 @@ export function Sidebar({
 
   useEffect(() => setMounted(true), []);
 
-  const isHome = pathname === "/";
+  const isHome = pathname === "/dashboard";
 
   const handleProfileClick = useCallback(() => {
     if (!profileContainerRef.current) return;
@@ -89,7 +89,7 @@ export function Sidebar({
   }, []);
 
   const handleHomeClick = useCallback(() => {
-    router.push("/");
+    router.push("/dashboard");
   }, [router]);
 
   const renderProjectItem = (project: Project) => {
