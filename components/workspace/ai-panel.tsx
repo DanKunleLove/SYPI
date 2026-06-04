@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/use-ai-chat";
 import { useGeneration } from "@/hooks/use-generation";
+import type { Suggestion } from "@/lib/ai/suggestions";
 import { useCanvasExport } from "@/hooks/use-canvas-export";
 import { serializeCanvasForAI } from "@/lib/ai/canvas-context";
 import { generateSpecMarkdown } from "@/lib/spec";
@@ -67,20 +68,30 @@ interface AiPanelProps {
   onClose: () => void;
   projectId: string;
   projectName: string;
-  /** Tab to show when the panel opens (e.g. "spec" from the Export button). */
   initialTab?: TabId;
+  /** Pre-load a prompt into the ChatTab and auto-trigger the plan flow. */
+  initialPrompt?: string;
+  suggestions?: Suggestion[];
+  onDismissSuggestion?: (id: string) => void;
+  onApplySuggestion?: (action: string) => void;
 }
 
-export function AiPanel({ open, onClose, projectId, projectName, initialTab }: AiPanelProps) {
+export function AiPanel({
+  open, onClose, projectId, projectName,
+  initialTab, initialPrompt,
+  suggestions, onDismissSuggestion, onApplySuggestion,
+}: AiPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // When opened with a requested tab (Export → Spec), switch to it.
   useEffect(() => {
-    if (open && initialTab) {
-      setActiveTab(initialTab);
-    }
+    if (open && initialTab) setActiveTab(initialTab);
   }, [open, initialTab]);
+
+  // When a prompt is pushed in (e.g. from suggestion/critique), always show chat tab
+  useEffect(() => {
+    if (open && initialPrompt) setActiveTab("chat");
+  }, [open, initialPrompt]);
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -152,12 +163,16 @@ export function AiPanel({ open, onClose, projectId, projectName, initialTab }: A
           {/* Content */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {activeTab === "chat" ? (
-              <ChatTab projectId={projectId} inputRef={inputRef} />
+              <ChatTab
+                projectId={projectId}
+                inputRef={inputRef}
+                initialPrompt={initialPrompt}
+              />
             ) : activeTab === "suggestions" ? (
-              <PlaceholderTab
-                icon={Lightbulb}
-                title="Smart Suggestions"
-                description="Contextual recommendations for your architecture will appear here as you build your canvas."
+              <SuggestionsTab
+                suggestions={suggestions ?? []}
+                onDismiss={onDismissSuggestion ?? (() => {})}
+                onApply={onApplySuggestion ?? (() => {})}
               />
             ) : (
               <SpecTab projectId={projectId} projectName={projectName} />
@@ -172,9 +187,11 @@ export function AiPanel({ open, onClose, projectId, projectName, initialTab }: A
 function ChatTab({
   projectId,
   inputRef,
+  initialPrompt,
 }: {
   projectId: string;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
+  initialPrompt?: string;
 }) {
   const reactFlow = useReactFlow();
   const getNodes = useCallback(() => reactFlow.getNodes() as CanvasNode[], [reactFlow]);
@@ -296,6 +313,16 @@ function ChatTab({
   }, [plan, pendingGoal, generate]);
 
   // Discard the plan and put the goal back in the input to edit / re-plan.
+  // Auto-trigger when a prompt is pushed in from suggestions / critique handoff
+  const lastAutoPromptRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!initialPrompt || initialPrompt === lastAutoPromptRef.current) return;
+    lastAutoPromptRef.current = initialPrompt;
+    setMode("generate");
+    const t = setTimeout(() => requestPlan(initialPrompt), 150);
+    return () => clearTimeout(t);
+  }, [initialPrompt, requestPlan]);
+
   const refinePlan = useCallback(() => {
     setPlan(null);
     setPlanning(false);
@@ -778,7 +805,7 @@ function SpecTab({
         </div>
         {/* Import even when canvas is empty */}
         <div className="w-full border-t border-[var(--border-default)] pt-4">
-          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <input ref={importRef} type="file" accept=".json" aria-label="Import spi-schema.json" className="hidden" onChange={handleImport} />
           <Button
             onClick={() => importRef.current?.click()}
             variant="ghost"
@@ -930,7 +957,7 @@ function SpecTab({
 
         {/* Import */}
         <div>
-          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <input ref={importRef} type="file" accept=".json" aria-label="Import spi-schema.json" className="hidden" onChange={handleImport} />
           <Button
             onClick={() => { setImportError(null); importRef.current?.click(); }}
             variant="ghost"
@@ -1002,6 +1029,77 @@ function ExportRow({
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : actionLabel}
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SuggestionsTab({
+  suggestions,
+  onDismiss,
+  onApply,
+}: {
+  suggestions: Suggestion[];
+  onDismiss: (id: string) => void;
+  onApply: (action: string) => void;
+}) {
+  if (suggestions.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-ai)]/10">
+          <Lightbulb className="h-6 w-6 text-[var(--accent-ai)]" />
+        </div>
+        <p className="text-sm font-medium text-[var(--text-primary)]">No suggestions yet</p>
+        <p className="max-w-[240px] text-center text-xs text-[var(--text-muted)]">
+          Add more components to your canvas and patterns will be detected automatically.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="border-b border-[var(--border-default)] px-4 py-2.5">
+        <p className="text-[11px] text-[var(--text-muted)]">
+          {suggestions.length} pattern{suggestions.length !== 1 ? "s" : ""} detected · click Apply to fix with AI
+        </p>
+      </div>
+      <div className="space-y-2 p-3">
+        {suggestions.map((s) => (
+          <motion.div
+            key={s.id}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-3"
+          >
+            <div className="flex items-start gap-2">
+              <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent-primary)]" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-[var(--text-primary)]">{s.title}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-muted)]">{s.message}</p>
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => onApply(s.suggestedAction)}
+                className="h-6 gap-1 bg-[var(--accent-primary)] px-2 text-[10px] text-white hover:bg-[var(--accent-primary)]/90"
+              >
+                <Check className="h-3 w-3" />
+                Apply with AI
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDismiss(s.id)}
+                className="h-6 px-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </motion.div>
+        ))}
       </div>
     </div>
   );

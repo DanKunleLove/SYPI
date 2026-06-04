@@ -32,7 +32,10 @@ import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
 import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import { SYSTEM_TEMPLATES } from "@/lib/templates";
+import { SuggestionChip } from "@/components/canvas/suggestion-chip";
+import { OnboardingOverlay } from "@/components/editor/onboarding-overlay";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
+import type { Suggestion } from "@/lib/ai/suggestions";
 
 import "@xyflow/react/dist/style.css";
 
@@ -52,6 +55,9 @@ interface WorkspaceCanvasProps {
   onSaveStatusChange?: (status: SaveStatus) => void;
   onSaveReady?: (saveFn: () => Promise<void>) => void;
   onOpenAiPanel?: () => void;
+  suggestions?: Suggestion[];
+  onDismissSuggestion?: (id: string) => void;
+  onApplySuggestion?: (action: string) => void;
 }
 
 export function WorkspaceCanvas({
@@ -62,6 +68,9 @@ export function WorkspaceCanvas({
   onSaveReady,
   onSaveStatusChange,
   onOpenAiPanel,
+  suggestions,
+  onDismissSuggestion,
+  onApplySuggestion,
 }: WorkspaceCanvasProps) {
   const flowResult = useLiveblocksFlow<CanvasNode, CanvasEdge>({
     suspense: true,
@@ -71,7 +80,6 @@ export function WorkspaceCanvas({
   const { onNodesChange, onEdgesChange, onConnect, onDelete } = flowResult;
 
   const reactFlowInstance = useReactFlow();
-  const prevNodeCount = useRef(nodes.length);
   const [showEmptyState, setShowEmptyState] = useState(true);
   const [showTemplates, setShowTemplates] = useState(false);
   const hasLoadedRef = useRef(false);
@@ -128,12 +136,9 @@ export function WorkspaceCanvas({
       });
   }, [projectId, nodes.length, edges.length, reactFlowInstance]);
 
-  // Report node count changes
+  // Report node count — always fire so the parent gets the initial Liveblocks count
   useEffect(() => {
-    if (nodes.length !== prevNodeCount.current) {
-      prevNodeCount.current = nodes.length;
-      onNodeCountChange?.(nodes.length);
-    }
+    onNodeCountChange?.(nodes.length);
   }, [nodes.length, onNodeCountChange]);
 
   // Hide empty state once nodes exist
@@ -312,6 +317,23 @@ export function WorkspaceCanvas({
       {/* Canvas toolbar — bottom left (zoom + undo/redo) */}
       <CanvasToolbar />
 
+      {/* Suggestion chips — bottom-right, up to 3 */}
+      {suggestions && suggestions.length > 0 && (
+        <div className="absolute bottom-16 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none">
+          <AnimatePresence>
+            {suggestions.slice(0, 3).map((s) => (
+              <div key={s.id} className="pointer-events-auto">
+                <SuggestionChip
+                  suggestion={s}
+                  onApply={(action) => onApplySuggestion?.(action)}
+                  onDismiss={() => onDismissSuggestion?.(s.id)}
+                />
+              </div>
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+
       {/* Empty state overlay */}
       <AnimatePresence>
         {isEmpty && showEmptyState && (
@@ -335,6 +357,9 @@ export function WorkspaceCanvas({
 
       {/* Node palette */}
       {(!showEmptyState || !isEmpty) && <NodePalette />}
+
+      {/* First-run onboarding overlay */}
+      <OnboardingOverlay isFirstProject={true} />
     </div>
   );
 }

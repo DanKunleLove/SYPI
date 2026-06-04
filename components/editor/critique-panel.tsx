@@ -8,6 +8,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Lightbulb,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,6 +24,7 @@ interface CritiquePanelProps {
   summary: string;
   onDismissIssue: (index: number) => void;
   onFocusNode: (label: string) => void;
+  onFixWithAI?: (issueText: string) => void;
 }
 
 export function CritiquePanel({
@@ -33,6 +35,7 @@ export function CritiquePanel({
   summary,
   onDismissIssue,
   onFocusNode,
+  onFixWithAI,
 }: CritiquePanelProps) {
   const criticalCount = issues.filter((i) => i.severity === "critical").length;
   const warningCount = issues.filter((i) => i.severity === "warning").length;
@@ -94,11 +97,11 @@ export function CritiquePanel({
               <>
                 {/* Summary */}
                 {summary && (
-                  <div className="border-b border-[var(--border-default)] px-4 py-3">
+                  <div className="border-b border-[var(--border-default)] px-4 py-3 space-y-2.5">
                     <p className="text-xs text-[var(--text-secondary)]">
                       {summary}
                     </p>
-                    <div className="mt-2 flex gap-3">
+                    <div className="flex items-center gap-3">
                       {criticalCount > 0 && (
                         <span className="flex items-center gap-1 text-[10px] font-medium text-[var(--state-error)]">
                           <AlertCircle className="h-3 w-3" />
@@ -118,6 +121,25 @@ export function CritiquePanel({
                         </span>
                       )}
                     </div>
+                    {onFixWithAI && issues.length > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const formatted = issues
+                            .map((issue, i) =>
+                              `${i + 1}. [${issue.severity.toUpperCase()}] ${issue.title}: ${issue.description}${issue.suggestion ? ` — Suggested fix: ${issue.suggestion}` : ""}`
+                            )
+                            .join("\n");
+                          onFixWithAI(
+                            `Fix the following architecture issues found during review:\n\n${formatted}\n\nApply all fixes to the current canvas architecture.`
+                          );
+                        }}
+                        className="w-full gap-1.5 bg-[var(--accent-ai)] text-white hover:bg-[var(--accent-ai)]/90 text-xs h-7"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Fix all with AI Twin
+                      </Button>
+                    )}
                   </div>
                 )}
 

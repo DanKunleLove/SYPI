@@ -9,6 +9,7 @@ import { NodeInspector } from "@/components/workspace/node-inspector";
 import { CritiquePanel } from "@/components/editor/critique-panel";
 import { CommentsPanel } from "@/components/editor/comments-panel";
 import { useCritique } from "@/hooks/use-critique";
+import { useSuggestions } from "@/hooks/use-suggestions";
 import { StatusBar } from "@/components/editor/status-bar";
 import { ShareDialog } from "@/components/editor/share-dialog";
 import { LiveblocksRoom } from "@/components/editor/liveblocks-room";
@@ -17,7 +18,7 @@ import type { SaveStatus } from "@/hooks/use-canvas-autosave";
 
 type RightPanelMode =
   | { type: "closed" }
-  | { type: "ai"; tab?: "chat" | "spec" }
+  | { type: "ai"; tab?: "chat" | "spec"; prompt?: string }
   | { type: "critique" }
   | { type: "comments" }
   | { type: "inspector"; nodeId: string };
@@ -106,6 +107,14 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
     setRightPanel({ type: "ai", tab: "spec" });
   }, []);
 
+  // Suggestions — rule-based pattern analysis
+  const { suggestions, dismiss: dismissSuggestion } = useSuggestions();
+
+  // Apply a suggestion: open AI panel in Generate/Chat mode with action pre-loaded
+  const handleApplySuggestion = useCallback((action: string) => {
+    setRightPanel({ type: "ai", tab: "chat", prompt: action });
+  }, []);
+
   // Review button → open critique panel and start critique
   const critique = useCritique({ projectId: project.id });
 
@@ -116,6 +125,11 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
       return { type: "critique" };
     });
   }, [critique]);
+
+  // Critique "Fix with AI" — formats all issues into a prompt and sends to AI panel
+  const handleFixWithAI = useCallback((issueText: string) => {
+    setRightPanel({ type: "ai", tab: "chat", prompt: issueText });
+  }, []);
 
   // Comments button → toggle comments panel
   const handleToggleComments = useCallback(() => {
@@ -170,6 +184,9 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               onSaveStatusChange={handleSaveStatusChange}
               onSaveReady={handleSaveReady}
               onOpenAiPanel={() => setRightPanel({ type: "ai" })}
+              suggestions={suggestions}
+              onDismissSuggestion={dismissSuggestion}
+              onApplySuggestion={handleApplySuggestion}
             />
 
             <AiPanel
@@ -178,6 +195,10 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               projectId={project.id}
               projectName={project.name}
               initialTab={rightPanel.type === "ai" ? rightPanel.tab : undefined}
+              initialPrompt={rightPanel.type === "ai" ? rightPanel.prompt : undefined}
+              suggestions={suggestions}
+              onDismissSuggestion={dismissSuggestion}
+              onApplySuggestion={handleApplySuggestion}
             />
             <CritiquePanel
               open={rightPanel.type === "critique"}
@@ -187,6 +208,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               summary={critique.summary}
               onDismissIssue={critique.dismissIssue}
               onFocusNode={critique.focusNode}
+              onFixWithAI={handleFixWithAI}
             />
             <CommentsPanel
               open={rightPanel.type === "comments"}
