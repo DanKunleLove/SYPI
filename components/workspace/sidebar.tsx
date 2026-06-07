@@ -17,7 +17,10 @@ import {
   Settings,
   Users,
   HelpCircle,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Logo } from "@/components/brand/logo";
 import { UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
@@ -77,6 +80,7 @@ export function Sidebar({
   useEffect(() => setMounted(true), []);
 
   const isHome = pathname === "/dashboard";
+  const { resolvedTheme, setTheme } = useTheme();
 
   const handleProfileClick = useCallback(() => {
     if (!profileContainerRef.current) return;
@@ -342,6 +346,24 @@ export function Sidebar({
             {!collapsed && <span>Help & shortcuts</span>}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          title={collapsed ? "Toggle theme" : undefined}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-raised)]/60 hover:text-[var(--text-primary)]",
+            collapsed && "justify-center"
+          )}
+        >
+          {mounted && resolvedTheme === "dark" ? (
+            <Sun className="h-4 w-4 shrink-0" />
+          ) : (
+            <Moon className="h-4 w-4 shrink-0" />
+          )}
+          {!collapsed && (
+            <span>{mounted && resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</span>
+          )}
+        </button>
       </div>
 
       {/* User profile area */}

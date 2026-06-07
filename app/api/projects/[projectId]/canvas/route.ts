@@ -41,6 +41,7 @@ export async function PUT(
         access: "public",
         contentType: "application/json",
         addRandomSuffix: false,
+        allowOverwrite: true,
         token,
       }
     );

@@ -13,6 +13,7 @@ import {
   Check,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata = {
   title: "spi AI — Design systems at the speed of thought",
@@ -29,7 +30,8 @@ export default async function WelcomePage() {
       {/* Nav */}
       <nav className="flex h-16 items-center justify-between border-b border-[var(--border-default)] px-6 md:px-12">
         <Logo size="md" />
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <ThemeToggle className="h-9 w-9 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" />
           <Link
             href="/sign-in"
             className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
@@ -38,7 +40,7 @@ export default async function WelcomePage() {
           </Link>
           <Link
             href="/sign-up"
-            className="rounded-xl bg-[var(--accent-ai)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-ai)]/90 transition-colors"
+            className="rounded-xl bg-[var(--accent-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] transition-colors"
           >
             Get started free
           </Link>
@@ -52,7 +54,7 @@ export default async function WelcomePage() {
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[800px] rounded-full opacity-20"
           style={{
             background:
-              "radial-gradient(ellipse, rgba(167,139,250,0.4) 0%, rgba(99,102,241,0.15) 40%, transparent 70%)",
+              "radial-gradient(ellipse, rgba(37,99,235,0.28) 0%, rgba(147,197,253,0.12) 40%, transparent 70%)",
           }}
         />
 
@@ -78,7 +80,7 @@ export default async function WelcomePage() {
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/sign-up"
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent-ai)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--accent-ai)]/25 hover:bg-[var(--accent-ai)]/90 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent-primary)] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--accent-primary)]/25 hover:bg-[var(--accent-hover)] transition-all"
             >
               Start designing free
               <ArrowRight className="h-4 w-4" />
@@ -104,19 +106,19 @@ export default async function WelcomePage() {
             className="h-64 w-full"
             style={{
               background:
-                "radial-gradient(circle at 50% 50%, rgba(99,102,241,0.03) 0%, transparent 60%)",
+                "radial-gradient(circle at 50% 50%, rgba(37,99,235,0.04) 0%, transparent 60%)",
               backgroundImage:
-                "radial-gradient(circle, rgba(63,63,70,0.5) 1px, transparent 1px)",
+                "radial-gradient(circle, rgba(148,163,184,0.35) 1px, transparent 1px)",
               backgroundSize: "24px 24px",
             }}
           >
             {/* Simplified architecture illustration */}
             <div className="flex h-full items-center justify-center gap-4 p-6 opacity-80">
               {[
-                { label: "Web Client", cat: "CLIENT", color: "#22c55e" },
-                { label: "API Gateway", cat: "GATEWAY", color: "#6366f1" },
-                { label: "Order Service", cat: "SERVICE", color: "#6366f1" },
-                { label: "PostgreSQL", cat: "DATABASE", color: "#f59e0b" },
+                { label: "Web Client", cat: "CLIENT", color: "#0ea5e9" },
+                { label: "API Gateway", cat: "GATEWAY", color: "#2563eb" },
+                { label: "Order Service", cat: "SERVICE", color: "#1d4ed8" },
+                { label: "PostgreSQL", cat: "DATABASE", color: "#16a34a" },
               ].map((n, i) => (
                 <div key={i} className="flex flex-col items-center gap-1.5">
                   <div className="flex h-16 w-28 flex-col items-start gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface-raised)] p-2.5 shadow-lg">
@@ -260,7 +262,7 @@ export default async function WelcomePage() {
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
             <Link
               href="/sign-up"
-              className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent-ai)] px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--accent-ai)]/25 hover:bg-[var(--accent-ai)]/90 transition-all"
+              className="inline-flex items-center gap-2 rounded-xl bg-[var(--accent-primary)] px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--accent-primary)]/25 hover:bg-[var(--accent-hover)] transition-all"
             >
               Get started free
               <ArrowRight className="h-4 w-4" />

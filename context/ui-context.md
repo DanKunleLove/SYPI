@@ -2,29 +2,38 @@
 
 ## Theme
 
-Dark only. No light mode. The design language is a sleek, technical workspace — deep dark backgrounds, layered surfaces with subtle elevation, and vivid accent colors for interactive and AI-driven elements. The feel is premium developer tooling, not generic SaaS.
+**Light + dark, with a toggle.** Default follows the OS preference (`next-themes`, `attribute="class"`).
+The palette is built on three brand colors — **ice white, powder blue, royal blue** — with neutral
+slate text/borders. Light reads as a clean, restrained professional product; dark is a navy-black
+(blue undertone) technical workspace. AI elements use royal/powder blue — **no violet/purple**.
+
+Theme is set by the `dark` class on `<html>` (managed by next-themes). `:root` holds the light
+token set; `.dark` overrides only the spi AI tokens. The shadcn mappings reference the spi tokens,
+so they re-resolve automatically — never duplicate them per theme.
 
 ## Colors
 
-All components must use these CSS custom property tokens. No hardcoded hex values.
+All components must use these CSS custom property tokens. **No hardcoded hex values.** Each token
+has a light value (`:root`) and a dark value (`.dark`) in `app/globals.css`.
 
-| Role              | CSS Variable          | Value     | Usage                                    |
-| ----------------- | --------------------- | --------- | ---------------------------------------- |
-| Page background   | `--bg-base`           | `#09090b` | Root background (zinc-950)               |
-| Surface           | `--bg-surface`        | `#18181b` | Cards, panels, sidebars (zinc-900)       |
-| Surface raised    | `--bg-surface-raised` | `#27272a` | Hover states, elevated elements (zinc-800) |
-| Primary text      | `--text-primary`      | `#fafafa` | Headings, primary content (zinc-50)      |
-| Secondary text    | `--text-secondary`    | `#a1a1aa` | Descriptions, labels (zinc-400)          |
-| Muted text        | `--text-muted`        | `#71717a` | Placeholders, disabled (zinc-500)        |
-| Primary accent    | `--accent-primary`    | `#6366f1` | Buttons, links, active states (indigo-500) |
-| Accent hover      | `--accent-hover`      | `#818cf8` | Hover on accent elements (indigo-400)    |
-| AI accent         | `--accent-ai`         | `#a78bfa` | AI-generated elements, AI indicators (violet-400) |
-| AI accent glow    | `--accent-ai-glow`    | `#7c3aed` | AI pulse/glow effects (violet-600)       |
-| Border default    | `--border-default`    | `#27272a` | Dividers, card borders (zinc-800)        |
-| Border subtle     | `--border-subtle`     | `#3f3f46` | Hover borders, focus rings (zinc-700)    |
-| Error             | `--state-error`       | `#ef4444` | Destructive actions, validation (red-500) |
-| Success           | `--state-success`     | `#22c55e` | Confirmations, connected states (green-500) |
-| Warning           | `--state-warning`     | `#eab308` | Caution indicators (yellow-500)          |
+| Role            | CSS Variable          | Light       | Dark        | Usage                                  |
+| --------------- | --------------------- | ----------- | ----------- | -------------------------------------- |
+| Page background | `--bg-base`           | `#f6f8fb`   | `#0a0f1a`   | Root background (ice white / navy-black) |
+| Surface         | `--bg-surface`        | `#ffffff`   | `#111827`   | Cards, panels, sidebars                |
+| Surface raised  | `--bg-surface-raised` | `#eef3f9`   | `#1c2740`   | Hover states, elevated elements        |
+| Primary text    | `--text-primary`      | `#0b1b33`   | `#f1f5f9`   | Headings, primary content              |
+| Secondary text  | `--text-secondary`    | `#475569`   | `#94a3b8`   | Descriptions, labels                   |
+| Muted text      | `--text-muted`        | `#8794a6`   | `#64748b`   | Placeholders, disabled                 |
+| Primary accent  | `--accent-primary`    | `#1d4ed8`   | `#3b82f6`   | Buttons, links, active states (royal blue) |
+| Accent hover    | `--accent-hover`      | `#1e40af`   | `#60a5fa`   | Hover on accent elements               |
+| AI accent       | `--accent-ai`         | `#2563eb`   | `#60a5fa`   | AI-generated elements / indicators (blue) |
+| AI accent glow  | `--accent-ai-glow`    | `#93c5fd`   | `#2563eb`   | AI pulse/glow effects (powder blue)    |
+| Powder          | `--powder`            | `#bfdbfe`   | `#1e3a5f`   | Powder-blue accent surfaces, badges    |
+| Border default  | `--border-default`    | `#e2e8f0`   | `#1e293b`   | Dividers, card borders                 |
+| Border subtle   | `--border-subtle`     | `#cbd5e1`   | `#334155`   | Hover borders, focus rings             |
+| Error           | `--state-error`       | `#dc2626`   | `#ef4444`   | Destructive actions, validation        |
+| Success         | `--state-success`     | `#16a34a`   | `#22c55e`   | Confirmations, connected states        |
+| Warning         | `--state-warning`     | `#d97706`   | `#eab308`   | Caution indicators                     |
 
 ## Typography
 

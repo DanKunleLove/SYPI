@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { SaveStatus } from "@/hooks/use-canvas-autosave";
 
 interface WorkspaceToolbarProps {
@@ -108,6 +109,9 @@ export function WorkspaceToolbar({
             <Save className="h-4 w-4" />
           )}
         </Button>
+
+        {/* Theme toggle */}
+        <ThemeToggle className="h-8 w-8" />
 
         {/* Comments */}
         <Button

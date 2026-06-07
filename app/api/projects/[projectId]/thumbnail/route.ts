@@ -36,6 +36,7 @@ export async function PUT(
       access: "public",
       contentType: "image/png",
       addRandomSuffix: false,
+      allowOverwrite: true,
       token,
     });
 

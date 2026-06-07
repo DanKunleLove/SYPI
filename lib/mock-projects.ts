@@ -10,12 +10,12 @@ export interface Project {
 }
 
 export const PROJECT_COLORS = [
-  "#6366f1", // indigo
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#f59e0b", // amber
-  "#22c55e", // green
-  "#06b6d4", // cyan
+  "#1d4ed8", // royal blue
+  "#2563eb", // blue
+  "#0891b2", // cyan
+  "#0ea5e9", // sky
+  "#16a34a", // green
+  "#93c5fd", // powder blue
 ] as const;
 
 export const TEMPLATES = [

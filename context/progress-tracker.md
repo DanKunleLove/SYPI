@@ -4,9 +4,61 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**2026-06-04: PRODUCTION-READY — All phases complete, A-Z validation passed (60/60 flows)**
+**2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
-Next action: Deploy using DEPLOY.md — all env vars documented, migrations ready.
+### 2026-06-07 — Audit + rebrand: light/dark theme, royal-blue palette, save-bug fix
+
+**Critical bug fixed — "save error":** `@vercel/blob@2.4.0` `put()` throws on overwrite unless
+`allowOverwrite: true`. Fixed-path writes meant the first save worked and every later save 500'd.
+Added `allowOverwrite: true` in `canvas/route.ts` + `thumbnail/route.ts`. The autosave hook now
+surfaces the real server error via a sonner toast (was a silent "error" status).
+
+**Light + dark theme (whole app, was dark-only):**
+- `globals.css` restructured: `:root` = light tokens, `.dark` = dark overrides; shadcn mappings
+  defined once (re-resolve per theme). New 3-color palette — ice white / powder blue / royal blue.
+- `next-themes` wired (was installed, unused): `components/theme-provider.tsx`
+  (`attribute="class"`, `defaultTheme="system"`). `<html>` no longer hardcodes `dark`.
+- Clerk made theme-aware via `components/clerk-theme-provider.tsx` (was `baseTheme: dark` hardcoded).
+- `components/theme-toggle.tsx` + sidebar theme row + landing nav toggle + canvas toolbar toggle.
+- sonner Toaster + Liveblocks comments (`attributes.css`, `data-theme`) now follow the app theme.
+
+**Killed the violet ("vibe-coded aura"):** `--accent-ai`/`--accent-primary` redefined to royal blue
+— recolors all ~54 `var(--accent-ai)` refs for free. Recolored node categories (service/gateway
+off indigo/violet), `NODE_COLORS`, `PROJECT_COLORS`, and landing hero gradients/mock.
+
+**De-hardcoded hex:** thumbnail + PNG export capture now read `--bg-base` at runtime (were `#09090b`,
+would render black in light mode).
+
+**Verified:** `tsc --noEmit` clean, `next build` exits 0 (34 routes).
+
+**Reported but deferred (not in this change):** AI-route rate limiting; rename `lib/mock-projects.ts`
+→ `lib/projects.ts`; remove `~$DEPLOY.md` + gitignore `~$*`; re-verify landing feature claims.
+
+
+### 2026-06-07 — Production deployment debugging + feature completion
+
+**Production bugs fixed:**
+- `proxy.ts` missing public routes: `/welcome`, `/share/*`, `/` — caused landing page + auth to redirect to Clerk hosted UI
+- 6 DB migrations unapplied (PgBouncer ate DDL): `shareToken`, `thumbnailUrl`, `UserApiKey`, `defaultModel`, `title`, `CanvasTemplate` — applied via Neon SQL editor
+- `LIVEBLOCKS_SECRET_KEY` was set to public key (pk_) instead of secret key (sk_) — canvas connection 403
+- `NEXT_PUBLIC_APP_URL` missing `https://` prefix crashed `new URL()` in metadata — build error fixed
+
+**New features shipped:**
+- System templates (P5.1): 4 pre-built canvas architectures (Microservices, Serverless, Event-Driven, API Gateway) load on project creation
+- Onboarding redesign: full-screen backdrop, animated progress bar, per-step accent colors, directional hints
+- Favicon: SVG branch icon in indigo box
+- OG metadata: og:title, og:description, og:image, Twitter card, SVG favicon
+- Project card thumbnails: clean letter-initial placeholder instead of broken gradient
+
+**Still needs user action:**
+- `ENCRYPTION_SECRET` in Vercel → enables BYOK/API Keys settings page
+- `TRIGGER_SECRET_KEY` in Vercel → must be from `Spi_AI` project (not `spi-ai`), format `tr_prod_...`
+- `NEXT_PUBLIC_APP_URL` → update to `https://spi-ai-dev.vercel.app` (with https://)
+
+**Not yet built (Phase A):**
+- Clerk Organizations for workspace-level team management
+
+Next action: Fix 2 Vercel env vars (ENCRYPTION_SECRET + TRIGGER_SECRET_KEY from correct project).
 
 ### 2026-06-04 — Final build sprint (P1–P6 complete)
 

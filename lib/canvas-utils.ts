@@ -23,7 +23,7 @@ export const NODE_TYPE_CONFIG: Record<NodeCategory, NodeTypeConfig> = {
   service: {
     label: "Service",
     icon: Server,
-    color: "#6366f1",
+    color: "#2563eb",
     description: "Backend service or microservice",
   },
   database: {
@@ -47,7 +47,7 @@ export const NODE_TYPE_CONFIG: Record<NodeCategory, NodeTypeConfig> = {
   gateway: {
     label: "Gateway",
     icon: Shield,
-    color: "#8b5cf6",
+    color: "#0891b2",
     description: "API gateway or reverse proxy",
   },
   client: {
@@ -91,9 +91,9 @@ export const PALETTE_CATEGORIES: NodeCategory[] = [
 
 /** Color palette for node color picker */
 export const NODE_COLORS = [
-  "#6366f1", // indigo
-  "#8b5cf6", // violet
-  "#ec4899", // pink
+  "#2563eb", // royal blue
+  "#93c5fd", // powder blue
+  "#0891b2", // cyan
   "#ef4444", // red
   "#f97316", // orange
   "#eab308", // amber

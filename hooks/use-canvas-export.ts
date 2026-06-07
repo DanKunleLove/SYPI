@@ -41,9 +41,14 @@ export function useCanvasExport(projectName: string) {
       const originalTransform = viewport.style.transform;
       viewport.style.transform = `translate(${x}px, ${y}px) scale(${zoom})`;
 
+      const bg =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--bg-base")
+          .trim() || "#0a0f1a";
+
       try {
         const dataUrl = await toPng(container, {
-          backgroundColor: "#09090b",
+          backgroundColor: bg,
           width: IMAGE_WIDTH,
           height: IMAGE_HEIGHT,
           style: {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
+import { toast } from "sonner";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -16,8 +17,13 @@ async function captureThumbnail(projectId: string): Promise<void> {
     const container = document.querySelector<HTMLElement>(".react-flow");
     if (!container) return;
 
+    const bg =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--bg-base")
+        .trim() || "#0a0f1a";
+
     const dataUrl = await toPng(container, {
-      backgroundColor: "#09090b",
+      backgroundColor: bg,
       width: 800,
       height: 450,
       style: { width: "800px", height: "450px" },
@@ -71,9 +77,20 @@ export function useCanvasAutosave({
         captureThumbnail(projectId);
       } else {
         setStatus("error");
+        const message = await res
+          .json()
+          .then((d) => d?.error)
+          .catch(() => null);
+        toast.error("Couldn't save canvas", {
+          description: message ?? `Server returned ${res.status}.`,
+        });
       }
-    } catch {
+    } catch (err) {
       setStatus("error");
+      toast.error("Couldn't save canvas", {
+        description:
+          err instanceof Error ? err.message : "Network error — check your connection.",
+      });
     }
   }, [projectId, getNodes, getEdges]);
 

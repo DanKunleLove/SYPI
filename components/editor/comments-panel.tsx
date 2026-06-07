@@ -1,10 +1,11 @@
 "use client";
 
 import "@liveblocks/react-ui/styles.css";
-import "@liveblocks/react-ui/styles/dark/media-query.css";
+import "@liveblocks/react-ui/styles/dark/attributes.css";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, MessageSquare, Loader2 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useThreads } from "@liveblocks/react";
 import { Thread, Composer } from "@liveblocks/react-ui";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,13 @@ interface CommentsPanelProps {
 }
 
 export function CommentsPanel({ open, onClose }: CommentsPanelProps) {
+  const { resolvedTheme } = useTheme();
   return (
     <AnimatePresence>
       {open && (
         <motion.aside
+          // Drives Liveblocks dark styles (attributes.css) from the app theme, not the OS
+          data-theme={resolvedTheme === "dark" ? "dark" : "light"}
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 360, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
