@@ -50,7 +50,7 @@ export function HeroDiagram() {
         <span className="h-2.5 w-2.5 rounded-full bg-[var(--state-error)]/50" />
         <span className="h-2.5 w-2.5 rounded-full bg-[var(--state-warning)]/50" />
         <span className="h-2.5 w-2.5 rounded-full bg-[var(--state-success)]/50" />
-        <span className="ml-3 text-xs text-[var(--text-muted)]">spi AI · E-Commerce Platform</span>
+        <span className="ml-3 text-xs text-[var(--text-muted)]">SYPI · E-Commerce Platform</span>
         <span className="ml-auto flex items-center gap-1.5 rounded-full bg-[var(--state-success)]/12 px-2 py-0.5 text-[10px] font-medium text-[var(--state-success)]">
           Plan approved
         </span>

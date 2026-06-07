@@ -16,7 +16,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     category: "web",
     schema: {
       version: "1",
-      meta: { projectName: "SaaS Web App", exportedAt: "2026-06-04", exportedBy: "spi AI" },
+      meta: { projectName: "SaaS Web App", exportedAt: "2026-06-04", exportedBy: "SYPI" },
       nodes: [
         { id: "t1-client", type: "systemNode", position: { x: 400, y: 0 }, data: { nodeCategory: "client", label: "Web Browser", description: "Next.js / React SPA", configPlatform: "Browser", configFramework: "Next.js" } },
         { id: "t1-cdn", type: "systemNode", position: { x: 400, y: 200 }, data: { nodeCategory: "storage", label: "CDN", description: "Static assets and edge caching", configTechnology: "Vercel / CloudFront", configStorageType: "CDN" } },
@@ -48,7 +48,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     category: "infra",
     schema: {
       version: "1",
-      meta: { projectName: "Microservices Platform", exportedAt: "2026-06-04", exportedBy: "spi AI" },
+      meta: { projectName: "Microservices Platform", exportedAt: "2026-06-04", exportedBy: "SYPI" },
       nodes: [
         { id: "m-client", type: "systemNode", position: { x: 500, y: 0 }, data: { nodeCategory: "client", label: "Client Apps", description: "Web and mobile clients", configPlatform: "Multi-platform" } },
         { id: "m-gw", type: "systemNode", position: { x: 500, y: 200 }, data: { nodeCategory: "gateway", label: "API Gateway", description: "Unified entry point, auth, routing", configTechnology: "Kong / AWS API GW", configProtocol: "HTTPS", configRateLimit: "1000 req/s" } },
@@ -80,7 +80,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     category: "data",
     schema: {
       version: "1",
-      meta: { projectName: "Data Pipeline", exportedAt: "2026-06-04", exportedBy: "spi AI" },
+      meta: { projectName: "Data Pipeline", exportedAt: "2026-06-04", exportedBy: "SYPI" },
       nodes: [
         { id: "d-src1", type: "systemNode", position: { x: 0, y: 200 }, data: { nodeCategory: "client", label: "App Events", description: "User and system event emitters", configPlatform: "Multi-source" } },
         { id: "d-src2", type: "systemNode", position: { x: 0, y: 450 }, data: { nodeCategory: "client", label: "IoT / Logs", description: "Streaming sensor and log data", configPlatform: "IoT / Server" } },
@@ -112,7 +112,7 @@ export const SYSTEM_TEMPLATES: SystemTemplate[] = [
     category: "infra",
     schema: {
       version: "1",
-      meta: { projectName: "Serverless API", exportedAt: "2026-06-04", exportedBy: "spi AI" },
+      meta: { projectName: "Serverless API", exportedAt: "2026-06-04", exportedBy: "SYPI" },
       nodes: [
         { id: "s-client", type: "systemNode", position: { x: 300, y: 0 }, data: { nodeCategory: "client", label: "Client", description: "Web or mobile consumer", configPlatform: "Browser / Mobile" } },
         { id: "s-edge", type: "systemNode", position: { x: 300, y: 200 }, data: { nodeCategory: "storage", label: "Edge Network", description: "Global CDN with edge caching", configTechnology: "Vercel Edge / CloudFront", configStorageType: "CDN" } },

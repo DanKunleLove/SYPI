@@ -291,7 +291,7 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
                   Help & feature guide
                 </h2>
                 <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                  Everything spi AI can do, and how to use it
+                  Everything SYPI can do, and how to use it
                 </p>
               </div>
               <button
@@ -412,7 +412,7 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
                 Press <kbd className="rounded border border-[var(--border-subtle)] px-1 text-[10px]">?</kbd> anywhere to toggle
               </p>
               <a
-                href="https://spi-ai-dev.vercel.app/welcome"
+                href="https://sypi-ai-dev.vercel.app/welcome"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[10px] text-[var(--accent-ai)] hover:underline"

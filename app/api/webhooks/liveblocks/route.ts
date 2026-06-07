@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         html: `<p>Hi ${user.name ?? "there"},</p>
 <p>You have a new comment or mention in <strong>${escapeHtml(project.name)}</strong>.</p>
 <p><a href="${link}">Open the project</a> to view and reply.</p>
-<p style="color:#888;font-size:12px">— spi AI</p>`,
+<p style="color:#888;font-size:12px">— SYPI</p>`,
       });
     }
   }

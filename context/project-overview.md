@@ -1,8 +1,10 @@
-# spi AI
+# SYPI
+
+> **SYPI** — System Project Intelligence. (Formerly "spi AI".)
 
 ## Overview
 
-spi AI is a real-time collaborative system architecture workspace. Users describe a system in plain English, an AI agent maps that system onto an interactive canvas with nodes and connections, and the app generates a complete technical specification in Markdown. It is designed for developers, architects, and technical teams who want to go from idea to structured system design faster — with AI doing the drafting and humans doing the thinking.
+SYPI is a real-time collaborative system architecture workspace. Users describe a system in plain English, an AI agent maps that system onto an interactive canvas with nodes and connections, and the app generates a complete technical specification in Markdown. It is designed for developers, architects, and technical teams who want to go from idea to structured system design faster — with AI doing the drafting and humans doing the thinking.
 
 ## Goals
 

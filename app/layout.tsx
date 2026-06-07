@@ -17,26 +17,26 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://spi-ai-dev.vercel.app";
+const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sypi-ai-dev.vercel.app";
 const APP_URL = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
 
 export const metadata: Metadata = {
-  title: { default: "spi AI", template: "%s — spi AI" },
+  title: { default: "SYPI", template: "%s — SYPI" },
   description:
-    "Describe your system in plain English. spi AI maps it to a real-time collaborative canvas, critiques the design, and exports a spec your AI coding agent can implement.",
+    "Describe your system in plain English. SYPI maps it to a real-time collaborative canvas, critiques the design, and exports a spec your AI coding agent can implement.",
   metadataBase: new URL(APP_URL),
   openGraph: {
     type: "website",
-    siteName: "spi AI",
-    title: "spi AI — Design systems at the speed of thought",
+    siteName: "SYPI",
+    title: "SYPI — Design systems at the speed of thought",
     description:
-      "Describe your architecture in plain English. spi AI maps it to a live canvas, runs an AI design review, and exports a spec for Claude Code or any AI agent.",
+      "Describe your architecture in plain English. SYPI maps it to a live canvas, runs an AI design review, and exports a spec for Claude Code or any AI agent.",
     url: APP_URL,
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "spi AI" }],
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "SYPI" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "spi AI — Design systems at the speed of thought",
+    title: "SYPI — Design systems at the speed of thought",
     description: "AI-powered real-time system architecture workspace.",
     images: ["/og.png"],
   },

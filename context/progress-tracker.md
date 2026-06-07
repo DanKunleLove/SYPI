@@ -6,6 +6,17 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-06-07 — Renamed "spi AI" → SYPI (System Project Intelligence)
+
+Platform renamed to **SYPI** (all-caps wordmark; backronym: System Project Intelligence).
+Vercel/domain moved to `sypi-ai-dev.vercel.app`. Applied across user-facing copy (logo,
+metadata, OG/Twitter, landing/auth/share copy, email sender + signature, AI Twin system prompt,
+export footers), `package.json` name (`sypi-ai`), and canonical docs.
+**Deliberately NOT renamed** (functional, would break things): `lib/crypto.ts` BYOK salt
+`spi-ai.byok.v1`; the `spi-schema.json` export format filename; localStorage keys
+(`spi-sidebar-collapsed`, `spi-onboarding-v2-done`); drag MIME `application/spi-node-type`;
+internal event `spi:open-create-project`. Dated feature-spec records left as historical.
+
 ### 2026-06-07 — Audit + rebrand: light/dark theme, royal-blue palette, save-bug fix
 
 **Critical bug fixed — "save error":** `@vercel/blob@2.4.0` `put()` throws on overwrite unless

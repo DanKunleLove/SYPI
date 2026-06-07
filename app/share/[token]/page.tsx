@@ -16,11 +16,11 @@ export async function generateMetadata({
     `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/share/${token}`,
     { cache: "no-store" }
   );
-  if (!res.ok) return { title: "Shared Architecture — spi AI" };
+  if (!res.ok) return { title: "Shared Architecture — SYPI" };
   const data = await res.json();
   return {
-    title: `${data.name} — spi AI`,
-    description: `View this system architecture shared from spi AI.`,
+    title: `${data.name} — SYPI`,
+    description: `View this system architecture shared from SYPI.`,
     openGraph: data.thumbnailUrl ? { images: [data.thumbnailUrl] } : undefined,
   };
 }
@@ -93,7 +93,7 @@ export default async function SharePage({
         <p className="text-[10px] text-[var(--text-muted)]">
           Shared via{" "}
           <Link href="/welcome" className="text-[var(--accent-ai)] hover:underline">
-            spi AI
+            SYPI
           </Link>{" "}
           — design systems at the speed of thought
         </p>

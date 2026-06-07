@@ -43,7 +43,7 @@ export default function AuthLayout({
               speed of thought.
             </h1>
             <p className="max-w-md text-base leading-relaxed text-[var(--text-secondary)]">
-              Describe your architecture in plain English. spi AI maps it to a
+              Describe your architecture in plain English. SYPI maps it to a
               shared canvas your whole team can refine in real time.
             </p>
           </div>
@@ -69,7 +69,7 @@ export default function AuthLayout({
 
         {/* Footer */}
         <p className="text-sm text-[var(--text-muted)]">
-          &copy; {new Date().getFullYear()} spi AI. All rights reserved.
+          &copy; {new Date().getFullYear()} SYPI. All rights reserved.
         </p>
       </div>
 

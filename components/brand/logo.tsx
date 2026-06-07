@@ -2,7 +2,7 @@ import { GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LogoProps {
-  /** Show the "spi AI" wordmark next to the glyph */
+  /** Show the "SYPI" wordmark next to the glyph */
   showText?: boolean;
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -15,7 +15,7 @@ const SIZES = {
 } as const;
 
 /**
- * Unified spi AI brand mark — a GitBranch glyph in an accent box + wordmark.
+ * Unified SYPI brand mark — a GitBranch glyph in an accent box + wordmark.
  * Single source of truth for the logo across the app. Inside a `group`
  * parent the box picks up the hover-accent color.
  */
@@ -32,8 +32,8 @@ export function Logo({ showText = true, size = "md", className }: LogoProps) {
         <GitBranch className={cn("text-white", s.icon)} />
       </span>
       {showText && (
-        <span className={cn("whitespace-nowrap font-semibold text-[var(--text-primary)]", s.text)}>
-          spi AI
+        <span className={cn("whitespace-nowrap font-bold tracking-tight text-[var(--text-primary)]", s.text)}>
+          SYPI
         </span>
       )}
     </span>

@@ -192,9 +192,9 @@ export function Sidebar({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.05, duration: 0.15 }}
-              className="whitespace-nowrap text-sm font-semibold text-[var(--text-primary)]"
+              className="whitespace-nowrap text-sm font-bold tracking-tight text-[var(--text-primary)]"
             >
-              spi AI
+              SYPI
             </motion.span>
           )}
         </div>

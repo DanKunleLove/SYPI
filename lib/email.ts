@@ -5,7 +5,7 @@ import { Resend } from "resend";
  * (and CI build) work without email configured — it just logs and skips.
  */
 
-const FROM = process.env.EMAIL_FROM ?? "spi AI <onboarding@resend.dev>";
+const FROM = process.env.EMAIL_FROM ?? "SYPI <onboarding@resend.dev>";
 
 let client: Resend | null = null;
 

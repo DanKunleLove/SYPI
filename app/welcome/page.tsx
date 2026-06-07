@@ -21,9 +21,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { HeroDiagram } from "@/components/marketing/hero-diagram";
 
 export const metadata = {
-  title: "spi AI — Design systems you can see and control",
+  title: "SYPI — Design systems you can see and control",
   description:
-    "Describe your architecture in plain English. spi AI drafts a plan, waits for your approval, then maps it to a real-time collaborative canvas your whole team can refine — and exports a spec your AI coding agent can build.",
+    "Describe your architecture in plain English. SYPI drafts a plan, waits for your approval, then maps it to a real-time collaborative canvas your whole team can refine — and exports a spec your AI coding agent can build.",
 };
 
 const STACK = ["Claude", "Next.js", "Liveblocks", "Trigger.dev", "Vercel"];
@@ -149,7 +149,7 @@ export default async function WelcomePage() {
             </h1>
 
             <p className="max-w-xl text-pretty text-base leading-relaxed text-[var(--text-secondary)] md:text-lg">
-              Describe your architecture in plain English. spi AI drafts a plan,
+              Describe your architecture in plain English. SYPI drafts a plan,
               waits for your approval, then maps it to a real-time collaborative
               canvas — every decision yours, then exported as a spec your AI
               coding agent can build.
@@ -531,7 +531,7 @@ export default async function WelcomePage() {
           </div>
           <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-[var(--border-default)] pt-6 sm:flex-row">
             <p className="text-xs text-[var(--text-muted)]">
-              &copy; {new Date().getFullYear()} spi AI. All rights reserved.
+              &copy; {new Date().getFullYear()} SYPI. All rights reserved.
             </p>
             <p className="text-xs text-[var(--text-muted)]">Design systems at the speed of thought.</p>
           </div>

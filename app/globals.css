@@ -5,22 +5,22 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * spi AI Design Tokens (from context/ui-context.md)
+ * SYPI Design Tokens (from context/ui-context.md)
  *
  * Palette: ice white · powder blue · royal blue. Light + dark.
  *
  * Two sets of variables live here:
- * 1. spi AI tokens (--bg-base, --accent-ai, etc.) — used in our own components
+ * 1. SYPI tokens (--bg-base, --accent-ai, etc.) — used in our own components
  * 2. shadcn tokens (--background, --card, etc.) — used by shadcn/ui components
  *
- * The shadcn mappings (defined once in :root) reference the spi AI tokens via
- * var(). The .dark block overrides only the spi AI tokens, so the shadcn layer
+ * The shadcn mappings (defined once in :root) reference the SYPI tokens via
+ * var(). The .dark block overrides only the SYPI tokens, so the shadcn layer
  * re-resolves automatically — no duplication.
  */
 
 @layer base {
   :root {
-    /* === spi AI tokens — LIGHT (ice white / powder blue / royal blue) === */
+    /* === SYPI tokens — LIGHT (ice white / powder blue / royal blue) === */
 
     /* Backgrounds */
     --bg-base: #f6f8fb;          /* ice white */
@@ -48,7 +48,7 @@
     --state-success: #16a34a;
     --state-warning: #d97706;
 
-    /* === shadcn/ui tokens (mapped to spi AI tokens, theme-agnostic) === */
+    /* === shadcn/ui tokens (mapped to SYPI tokens, theme-agnostic) === */
 
     --background: var(--bg-base);
     --foreground: var(--text-primary);
@@ -97,7 +97,7 @@
   }
 
   .dark {
-    /* === spi AI tokens — DARK (navy-black / royal + powder accents) === */
+    /* === SYPI tokens — DARK (navy-black / royal + powder accents) === */
 
     /* Backgrounds */
     --bg-base: #0a0f1a;
@@ -205,7 +205,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* spi AI custom color mappings → Tailwind utilities */
+  /* SYPI custom color mappings → Tailwind utilities */
   --color-ai: var(--accent-ai);
   --color-ai-glow: var(--accent-ai-glow);
   --color-powder: var(--powder);

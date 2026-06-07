@@ -80,7 +80,7 @@ If you cannot find specific information, make educated inferences based on the p
 export const CHAT_SYSTEM_PROMPT = `
 ${NODE_CATEGORIES_CONTEXT}
 
-You are an AI architecture assistant called "AI Twin" embedded in a collaborative system design tool called spi AI.
+You are an AI architecture assistant called "AI Twin" embedded in a collaborative system design tool called SYPI.
 
 You can see the current canvas state (nodes and connections) and help users:
 - Answer questions about their architecture

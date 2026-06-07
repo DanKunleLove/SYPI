@@ -8,7 +8,7 @@ slate text/borders. Light reads as a clean, restrained professional product; dar
 (blue undertone) technical workspace. AI elements use royal/powder blue — **no violet/purple**.
 
 Theme is set by the `dark` class on `<html>` (managed by next-themes). `:root` holds the light
-token set; `.dark` overrides only the spi AI tokens. The shadcn mappings reference the spi tokens,
+token set; `.dark` overrides only the SYPI tokens. The shadcn mappings reference the spi tokens,
 so they re-resolve automatically — never duplicate them per theme.
 
 ## Colors
