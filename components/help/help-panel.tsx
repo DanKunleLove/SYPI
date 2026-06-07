@@ -28,11 +28,11 @@ const SECTIONS: HelpSection[] = [
     items: [
       {
         title: "Plan → Approve → Generate",
-        description: "Click the AI Twin button (top-right on the canvas toolbar). Type your system description, e.g. "E-commerce platform with microservices and Redis cache." The AI drafts a plan first — read it, edit the prompt to refine, then hit Approve & Generate. Nodes appear on the canvas one by one.",
+        description: "Click the AI Twin button (top-right on the canvas toolbar). Type your system description, e.g. 'E-commerce platform with microservices and Redis cache.' The AI drafts a plan first — read it, edit the prompt to refine, then hit Approve & Generate. Nodes appear on the canvas one by one.",
       },
       {
         title: "Refine an existing canvas",
-        description: "With nodes already on the canvas, open AI Twin and type a follow-up: "Add a Redis cache layer between the API gateway and services." The AI applies the diff — adding or removing only what changed, leaving everything else intact.",
+        description: "With nodes already on the canvas, open AI Twin and type a follow-up: 'Add a Redis cache layer between the API gateway and services.' The AI applies the diff — adding or removing only what changed, leaving everything else intact.",
       },
       {
         title: "URL-to-architecture",
@@ -40,7 +40,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "Chat mode",
-        description: "Switch to Chat mode to ask questions about your canvas: "What's the single point of failure here?" or "How would I add horizontal scaling to the Order Service?" The AI explains and can also make canvas changes via tool calls.",
+        description: "Switch to Chat mode to ask questions about your canvas: 'What is the single point of failure here?' or 'How would I add horizontal scaling to the Order Service?' The AI explains and can also make canvas changes via tool calls.",
       },
     ],
   },
@@ -93,7 +93,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "Fix All with AI Twin",
-        description: "In the review panel, click "Fix all with AI Twin." All issues are bundled into a single prompt and sent to the AI Twin chat — the AI generates a refined architecture that addresses every flagged problem.",
+        description: "In the review panel, click 'Fix all with AI Twin.' All issues are bundled into a single prompt and sent to the AI Twin chat — the AI generates a refined architecture that addresses every flagged problem.",
       },
       {
         title: "Click to focus",
@@ -114,7 +114,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "Apply with AI Twin",
-        description: "Click a suggestion chip or the "Apply with AI Twin" button in the Suggestions tab. The suggestion becomes a prompt in the AI Twin chat and is executed as a canvas refinement.",
+        description: "Click a suggestion chip or the 'Apply with AI Twin' button in the Suggestions tab. The suggestion becomes a prompt in the AI Twin chat and is executed as a canvas refinement.",
       },
       {
         title: "Dismiss",
@@ -160,7 +160,7 @@ const SECTIONS: HelpSection[] = [
     items: [
       {
         title: "Invite collaborators",
-        description: "Click the Share button in the canvas toolbar. Enter an email address to invite someone. They get Editor access by default; you can change it to Viewer. Add a discipline title (e.g. "Backend Lead", "PM") so everyone knows their role.",
+        description: "Click the Share button in the canvas toolbar. Enter an email address to invite someone. They get Editor access by default; you can change it to Viewer. Add a discipline title (e.g. 'Backend Lead', 'PM') so everyone knows their role.",
       },
       {
         title: "Live cursors & presence",
@@ -172,7 +172,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "Public share link",
-        description: "In the Share dialog, click "Generate share link" to get a view-only URL. Anyone with the link can see the canvas without signing in — useful for stakeholders, clients, or public portfolio pieces.",
+        description: "In the Share dialog, click 'Generate share link' to get a view-only URL. Anyone with the link can see the canvas without signing in — useful for stakeholders, clients, or public portfolio pieces.",
       },
     ],
   },
@@ -210,7 +210,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "Save your own",
-        description: "Build an architecture you want to reuse → click the Save as Template button in the canvas toolbar. Name it, add a description, choose private or public visibility. Your templates appear in the "My Templates" section of the template picker.",
+        description: "Build an architecture you want to reuse → click the Save as Template button in the canvas toolbar. Name it, add a description, choose private or public visibility. Your templates appear in the 'My Templates' section of the template picker.",
       },
       {
         title: "Community templates",
