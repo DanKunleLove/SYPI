@@ -75,10 +75,11 @@ export async function POST(request: Request) {
     const { status, body: responseBody } = await session.authorize();
     return new Response(responseBody, { status });
   } catch (error) {
-    console.error("[liveblocks-auth] Unhandled error:", error);
-    return Response.json(
-      { error: error instanceof Error ? error.message : "Internal server error" },
-      { status: 500 }
-    );
+    const msg = error instanceof Error ? error.message : String(error);
+    const name = error instanceof Error ? error.constructor.name : typeof error;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extra = typeof error === "object" && error !== null ? (error as any).status ?? (error as any).code ?? "" : "";
+    console.error(`[liveblocks-auth] ERROR name=${name} status=${extra} msg=${msg}`);
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
