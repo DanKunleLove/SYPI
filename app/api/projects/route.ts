@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getDbUser } from "@/lib/project-access";
 
 export async function GET() {
+  try {
   const user = await getDbUser();
 
   if (!user) {
@@ -39,9 +40,16 @@ export async function GET() {
     shared,
     projects: [...owned, ...shared],
   });
+  } catch (e: unknown) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = e as any;
+    console.error(`[GET /api/projects] code=${err?.code} msg=${err?.message} meta=${JSON.stringify(err?.meta)}`);
+    return Response.json({ error: err?.message ?? "internal" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
+  try {
   const user = await getDbUser();
 
   if (!user) {
@@ -69,4 +77,10 @@ export async function POST(request: Request) {
   });
 
   return Response.json({ project }, { status: 201 });
+  } catch (e: unknown) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const err = e as any;
+    console.error(`[POST /api/projects] code=${err?.code} msg=${err?.message} meta=${JSON.stringify(err?.meta)}`);
+    return Response.json({ error: err?.message ?? "internal" }, { status: 500 });
+  }
 }
