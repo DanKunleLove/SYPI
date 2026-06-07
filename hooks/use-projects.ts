@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { PROJECT_COLORS, slugify, type Project } from "@/lib/mock-projects";
+import { getSystemTemplate } from "@/lib/system-templates";
 
 interface ApiProject {
   id: string;
@@ -72,7 +73,7 @@ export function useProjects() {
   );
 
   const addProject = useCallback(
-    async (data: { name: string; description: string }): Promise<Project | null> => {
+    async (data: { name: string; description: string; template?: string }): Promise<Project | null> => {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,7 +84,7 @@ export function useProjects() {
 
       const { project: apiProject } = await res.json();
       let project: Project | null = null;
-      
+
       setProjects((prev) => {
         project = toUiProject(apiProject, prev.length);
         return [project, ...prev];
@@ -92,8 +93,23 @@ export function useProjects() {
         if (!project) return prev;
         return [project, ...prev];
       });
-      
+
       setActiveProjectId(apiProject.id);
+
+      // Load system template canvas data onto the new project
+      if (data.template && data.template !== "blank") {
+        const templateCanvas = getSystemTemplate(data.template);
+        if (templateCanvas) {
+          fetch(`/api/projects/${apiProject.id}/canvas`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(templateCanvas),
+          }).catch(() => {
+            // Non-fatal: canvas will just start empty
+          });
+        }
+      }
+
       return project;
     },
     []
