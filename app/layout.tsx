@@ -17,7 +17,8 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://spi-ai-dev.vercel.app";
+const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://spi-ai-dev.vercel.app";
+const APP_URL = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
 
 export const metadata: Metadata = {
   title: { default: "spi AI", template: "%s — spi AI" },
