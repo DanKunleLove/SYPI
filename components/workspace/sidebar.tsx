@@ -14,6 +14,9 @@ import {
   ChevronDown,
   ChevronRight,
   PanelLeftOpen,
+  Settings,
+  Users,
+  HelpCircle,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { UserButton } from "@clerk/nextjs";
@@ -45,6 +48,7 @@ interface SidebarProps {
   onRenameProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
   onDuplicateProject: (id: string) => void;
+  onHelp?: () => void;
 }
 
 export function Sidebar({
@@ -60,6 +64,7 @@ export function Sidebar({
   onRenameProject,
   onDeleteProject,
   onDuplicateProject,
+  onHelp,
 }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -297,8 +302,47 @@ export function Sidebar({
         </ScrollArea>
       )}
 
-      {/* Spacer when collapsed */}
-      {collapsed && <div className="flex-1" />}
+      {/* Bottom nav — Settings, Team, Help */}
+      <div className={cn("shrink-0 border-t border-[var(--border-default)] pt-1 pb-1", collapsed ? "px-2" : "px-3")}>
+        {[
+          { icon: Users, label: "Team", href: "/team" },
+          { icon: Settings, label: "Settings", href: "/settings" },
+        ].map(({ icon: Icon, label, href }) => {
+          const isActive = pathname === href;
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() => router.push(href)}
+              title={collapsed ? label : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors",
+                isActive
+                  ? "bg-[var(--bg-surface-raised)] text-[var(--text-primary)]"
+                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-raised)]/60 hover:text-[var(--text-primary)]",
+                collapsed && "justify-center"
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{label}</span>}
+            </button>
+          );
+        })}
+        {onHelp && (
+          <button
+            type="button"
+            onClick={onHelp}
+            title={collapsed ? "Help & shortcuts" : undefined}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-raised)]/60 hover:text-[var(--text-primary)]",
+              collapsed && "justify-center"
+            )}
+          >
+            <HelpCircle className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Help & shortcuts</span>}
+          </button>
+        )}
+      </div>
 
       {/* User profile area */}
       <div

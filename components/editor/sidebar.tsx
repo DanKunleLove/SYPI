@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -14,6 +15,8 @@ import {
   Pencil,
   Copy,
   Trash2,
+  HelpCircle,
+  Users,
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
@@ -40,9 +43,9 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "#", section: "workspace" },
-  { icon: FileText, label: "Templates", href: "#", section: "tools" },
-  { icon: Settings, label: "Settings", href: "#", section: "tools" },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", section: "workspace" },
+  { icon: Users, label: "Team", href: "/team", section: "workspace" },
+  { icon: Settings, label: "Settings", href: "/settings", section: "tools" },
 ];
 
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -61,6 +64,7 @@ interface SidebarProps {
   onRenameProject: (project: Project) => void;
   onDeleteProject: (project: Project) => void;
   onDuplicateProject: (id: string) => void;
+  onHelp?: () => void;
 }
 
 export function Sidebar({
@@ -77,7 +81,10 @@ export function Sidebar({
   onRenameProject,
   onDeleteProject,
   onDuplicateProject,
+  onHelp,
 }: SidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
   const [isOwnedExpanded, setIsOwnedExpanded] = useState(true);
@@ -355,6 +362,7 @@ export function Sidebar({
               <div className="space-y-0.5">
                 {items.map((item) => {
                   const isActive = item.label === activeNav;
+                  const isNavActive = pathname === item.href || pathname.startsWith(item.href + "/");
                   return (
                     <Button
                       key={item.label}
@@ -362,24 +370,16 @@ export function Sidebar({
                       className={cn(
                         "relative w-full justify-start gap-3 text-[var(--text-secondary)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)]",
                         collapsed && "justify-center px-0",
-                        isActive &&
-                          "bg-[var(--bg-surface-raised)] text-[var(--text-primary)]"
+                        isNavActive && "bg-[var(--bg-surface-raised)] text-[var(--text-primary)]"
                       )}
                       aria-label={item.label}
                       title={collapsed ? item.label : undefined}
                       onClick={() => {
-                        if (item.label === "Templates" || item.label === "Settings") {
-                          toast(`${item.label} coming soon`, {
-                            description: `${item.label} will be available in a future update.`,
-                            duration: 3000,
-                          });
-                          return;
-                        }
-                        setActiveNav(item.label);
+                        router.push(item.href);
                       }}
                     >
                       {/* Active indicator bar */}
-                      {isActive && (
+                      {isNavActive && (
                         <motion.div
                           layoutId="sidebar-active"
                           className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[var(--accent-primary)]"
@@ -433,6 +433,25 @@ export function Sidebar({
           )}
         </div>
       </div>
+
+      {/* Help button */}
+      {onHelp && (
+        <div className="px-2 pb-1">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full gap-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-raised)]",
+              collapsed && "justify-center px-0"
+            )}
+            aria-label="Help & shortcuts"
+            title={collapsed ? "Help & shortcuts" : undefined}
+            onClick={onHelp}
+          >
+            <HelpCircle className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="text-sm">Help & shortcuts</span>}
+          </Button>
+        </div>
+      )}
 
       {/* Collapse toggle with keyboard hint */}
       <div className="border-t border-[var(--border-default)] px-2 py-2">

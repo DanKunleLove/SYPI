@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import { Sidebar, useSidebarState } from "@/components/workspace/sidebar";
 import { CreateProjectDialog } from "@/components/editor/create-project-dialog";
 import { RenameProjectDialog } from "@/components/editor/rename-project-dialog";
 import { DeleteProjectDialog } from "@/components/editor/delete-project-dialog";
+import { HelpPanel } from "@/components/help/help-panel";
 import { useProjects } from "@/hooks/use-projects";
 import { useProjectDialogs } from "@/hooks/use-project-dialogs";
 import { useCreateProjectListener } from "@/hooks/use-create-project-event";
@@ -21,6 +22,7 @@ export default function WorkspaceLayout({
   const { collapsed, toggle } = useSidebarState();
   const router = useRouter();
   const pathname = usePathname();
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const {
     projects,
@@ -81,14 +83,14 @@ export default function WorkspaceLayout({
     return sharedProjects.filter((p) => p.name.toLowerCase().includes(q));
   }, [sharedProjects, searchQuery]);
 
-  // Keyboard shortcut: [ to toggle sidebar
+  // Keyboard shortcuts: [ to toggle sidebar, ? to open help
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "[" && !e.ctrlKey && !e.metaKey) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
-        toggle();
-      }
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isEditing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+      if (isEditing) return;
+      if (e.key === "[" && !e.ctrlKey && !e.metaKey) toggle();
+      if (e.key === "?") setHelpOpen((v) => !v);
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -240,6 +242,7 @@ export default function WorkspaceLayout({
           onRenameProject={openRename}
           onDeleteProject={openDelete}
           onDuplicateProject={handleDuplicate}
+          onHelp={() => setHelpOpen(true)}
         />
       </div>
 
@@ -267,6 +270,7 @@ export default function WorkspaceLayout({
         onDelete={handleDelete}
       />
 
+      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
       <Toaster position="bottom-right" />
     </div>
   );
