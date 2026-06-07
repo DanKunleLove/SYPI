@@ -46,15 +46,6 @@ export async function POST(request: Request) {
 
     const liveblocks = getLiveblocks();
 
-    // Ensure the Liveblocks room exists with metadata
-    await liveblocks.getOrCreateRoom(room, {
-      defaultAccesses: [],
-      metadata: {
-        projectName: project.name,
-        ownerId: project.userId,
-      },
-    });
-
     // Get user info for the session token
     const user = await currentUser();
     const name =

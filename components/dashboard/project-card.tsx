@@ -52,7 +52,7 @@ export function ProjectCard({
       }}
     >
       {/* Thumbnail / preview */}
-      <div className="relative h-32 w-full shrink-0 overflow-hidden">
+      <div className="relative h-28 w-full shrink-0 overflow-hidden">
         {project.thumbnailUrl ? (
           <img
             src={project.thumbnailUrl}
@@ -61,19 +61,15 @@ export function ProjectCard({
           />
         ) : (
           <div
-            className="h-full w-full"
-            style={{
-              background: `radial-gradient(ellipse at 50% 60%, ${color}22 0%, transparent 70%)`,
-              backgroundImage: "radial-gradient(circle, rgba(63,63,70,0.4) 1px, transparent 1px)",
-              backgroundSize: "20px 20px",
-            }}
+            className="flex h-full w-full items-center justify-center"
+            style={{ backgroundColor: `${color}18` }}
           >
-            <div className="flex h-full items-center justify-center opacity-20">
-              <div
-                className="h-10 w-10 rounded-xl"
-                style={{ backgroundColor: color }}
-              />
-            </div>
+            <span
+              className="text-3xl font-bold select-none"
+              style={{ color: `${color}90` }}
+            >
+              {project.name.charAt(0).toUpperCase()}
+            </span>
           </div>
         )}
         {/* Three-dot menu — overlaid top-right */}
