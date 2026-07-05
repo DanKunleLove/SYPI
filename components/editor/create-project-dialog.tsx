@@ -144,7 +144,7 @@ function CreateProjectForm({
         {/* Template picker */}
         <div className="space-y-2">
           <Label>Start from</Label>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="grid grid-cols-3 gap-2">
             {TEMPLATES.map((tmpl) => {
               const Icon = TEMPLATE_ICONS[tmpl.icon];
               const isSelected = selectedTemplate === tmpl.id;
@@ -154,7 +154,7 @@ function CreateProjectForm({
                   type="button"
                   onClick={() => setSelectedTemplate(tmpl.id)}
                   className={cn(
-                    "flex shrink-0 flex-col items-center gap-1.5 rounded-lg border px-4 py-3 text-xs transition-colors",
+                    "flex flex-col items-center gap-1.5 rounded-lg border px-2 py-3 text-xs transition-colors",
                     isSelected
                       ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]/10 text-[var(--accent-primary)]"
                       : "border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
