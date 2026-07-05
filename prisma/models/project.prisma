@@ -11,6 +11,7 @@ model User {
   name           String?
   imageUrl       String?
   defaultModel   String? // "provider:modelId", e.g. "anthropic:claude-opus-4-8"
+  customInstructions String? // user-layer prompt, APPENDED to AI system prompts (never replaces the base contract)
   ownedProjects  Project[]
   collaborations Collaborator[]
   apiKeys        UserApiKey[]
@@ -75,6 +76,7 @@ model AIGeneration {
   status    String   @default("pending")    // pending | running | completed | failed
   result    Json?
   error     String?
+  rating    Int?     // user feedback: 1 (up) | -1 (down)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

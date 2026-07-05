@@ -16,7 +16,6 @@ import {
   User,
   Globe,
   Check,
-  Pencil,
   Copy,
   Download,
   Image,
@@ -27,6 +26,9 @@ import {
   ChevronUp,
   Zap,
   LayoutTemplate,
+  RotateCcw,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 import { SaveTemplateDialog } from "@/components/editor/save-template-dialog";
 import { Button } from "@/components/ui/button";
@@ -50,6 +52,16 @@ import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
 type ChatMode = "generate" | "chat" | "url";
+type PlanTurn = { role: "user" | "assistant"; content: string };
+
+/** Human labels for the server-streamed generation pipeline stages. */
+const STAGE_LABELS: Record<string, string> = {
+  researching: "Research",
+  generating: "Design",
+  reviewing: "Review",
+  refining: "Refine",
+  placing: "Place",
+};
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
@@ -213,8 +225,18 @@ function ChatTab({
     getEdges,
   });
 
-  // Full architecture generation (prompt / URL → canvas) via Trigger.dev
-  const { status: genStatus, step: genStep, generate } = useGeneration({
+  // Full architecture generation (prompt / URL → canvas), streamed inline
+  const {
+    status: genStatus,
+    step: genStep,
+    stages: genStages,
+    generate,
+    lastGeneration,
+    revertGeneration,
+    restoreGeneration,
+    rateGeneration,
+    dismissLastGeneration,
+  } = useGeneration({
     projectId,
     getNodes,
     getEdges,
@@ -227,11 +249,11 @@ function ChatTab({
   const [mode, setMode] = useState<ChatMode>("generate");
   const [url, setUrl] = useState("");
 
-  // Plan-then-execute: draft a plan the user approves before generating.
+  // Plan-then-execute: discuss a plan as a conversation, then generate from it.
+  const [planMessages, setPlanMessages] = useState<PlanTurn[]>([]);
+  const [streamingPlan, setStreamingPlan] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
-  const [plan, setPlan] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [pendingGoal, setPendingGoal] = useState("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // Track tool calls already applied to the canvas so we don't re-run them
@@ -247,22 +269,26 @@ function ChatTab({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, plan]);
+  }, [messages, planMessages, streamingPlan]);
 
   const busy = isLoading || isGenerating || planning;
 
-  // Step 1 — stream a plan for the user to approve.
-  const requestPlan = useCallback(
-    async (goal: string) => {
+  // Stream a plan turn — starts the discussion or continues it.
+  const runPlan = useCallback(
+    async (userText: string) => {
+      const text = userText.trim();
+      if (!text) return;
+
       // Supersede any in-flight plan request.
       planAbortRef.current?.abort();
       const controller = new AbortController();
       planAbortRef.current = controller;
       const isCurrent = () => planAbortRef.current === controller;
 
-      setPendingGoal(goal);
+      const history: PlanTurn[] = [...planMessages, { role: "user", content: text }];
+      setPlanMessages(history);
       setPlanError(null);
-      setPlan("");
+      setStreamingPlan("");
       setPlanning(true);
       try {
         const nodes = getNodes();
@@ -273,7 +299,7 @@ function ChatTab({
         const res = await fetch("/api/ai/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: goal, canvasContext }),
+          body: JSON.stringify({ messages: history, canvasContext }),
           signal: controller.signal,
         });
 
@@ -290,48 +316,53 @@ function ChatTab({
           if (done) break;
           acc += decoder.decode(value, { stream: true });
           if (!isCurrent()) return; // superseded — don't clobber newer state
-          setPlan(acc);
+          setStreamingPlan(acc);
         }
         if (!isCurrent()) return;
+        setPlanMessages((prev) => [...prev, { role: "assistant", content: acc }]);
+        setStreamingPlan(null);
         setPlanning(false);
       } catch (e) {
         // Aborted (unmount / superseded / mode change) — leave state to the winner.
         if (controller.signal.aborted || !isCurrent()) return;
         setPlanning(false);
-        setPlan(null);
+        setStreamingPlan(null);
         setPlanError(e instanceof Error ? e.message : "Failed to draft a plan");
       }
     },
-    [getNodes, getEdges]
+    [planMessages, getNodes, getEdges]
   );
 
-  // Step 2 — approve the plan and run the full generation.
-  const approvePlan = useCallback(() => {
-    if (!plan) return;
-    const goal = pendingGoal;
-    const approved = plan;
-    setPlan(null);
+  const resetPlan = useCallback(() => {
+    planAbortRef.current?.abort();
+    setPlanMessages([]);
+    setStreamingPlan(null);
     setPlanning(false);
-    generate(`${goal}\n\nUse this approved plan:\n${approved}`, "generate");
-  }, [plan, pendingGoal, generate]);
+    setPlanError(null);
+  }, []);
 
-  // Discard the plan and put the goal back in the input to edit / re-plan.
-  // Auto-trigger when a prompt is pushed in from suggestions / critique handoff
+  // Turn the discussed plan into a full generation.
+  const generateFromPlan = useCallback(() => {
+    if (planMessages.length === 0) return;
+    const transcript = planMessages
+      .map((m) => `${m.role === "user" ? "User" : "Architect"}: ${m.content}`)
+      .join("\n\n");
+    resetPlan();
+    generate(
+      `Design the system architecture we discussed and agreed on below. Honor the decisions made in the conversation.\n\n${transcript}`,
+      "generate"
+    );
+  }, [planMessages, resetPlan, generate]);
+
+  // Auto-trigger when a prompt is pushed in from suggestions / critique handoff.
   const lastAutoPromptRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!initialPrompt || initialPrompt === lastAutoPromptRef.current) return;
     lastAutoPromptRef.current = initialPrompt;
     setMode("generate");
-    const t = setTimeout(() => requestPlan(initialPrompt), 150);
+    const t = setTimeout(() => runPlan(initialPrompt), 150);
     return () => clearTimeout(t);
-  }, [initialPrompt, requestPlan]);
-
-  const refinePlan = useCallback(() => {
-    setPlan(null);
-    setPlanning(false);
-    setInput(pendingGoal);
-    inputRef.current?.focus();
-  }, [pendingGoal, setInput, inputRef]);
+  }, [initialPrompt, runPlan]);
 
   const handleSend = useCallback(() => {
     if (busy) return;
@@ -348,13 +379,13 @@ function ChatTab({
 
     if (!text) return;
     if (mode === "generate") {
-      // Plan first, then execute on approval.
-      requestPlan(text);
+      // Plan/discuss first, then generate from the conversation.
+      runPlan(text);
     } else {
       sendMessage(text);
     }
     setInput("");
-  }, [busy, mode, input, url, generate, sendMessage, setInput, requestPlan]);
+  }, [busy, mode, input, url, generate, sendMessage, setInput, runPlan]);
 
   // Handle tool call results — modify canvas
   useEffect(() => {
@@ -412,38 +443,68 @@ function ChatTab({
     <>
       {/* Messages area */}
       <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto">
-        {mode === "generate" && (planning || plan !== null) ? (
+        {mode === "generate" && (planMessages.length > 0 || planning) ? (
           <div className="flex flex-col gap-3 p-3">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-[var(--accent-ai)]" />
               <span className="text-sm font-medium text-[var(--text-primary)]">
-                Proposed plan
+                Planning
               </span>
               {planning && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
               )}
+              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+                Discuss, then generate
+              </span>
             </div>
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
-              {plan || (planning ? "Drafting a plan…" : "")}
-            </div>
-            {!planning && plan && (
-              <div className="flex gap-2">
-                <Button
-                  onClick={approvePlan}
-                  className="flex-1 gap-1.5 bg-[var(--accent-ai)] text-white hover:bg-[var(--accent-ai)]/90"
+
+            {planMessages.map((m, i) =>
+              m.role === "user" ? (
+                <div
+                  key={i}
+                  className="self-end max-w-[85%] rounded-lg bg-[var(--bg-surface-raised)] px-3 py-2 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap"
                 >
-                  <Check className="h-4 w-4" />
-                  Approve &amp; Generate
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={refinePlan}
-                  className="gap-1.5 border border-[var(--border-default)] text-[var(--text-secondary)]"
+                  {m.content}
+                </div>
+              ) : (
+                <div
+                  key={i}
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap"
                 >
-                  <Pencil className="h-4 w-4" />
-                  Refine
-                </Button>
+                  {m.content}
+                </div>
+              )
+            )}
+
+            {streamingPlan !== null && (
+              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
+                {streamingPlan || "Drafting a plan…"}
               </div>
+            )}
+
+            {!planning && planMessages.some((m) => m.role === "assistant") && (
+              <>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={generateFromPlan}
+                    className="flex-1 gap-1.5 bg-[var(--accent-ai)] text-white hover:bg-[var(--accent-ai)]/90"
+                  >
+                    <Check className="h-4 w-4" />
+                    Generate from this plan
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={resetPlan}
+                    className="gap-1.5 border border-[var(--border-default)] text-[var(--text-secondary)]"
+                  >
+                    <X className="h-4 w-4" />
+                    Discard
+                  </Button>
+                </div>
+                <p className="text-center text-[10px] text-[var(--text-muted)]">
+                  Keep typing below to refine the plan, or generate it.
+                </p>
+              </>
             )}
           </div>
         ) : !hasMessages ? (
@@ -535,15 +596,131 @@ function ChatTab({
         )}
       </div>
 
-      {/* Generation progress */}
-      {isGenerating && (
-        <div className="mx-3 mb-2 flex items-center gap-2 rounded-md bg-[var(--accent-ai)]/10 px-3 py-2">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
-          <span className="text-xs font-medium text-[var(--accent-ai)]">
-            {genStep || "Working..."}
-          </span>
-        </div>
-      )}
+      {/* Generation pipeline — live stages streamed from the server */}
+      <AnimatePresence>
+        {isGenerating && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="mx-3 mb-2 rounded-lg border border-[var(--accent-ai)]/20 bg-[var(--accent-ai)]/5 px-3 py-2.5"
+          >
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
+              <span className="text-xs font-medium text-[var(--accent-ai)]">
+                {genStep || "Working…"}
+              </span>
+            </div>
+            {genStages.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
+                {genStages.map((stage, i) => {
+                  const isCurrent = i === genStages.length - 1;
+                  return (
+                    <span key={stage} className="flex items-center gap-1">
+                      {i > 0 && (
+                        <span className="text-[10px] text-[var(--text-muted)]/50">→</span>
+                      )}
+                      <span
+                        className={cn(
+                          "flex items-center gap-1 text-[10px]",
+                          isCurrent
+                            ? "font-medium text-[var(--accent-ai)]"
+                            : "text-[var(--text-muted)]"
+                        )}
+                      >
+                        {isCurrent ? (
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-ai)]" />
+                        ) : (
+                          <Check className="h-2.5 w-2.5 text-[var(--state-success)]" />
+                        )}
+                        {STAGE_LABELS[stage] ?? stage}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Last generation — revert/restore + feedback */}
+      <AnimatePresence>
+        {lastGeneration && !isGenerating && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="mx-3 mb-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] p-2.5"
+          >
+            <div className="flex items-center gap-2">
+              {lastGeneration.reverted ? (
+                <RotateCcw className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+              ) : (
+                <Check className="h-3.5 w-3.5 text-[var(--state-success)]" />
+              )}
+              <span className="text-xs text-[var(--text-primary)]">
+                {lastGeneration.reverted
+                  ? "Generation reverted"
+                  : `${lastGeneration.architecture.nodes.length} components placed`}
+              </span>
+              <button
+                type="button"
+                onClick={dismissLastGeneration}
+                aria-label="Dismiss"
+                className="ml-auto rounded p-0.5 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={
+                  lastGeneration.reverted ? restoreGeneration : revertGeneration
+                }
+                className="h-6 gap-1 border border-[var(--border-default)] px-2 text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <RotateCcw
+                  className={cn("h-3 w-3", lastGeneration.reverted && "-scale-x-100")}
+                />
+                {lastGeneration.reverted ? "Restore" : "Revert"}
+              </Button>
+              <div className="ml-auto flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => rateGeneration(1)}
+                  aria-label="Good result"
+                  className={cn(
+                    "rounded-md p-1 transition-colors",
+                    lastGeneration.rating === 1
+                      ? "bg-[var(--state-success)]/15 text-[var(--state-success)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  )}
+                >
+                  <ThumbsUp className="h-3 w-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rateGeneration(-1)}
+                  aria-label="Poor result"
+                  className={cn(
+                    "rounded-md p-1 transition-colors",
+                    lastGeneration.rating === -1
+                      ? "bg-[var(--state-error)]/15 text-[var(--state-error)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  )}
+                >
+                  <ThumbsDown className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Generation error */}
       {genStatus === "error" && genStep && (
@@ -581,9 +758,7 @@ function ChatTab({
               onClick={() => {
                 // Leaving Generate cancels any in-flight/pending plan.
                 if (m.id !== "generate") {
-                  planAbortRef.current?.abort();
-                  setPlanning(false);
-                  setPlan(null);
+                  resetPlan();
                 }
                 setMode(m.id);
               }}
@@ -631,7 +806,7 @@ function ChatTab({
             disabled={busy}
             className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
               }
@@ -652,7 +827,7 @@ function ChatTab({
           </Button>
         </div>
         <p className="mt-1.5 text-center text-[10px] text-[var(--text-muted)]">
-          Ctrl+Enter to send
+          Enter to send · Shift+Enter for a new line
         </p>
       </div>
     </>
@@ -1120,35 +1295,6 @@ function SuggestionsTab({
             </div>
           </motion.div>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function PlaceholderTab({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: typeof Lightbulb;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center p-6">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-ai)]/10">
-          <Icon className="h-6 w-6 text-[var(--accent-ai)]" />
-        </div>
-        <p className="text-sm font-medium text-[var(--text-primary)]">
-          {title}
-        </p>
-        <p className="max-w-[240px] text-xs text-[var(--text-muted)]">
-          {description}
-        </p>
-        <span className="mt-2 rounded-full bg-[var(--accent-ai)]/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[var(--accent-ai)]">
-          Coming soon
-        </span>
       </div>
     </div>
   );

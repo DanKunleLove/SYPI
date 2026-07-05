@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { useEventListener } from "@liveblocks/react";
 import { toast } from "sonner";
 import { autoLayout } from "@/lib/ai/layout";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
@@ -20,8 +19,19 @@ export type GenerationStatus =
 interface GenerationState {
   status: GenerationStatus;
   generationId: string | null;
-  runId: string | null;
   step: string;
+  /** Pipeline stages seen so far this run (server-streamed), in order. */
+  stages: string[];
+}
+
+/** The most recent completed generation — powers Revert/Restore + feedback. */
+export interface LastGeneration {
+  generationId: string;
+  architecture: ArchitectureOutput;
+  nodeIds: string[];
+  edgeIds: string[];
+  reverted: boolean;
+  rating: 1 | -1 | null;
 }
 
 interface UseGenerationOptions {
@@ -35,67 +45,11 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
   const [state, setState] = useState<GenerationState>({
     status: "idle",
     generationId: null,
-    runId: null,
     step: "",
+    stages: [],
   });
+  const [lastGeneration, setLastGeneration] = useState<LastGeneration | null>(null);
   const rateLimitRef = useRef(false);
-  // Ensures a generation is placed once, even if the Liveblocks event and the
-  // polling fallback both fire.
-  const handledRef = useRef<string | null>(null);
-
-  // Listen for AI_GENERATION_COMPLETE from Liveblocks room events
-  useEventListener(({ event }) => {
-    if (
-      event.type === "AI_GENERATION_COMPLETE" &&
-      event.generationId === state.generationId
-    ) {
-      handleGenerationComplete(event.generationId);
-    }
-  });
-
-  // Listen for status updates
-  useEventListener(({ event }) => {
-    if (event.type === "AI_STATUS_UPDATE") {
-      setState((prev) => ({ ...prev, step: event.message }));
-    }
-  });
-
-  const handleGenerationComplete = useCallback(
-    async (generationId: string) => {
-      // Dedupe: the room event and the polling fallback can both call this.
-      if (handledRef.current === generationId) return;
-      handledRef.current = generationId;
-
-      setState((prev) => ({ ...prev, status: "placing", step: "Placing nodes on canvas..." }));
-
-      try {
-        // Fetch the result
-        const res = await fetch(`/api/ai/design/${generationId}`);
-        if (!res.ok) throw new Error("Failed to fetch generation result");
-
-        const data = await res.json();
-        if (data.status !== "completed" || !data.result) {
-          throw new Error(data.error || "Generation failed");
-        }
-
-        const architecture = data.result as ArchitectureOutput;
-        await placeArchitectureOnCanvas(architecture);
-
-        setState({ status: "done", generationId, runId: null, step: "Architecture ready!" });
-        toast.success(`Generated ${architecture.nodes.length} components`);
-
-        // Reset to idle after a moment
-        setTimeout(() => {
-          setState({ status: "idle", generationId: null, runId: null, step: "" });
-        }, 3000);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "Placement failed";
-        setState({ status: "error", generationId, runId: null, step: msg });
-        toast.error(msg);
-      }
-    },
-    [reactFlow] // eslint-disable-line react-hooks/exhaustive-deps
-  );
 
   const placeArchitectureOnCanvas = useCallback(
     async (architecture: ArchitectureOutput) => {
@@ -109,6 +63,7 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
 
       // Map label → generated node ID
       const labelToId = new Map<string, string>();
+      const placedNodeIds: string[] = [];
 
       // Stagger-add nodes with 100ms delay each
       for (let i = 0; i < layoutNodes.length; i++) {
@@ -118,6 +73,7 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
 
         const nodeId = generateNodeId();
         labelToId.set(aiNode.label, nodeId);
+        placedNodeIds.push(nodeId);
 
         const category = aiNode.category as NodeCategory;
         const baseData = createNodeData(category, aiNode.label);
@@ -189,6 +145,8 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
       setTimeout(() => {
         reactFlow.fitView({ padding: 0.2, duration: 500 });
       }, 300);
+
+      return { nodeIds: placedNodeIds, edgeIds: newEdges.map((e) => e.id) };
     },
     [reactFlow]
   );
@@ -200,8 +158,12 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
         return;
       }
 
-      handledRef.current = null;
-      setState({ status: "submitting", generationId: null, runId: null, step: "Submitting request..." });
+      setState({
+        status: mode === "url-analyze" ? "generating" : "submitting",
+        generationId: null,
+        step: mode === "url-analyze" ? `Researching ${url ?? "the site"}…` : "Generating architecture…",
+        stages: [],
+      });
 
       // Rate limit: 3 seconds
       rateLimitRef.current = true;
@@ -214,96 +176,164 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
         const { serializeCanvasForAI } = await import("@/lib/ai/canvas-context");
         const canvasContext = nodes.length > 0 ? serializeCanvasForAI(nodes, edges) : undefined;
 
-        const res = await fetch("/api/ai/design", {
+        setState((prev) => ({ ...prev, status: "generating", step: "Generating architecture…" }));
+
+        const res = await fetch("/api/ai/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            projectId,
-            prompt,
-            mode,
-            url,
-            canvasContext,
-          }),
+          body: JSON.stringify({ projectId, prompt, mode, url, canvasContext }),
         });
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Failed to start generation");
+          throw new Error(data.error || "Failed to generate architecture");
         }
 
-        const { generationId, runId } = await res.json();
+        // The route streams NDJSON: status events (live stage text) followed by
+        // a single result or error event.
+        if (!res.body) throw new Error("No response stream");
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let final: { generationId: string; architecture: ArchitectureOutput } | null = null;
 
-        setState({
-          status: "generating",
+        const handleLine = (raw: string) => {
+          if (!raw.trim()) return;
+          const event = JSON.parse(raw) as {
+            type: "status" | "result" | "error";
+            message?: string;
+            error?: string;
+            generationId?: string;
+            architecture?: ArchitectureOutput;
+          };
+          if (event.type === "status" && event.message) {
+            const stage = (event as { stage?: string }).stage;
+            setState((prev) => ({
+              ...prev,
+              status: "generating",
+              step: event.message!,
+              stages:
+                stage && !prev.stages.includes(stage)
+                  ? [...prev.stages, stage]
+                  : prev.stages,
+            }));
+          } else if (event.type === "result" && event.architecture) {
+            final = { generationId: event.generationId!, architecture: event.architecture };
+          } else if (event.type === "error") {
+            throw new Error(event.error || "Generation failed");
+          }
+        };
+
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let newline;
+          while ((newline = buffer.indexOf("\n")) >= 0) {
+            const rawLine = buffer.slice(0, newline);
+            buffer = buffer.slice(newline + 1);
+            handleLine(rawLine);
+          }
+        }
+        if (buffer.trim()) handleLine(buffer);
+
+        if (!final) throw new Error("Generation ended unexpectedly — please retry");
+        const { generationId, architecture } = final as {
+          generationId: string;
+          architecture: ArchitectureOutput;
+        };
+
+        setState((prev) => ({
+          status: "placing",
           generationId,
-          runId,
-          step: "Analyzing your request...",
+          step: "Placing nodes on canvas…",
+          stages: prev.stages.includes("placing")
+            ? prev.stages
+            : [...prev.stages, "placing"],
+        }));
+        const placed = await placeArchitectureOnCanvas(architecture);
+
+        setLastGeneration({
+          generationId,
+          architecture,
+          nodeIds: placed.nodeIds,
+          edgeIds: placed.edgeIds,
+          reverted: false,
+          rating: null,
         });
 
-        // Poll for completion as a fallback (in case Liveblocks event is missed)
-        pollForCompletion(generationId);
+        setState((prev) => ({ ...prev, status: "done", step: "Architecture ready!" }));
+        toast.success(`Generated ${architecture.nodes.length} components`);
+
+        // Reset to idle after a moment
+        setTimeout(() => {
+          setState({ status: "idle", generationId: null, step: "", stages: [] });
+        }, 3000);
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Generation failed";
-        setState({ status: "error", generationId: null, runId: null, step: msg });
+        setState({ status: "error", generationId: null, step: msg, stages: [] });
         toast.error(msg);
       }
     },
-    [projectId, getNodes, getEdges] // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  const pollForCompletion = useCallback(
-    async (generationId: string) => {
-      const maxAttempts = 60; // 2 minutes max
-      for (let i = 0; i < maxAttempts; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-
-        // Already handled via the Liveblocks event — stop polling.
-        if (handledRef.current === generationId) return;
-
-        try {
-          const res = await fetch(`/api/ai/design/${generationId}`);
-          if (!res.ok) continue;
-
-          const data = await res.json();
-          if (data.status === "completed") {
-            handleGenerationComplete(generationId);
-            return;
-          }
-          if (data.status === "failed") {
-            setState({
-              status: "error",
-              generationId,
-              runId: null,
-              step: data.error || "Generation failed",
-            });
-            toast.error(data.error || "Generation failed");
-            return;
-          }
-        } catch {
-          // Network error — keep polling
-        }
-      }
-
-      // Timed out without ever completing. Most common cause in local dev:
-      // the Trigger.dev worker isn't running (run `npm run dev:trigger`).
-      if (handledRef.current !== generationId) {
-        const msg =
-          "Generation timed out. Make sure the AI worker is running (npm run dev:trigger).";
-        setState({ status: "error", generationId, runId: null, step: msg });
-        toast.error(msg);
-      }
-    },
-    [handleGenerationComplete]
+    [projectId, getNodes, getEdges, placeArchitectureOnCanvas]
   );
 
   const reset = useCallback(() => {
-    setState({ status: "idle", generationId: null, runId: null, step: "" });
+    setState({ status: "idle", generationId: null, step: "", stages: [] });
   }, []);
+
+  /** Remove everything the last generation placed (kept restorable). */
+  const revertGeneration = useCallback(() => {
+    setLastGeneration((prev) => {
+      if (!prev || prev.reverted) return prev;
+      reactFlow.deleteElements({
+        nodes: prev.nodeIds.map((id) => ({ id })),
+        edges: prev.edgeIds.map((id) => ({ id })),
+      });
+      toast.success("Generation reverted", { description: "Restore brings it back." });
+      return { ...prev, reverted: true };
+    });
+  }, [reactFlow]);
+
+  /** Re-place a reverted generation (fresh IDs, same architecture). */
+  const restoreGeneration = useCallback(async () => {
+    const current = lastGeneration;
+    if (!current || !current.reverted) return;
+    const placed = await placeArchitectureOnCanvas(current.architecture);
+    setLastGeneration((prev) =>
+      prev && prev.generationId === current.generationId
+        ? { ...prev, nodeIds: placed.nodeIds, edgeIds: placed.edgeIds, reverted: false }
+        : prev
+    );
+  }, [lastGeneration, placeArchitectureOnCanvas]);
+
+  /** Thumbs up/down (tap again to clear). Optimistic; failure just logs. */
+  const rateGeneration = useCallback(
+    async (rating: 1 | -1) => {
+      const current = lastGeneration;
+      if (!current) return;
+      const next = current.rating === rating ? null : rating;
+      setLastGeneration((prev) => (prev ? { ...prev, rating: next } : prev));
+      await fetch("/api/ai/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ generationId: current.generationId, rating: next ?? 0 }),
+      }).catch(() => {});
+    },
+    [lastGeneration]
+  );
+
+  const dismissLastGeneration = useCallback(() => setLastGeneration(null), []);
 
   return {
     ...state,
     generate,
     reset,
     placeArchitectureOnCanvas,
+    lastGeneration,
+    revertGeneration,
+    restoreGeneration,
+    rateGeneration,
+    dismissLastGeneration,
   };
 }

@@ -6,6 +6,110 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-05 (final) — Site audit, onboarding v3, help refresh, repo ownership cleanup
+
+**Audit diagnosis (full-repo):** README was a tutorial e-book (playbook) → rewritten as SYPI's
+own README (playbook preserved locally at `_local/ai-builders-playbook.md`, gitignored).
+Untracked 136 AI-tool files from git (kept on disk): `.claude/` (120 vendored skill refs),
+`.cursor/`, `.gemini/`, `.vscode/`, `.github/instructions/` (vendored trigger docs),
+`GEMINI.md`, `skills-lock.json`. No secrets found in any tool config. package.json →
+v1.0.0 + description/author.
+
+- **Onboarding v3** (`spi-onboarding-v3-done`): 4 steps — generate (incl. paste-a-URL +
+  self-review), refine/collaborate (incl. Revert), export, and NEW step 4: help (`?` key),
+  custom instructions, BYOK. Shows once more for existing users (key bump).
+- **Help panel**: added URL real-grounding, self-review pipeline, revert/restore/rate,
+  custom instructions items; section renamed "AI Settings — Keys & Custom Instructions";
+  footer "View full docs" (dead link to /welcome) → "Email support" (mailto).
+- **Deferred from audit** (next sessions): landing/dashboard masterclass polish; docs/
+  Mintlify guides content refresh for new features; node-anchored comments; landing
+  feature-claims re-verification; Clerk Organizations (Phase A).
+
+### 2026-07-05 (later) — Revert/restore, self-critique, feedback, custom instructions, UX polish
+
+**Migration `20260705120000_rating_custom_instructions` APPLIED** (`AIGeneration.rating Int?`,
+`User.customInstructions String?`). Note: had to `migrate resolve --applied 20260604200000_add_share_token`
+first — it was applied manually via Neon SQL editor in June but never marked.
+
+- **Revert/Restore**: `use-generation.ts` tracks `lastGeneration` (placed node/edge IDs +
+  architecture); `revertGeneration()` removes them, `restoreGeneration()` re-places (fresh IDs).
+  Result card in ChatTab with Revert/Restore + dismiss.
+- **Self-critique loop** (`generate/route.ts`): after generateObject, a flash critique pass
+  (CritiqueOutputSchema); critical issues trigger ONE full-architecture repair generation before
+  placing. Best-effort — critique failure never blocks. Streamed as "reviewing"/"refining" stages.
+- **Feedback**: 👍/👎 on the result card → `POST /api/ai/feedback` (access-checked) →
+  `AIGeneration.rating` (1/-1, tap again clears). Data for the quality loop.
+- **Custom instructions (user prompt layer)**: `User.customInstructions` (≤2000 chars),
+  `GET/PUT /api/settings/instructions`, `applyUserInstructions()` APPENDS to generate/plan/chat
+  system prompts — never replaces the base schema contract (deliberate: replacing would break
+  generateObject). Settings page renamed "AI settings", new InstructionsSettings card.
+- **UX**: generation banner is now a live pipeline (Research → Design → Review → Refine → Place,
+  server-streamed stages, checkmarks + pulse); Enter sends / Shift+Enter newline (was Ctrl+Enter);
+  dead `PlaceholderTab` removed. Mermaid export already existed (lib/export.ts) — no work needed.
+- tsc + `next build` exit 0. **Deferred:** full-app masterclass UI audit (dashboard/canvas/landing)
+  — needs its own session; project-level custom instructions (only user-level built).
+
+### 2026-07-05 — Real URL grounding + AI-route security + streaming generation
+
+**A. URL grounding (fixes "URL analysis returns generic nonsense"):**
+- New `lib/ai/url-research.ts`: `extractUrls()`, `fetchSiteEvidence()` (SSRF-guarded live
+  fetch of the actual site — DNS-resolves and blocks private/metadata IPs, revalidates each
+  redirect hop; extracts title/meta, ~20 HTML + ~14 header tech fingerprints, third-party
+  script hosts, visible page text), `researchSite()` (evidence + Gemini google_search brief).
+  Verified live: linear.app → detects Next.js + Cloudflare + real page text; 169.254.169.254
+  and localhost blocked.
+- URLs pasted into ANY prompt now trigger research — generate route auto-detects (no separate
+  URL mode needed), plan + chat routes inject fetch-only evidence into the system prompt.
+- `URL_ANALYSIS_SYSTEM_PROMPT` rewritten evidence-first: observed tech MUST appear, silent
+  layers marked "Inferred:", the old "make educated inferences" hallucination license removed.
+
+**B. Security hardening:**
+- New `lib/rate-limit.ts` (in-memory sliding window, per-instance) applied per user:
+  generate 6/min, plan 15/min, chat 20/min → 429 + Retry-After.
+- Durable daily cap on generation: 100/24h per user, counted via AIGeneration in the DB.
+- Input caps: prompt 6k chars, canvasContext 24k, plan ≤40 turns × 8k, chat ≤60 messages.
+- SSRF guard (above) covers the new server-side fetches.
+
+**C. Streaming generation UX:**
+- `/api/ai/generate` now streams NDJSON (`status` events → `result`/`error`) instead of a
+  silent 10–30s JSON wait; `use-generation.ts` parses the stream and shows live stage text
+  ("Reading {url} and researching the stack…" → "Designing the architecture…").
+
+tsc + `next build` exit 0. In-memory limiter resets on cold start (documented); durable cap
+covers the platform-quota risk. Upstash/Redis limiter is the upgrade path if abuse appears.
+
+### 2026-06-08 — Generation moved inline; plan-then-execute is now a conversation
+
+**Why:** Generation was the only AI path that offloaded to a Trigger.dev worker
+(`design-agent`). Plan + chat run inline and worked; generate failed in both local
+and prod because the worker wasn't reliably running/deployed. A single `generateObject`
+call (~10–30s) doesn't need a durable worker.
+
+**Changes (Option B):**
+- New `app/api/ai/generate/route.ts` — inline generation (resolveModelForProject +
+  generateObject, URL-research step preserved), `maxDuration = 120`, writes the
+  AIGeneration record for history, returns `{ generationId, architecture }`.
+- `hooks/use-generation.ts` — calls `/api/ai/generate` and places nodes directly.
+  Removed Trigger.dev polling, runId, and Liveblocks completion/status listeners.
+- `app/api/ai/plan/route.ts` — accepts a `messages[]` conversation (back-compat with
+  single `prompt`), streams plan turns.
+- `components/workspace/ai-panel.tsx` — plan is now a **discussable conversation**:
+  send to draft a plan, keep typing to refine it across turns, then
+  **"Generate from this plan"** sends the transcript to inline generation. Old
+  one-shot Approve/Refine card removed.
+
+**Still on Trigger.dev (unchanged, same worker dependency — migrate next if needed):**
+`/api/ai/design` + `trigger/design-agent.ts` (legacy generate path, now off the hot path),
+`/api/ai/critique` + `trigger/critique-architecture.ts`, `/api/ai/refine` +
+`trigger/refine-architecture.ts`, `/api/ai/design/token`.
+
+### 2026-06-08 — Vercel Web Analytics
+
+Added `@vercel/analytics`; `<Analytics />` mounted in `app/layout.tsx` (App Router import
+`@vercel/analytics/next`). Tracks page views/visitors automatically; `track()` available for
+custom events. **Still required:** enable Web Analytics in the Vercel project's Analytics tab —
+data only flows once toggled on. No-op in local dev.
+
 ### 2026-06-07 — Renamed "spi AI" → SYPI (System Project Intelligence)
 
 Platform renamed to **SYPI** (all-caps wordmark; backronym: System Project Intelligence).

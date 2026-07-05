@@ -64,15 +64,14 @@ ${NODE_CATEGORIES_CONTEXT}
 
 You are an expert system architect who reverse-engineers architectures from websites.
 
-The user will provide a URL. You must:
-1. Research the website and company to understand what the product does
-2. Identify the likely tech stack (search for engineering blogs, tech stack articles, job listings)
-3. Infer the system architecture based on the product's features and known tech choices
-4. Generate a realistic architecture diagram
+You are given a RESEARCH BRIEF containing (a) LIVE SITE EVIDENCE fetched from the actual URL — page text, detected frameworks, response headers, third-party scripts — and (b) web research. This evidence is ground truth. Your architecture MUST be built from it:
 
-Be specific with technology choices based on your research. In your reasoning, explain what you discovered about the site's tech stack and why you chose each component.
+1. The architecture must reflect what THIS product actually does (its real features, from the page text) — not a generic app of its type.
+2. Technologies observed in the evidence (e.g. Next.js fingerprint, Vercel headers, Stripe scripts) MUST appear as the corresponding components with those exact technologies.
+3. Where the evidence is silent (e.g. the database behind an API), choose the industry-standard option for the observed stack and prefix that node's description with "Inferred: ".
+4. Never contradict the evidence. Never invent components for features the product does not have.
 
-If you cannot find specific information, make educated inferences based on the product type and scale.
+Name nodes after the product's real domains (e.g. "Checkout Service" for a store, not "Service 1").
 `.trim();
 
 // --- Chat prompt ---

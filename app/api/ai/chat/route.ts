@@ -6,15 +6,34 @@ import {
   type UIMessage,
 } from "ai";
 import { z } from "zod";
-import { resolveModelForProject } from "@/lib/ai/index";
+import {
+  applyUserInstructions,
+  getUserInstructions,
+  resolveModelForProject,
+} from "@/lib/ai/index";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { extractUrls, fetchSiteEvidence } from "@/lib/ai/url-research";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+
+/** Concatenate the text parts of the latest user message (UIMessage shape). */
+function lastUserText(messages: UIMessage[]): string {
+  const last = [...messages].reverse().find((m) => m.role === "user");
+  if (!last) return "";
+  return last.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join(" ");
+}
 
 export async function POST(request: Request) {
   const user = await getDbUser();
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const burst = checkRateLimit(`chat:${user.id}`, 20, 60_000);
+  if (!burst.ok) return rateLimitResponse(burst.retryAfter);
 
   let body: { messages?: unknown; canvasContext?: unknown; projectId?: unknown };
   try {
@@ -38,10 +57,29 @@ export async function POST(request: Request) {
   }
 
   // Build system prompt with canvas context
-  const context = typeof canvasContext === "string" ? canvasContext : undefined;
-  const systemPrompt = context
+  const context =
+    typeof canvasContext === "string" ? canvasContext.slice(0, 24_000) : undefined;
+  let systemPrompt = context
     ? `${CHAT_SYSTEM_PROMPT}\n\n${context}`
     : CHAT_SYSTEM_PROMPT;
+
+  // Ground URL mentions in the live site instead of letting the model guess.
+  const uiMessages = messages as UIMessage[];
+  if (Array.isArray(uiMessages) && uiMessages.length > 60) {
+    return Response.json({ error: "Conversation too long" }, { status: 400 });
+  }
+  const urls = extractUrls(lastUserText(uiMessages), 2);
+  if (urls.length > 0) {
+    const evidence = await Promise.all(urls.map((u) => fetchSiteEvidence(u)));
+    systemPrompt += `\n\nThe user referenced URL(s). Live evidence fetched just now:\n\n${evidence.join(
+      "\n\n"
+    )}\n\nAnswer based on this evidence; mark anything beyond it as an assumption.`;
+  }
+
+  systemPrompt = applyUserInstructions(
+    systemPrompt,
+    await getUserInstructions(user.id)
+  );
 
   const result = streamText({
     model: await resolveModelForProject(projectId, "flash"),

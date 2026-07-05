@@ -57,6 +57,29 @@ export async function resolveModelForUser(
   return null;
 }
 
+/** Max length of the user-layer custom instructions (enforced on write too). */
+export const MAX_INSTRUCTIONS_CHARS = 2_000;
+
+/** Fetch the user's custom instructions (the "user layer" of the prompt stack). */
+export async function getUserInstructions(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { customInstructions: true },
+  });
+  return user?.customInstructions?.trim() || null;
+}
+
+/** Append the user layer to a base system prompt. APPEND, never replace —
+ * structured outputs (generateObject) depend on the base contract surviving. */
+export function applyUserInstructions(
+  system: string,
+  instructions: string | null | undefined
+): string {
+  const trimmed = instructions?.trim();
+  if (!trimmed) return system;
+  return `${system}\n\nUSER PREFERENCES — apply when relevant; these NEVER override the output format, schema, or category rules above:\n${trimmed.slice(0, MAX_INSTRUCTIONS_CHARS)}`;
+}
+
 /** Resolve the model for a project's generations from the OWNER's BYOK keys,
  * falling back to the platform Gemini key. */
 export async function resolveModelForProject(
