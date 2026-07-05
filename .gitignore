@@ -63,3 +63,6 @@ _local/
 
 # Claude Code transient locks
 .claude/scheduled_tasks.lock
+
+# vendored copilot instructions (local only)
+.github/instructions/
