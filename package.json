@@ -1,7 +1,9 @@
 {
   "name": "sypi-ai",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "description": "SYPI — System Project Intelligence. Design system architectures with your AI Twin on a real-time collaborative canvas.",
+  "author": "Adelusi Dan Kunle",
   "scripts": {
     "dev": "next dev",
     "dev:trigger": "npx trigger.dev@4.4.6 dev",
@@ -28,6 +30,7 @@
     "@prisma/client": "^7.8.0",
     "@trigger.dev/react-hooks": "4.4.6",
     "@trigger.dev/sdk": "4.4.6",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.4.0",
     "@xyflow/react": "^12.10.2",
     "ai": "^6.0.191",

@@ -2,37 +2,46 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, MousePointer2, FileDown, ArrowRight, X, Check } from "lucide-react";
+import { Sparkles, MousePointer2, FileDown, LifeBuoy, ArrowRight, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const STORAGE_KEY = "spi-onboarding-v2-done";
+const STORAGE_KEY = "spi-onboarding-v3-done";
 
 const STEPS = [
   {
     icon: Sparkles,
     color: "var(--accent-ai)",
-    badge: "Step 1 of 3",
-    title: "Tell the AI what to build",
-    body: "Open the AI Twin panel on the right → type your system (e.g. \"E-commerce platform with microservices\") → the AI drafts a plan for your approval → then builds the canvas automatically.",
+    badge: "Step 1 of 4",
+    title: "Tell your AI Twin what to build",
+    body: "Open the AI Twin panel on the right and describe your system — \"E-commerce platform with microservices\" — or paste any live URL to reverse-engineer its real stack. The AI drafts a plan you can discuss and refine, then builds the canvas, reviewing its own design before placing it.",
     hint: "→ Click the AI Twin button on the right toolbar to start",
     cta: "Got it, what's next?",
   },
   {
     icon: MousePointer2,
     color: "var(--accent-primary)",
-    badge: "Step 2 of 3",
+    badge: "Step 2 of 4",
     title: "Refine with your team",
-    body: "Click any node to inspect and edit it. Drag from a node's handle to connect services. Hit Review to run an AI design critique. Invite teammates — they'll appear as live cursors.",
+    body: "Click any node to inspect and edit it. Drag from a node's handle to connect services. Hit Review for an AI design critique, or Revert if a generation isn't right. Invite teammates from Share — they appear as live cursors and can comment with @mentions.",
     hint: "→ Try clicking a node after generation completes",
     cta: "Nice — and then?",
   },
   {
     icon: FileDown,
     color: "var(--state-success)",
-    badge: "Step 3 of 3",
+    badge: "Step 3 of 4",
     title: "Export and hand off",
     body: "Open the Spec tab in the AI Twin panel: download a PNG for slides, Markdown for docs, Mermaid for GitHub, or an Agent Bundle ZIP that Claude Code or Codex can read and implement directly.",
     hint: "→ Spec tab lives in the AI Twin panel",
+    cta: "One more thing…",
+  },
+  {
+    icon: LifeBuoy,
+    color: "var(--state-warning)",
+    badge: "Step 4 of 4",
+    title: "Make it yours — and get help anytime",
+    body: "Press ? anywhere for the full feature guide with every shortcut. In Settings you can add your own Claude, GPT, or Gemini API key and write custom instructions that teach your AI Twin how you like to work — they apply to every generation.",
+    hint: "→ Press ? for help · Settings lives under your avatar",
     cta: "Let's build",
   },
 ] as const;

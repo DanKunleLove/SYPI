@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ClerkThemeProvider } from "@/components/clerk-theme-provider";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const sans = Inter({
@@ -64,6 +65,7 @@ export default function RootLayout({
             <TooltipProvider>{children}</TooltipProvider>
           </ClerkThemeProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );

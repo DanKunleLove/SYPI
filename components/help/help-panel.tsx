@@ -35,8 +35,16 @@ const SECTIONS: HelpSection[] = [
         description: "With nodes already on the canvas, open AI Twin and type a follow-up: 'Add a Redis cache layer between the API gateway and services.' The AI applies the diff — adding or removing only what changed, leaving everything else intact.",
       },
       {
-        title: "URL-to-architecture",
-        description: "Switch to URL mode in the AI Twin panel. Paste any public URL (a product page, a GitHub repo, a technical blog post). The AI researches the tech stack via Google Search and generates an architecture diagram from what it finds.",
+        title: "URL-to-architecture — real grounding",
+        description: "Paste any public URL into ANY prompt (Generate, Chat, or URL mode). SYPI fetches the live site — framework fingerprints, response headers, page content — plus web research, and builds the architecture from that evidence. Components not visible in the evidence are marked 'Inferred'.",
+      },
+      {
+        title: "Self-review before placing",
+        description: "Watch the pipeline while generating: Research → Design → Review → Refine → Place. The AI critiques its own draft and fixes critical flaws before anything reaches your canvas.",
+      },
+      {
+        title: "Revert, restore & rate",
+        description: "After a generation, a result card appears in the panel. Revert removes everything that generation placed; Restore brings it back. Rate it 👍/👎 — your feedback improves generation quality over time.",
       },
       {
         title: "Chat mode",
@@ -180,12 +188,16 @@ const SECTIONS: HelpSection[] = [
     id: "byok",
     icon: Key,
     color: "#f59e0b",
-    title: "BYOK — Bring Your Own Keys",
-    summary: "Power generation with your own Claude, GPT, or Gemini API key.",
+    title: "AI Settings — Keys & Custom Instructions",
+    summary: "Power generation with your own model key and teach the AI Twin how you work.",
     items: [
       {
+        title: "Custom instructions",
+        description: "In Settings, write instructions your AI Twin applies to every generation, plan, and chat — 'Prefer AWS services', 'Always include monitoring', 'Explain briefly, I'm a backend engineer'. They layer on top of the built-in prompts and can never break the output format.",
+      },
+      {
         title: "Add a provider key",
-        description: "Go to Settings → Models & API Keys (click your avatar in the sidebar, or navigate to /settings). Enter your API key for Anthropic, OpenAI, or Google. Keys are encrypted with AES-256-GCM before being stored — only the last 4 characters are visible after saving.",
+        description: "Go to Settings → AI settings (click your avatar in the sidebar, or navigate to /settings). Enter your API key for Anthropic, OpenAI, or Google. Keys are encrypted with AES-256-GCM before being stored — only the last 4 characters are visible after saving.",
       },
       {
         title: "Set a default model",
@@ -412,12 +424,10 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
                 Press <kbd className="rounded border border-[var(--border-subtle)] px-1 text-[10px]">?</kbd> anywhere to toggle
               </p>
               <a
-                href="https://sypi-ai-dev.vercel.app/welcome"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="mailto:theaiteam2025@gmail.com?subject=SYPI%20support"
                 className="inline-flex items-center gap-1 text-[10px] text-[var(--accent-ai)] hover:underline"
               >
-                View full docs <ExternalLink className="h-3 w-3" />
+                Email support <ExternalLink className="h-3 w-3" />
               </a>
             </div>
           </motion.div>
