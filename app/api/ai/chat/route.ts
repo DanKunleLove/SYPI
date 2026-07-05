@@ -12,9 +12,13 @@ import {
   resolveModelForProject,
 } from "@/lib/ai/index";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { createAgentTools, type AgentContext } from "@/lib/ai/agent-tools";
 import { extractUrls, fetchSiteEvidence } from "@/lib/ai/url-research";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+
+// Agent turns can chain research → generation → review; give them room.
+export const maxDuration = 300;
 
 /** Concatenate the text parts of the latest user message (UIMessage shape). */
 function lastUserText(messages: UIMessage[]): string {
@@ -76,16 +80,24 @@ export async function POST(request: Request) {
     )}\n\nAnswer based on this evidence; mark anything beyond it as an assumption.`;
   }
 
-  systemPrompt = applyUserInstructions(
-    systemPrompt,
-    await getUserInstructions(user.id)
-  );
+  const userInstructions = await getUserInstructions(user.id);
+  systemPrompt = applyUserInstructions(systemPrompt, userInstructions);
+
+  // Shared mutable context: generation updates it so later tools in the same
+  // turn (e.g. review right after generate) see the new architecture.
+  const agentCtx: AgentContext = {
+    projectId,
+    userId: user.id,
+    canvasContext: context,
+    userInstructions,
+  };
 
   const result = streamText({
     model: await resolveModelForProject(projectId, "flash"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages as UIMessage[]),
     tools: {
+      ...createAgentTools(agentCtx),
       addNode: tool({
         description:
           "Add a new component to the architecture canvas. Returns the node data for the client to place.",
@@ -137,7 +149,7 @@ export async function POST(request: Request) {
         },
       }),
     },
-    stopWhen: stepCountIs(5),
+    stopWhen: stepCountIs(8),
   });
 
   return result.toUIMessageStreamResponse();

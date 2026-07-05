@@ -325,6 +325,26 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
 
   const dismissLastGeneration = useCallback(() => setLastGeneration(null), []);
 
+  /** Register an already-placed architecture (agent tool path) so the
+   * revert/restore + rating card works for conversational generations too. */
+  const registerPlacement = useCallback(
+    (
+      generationId: string,
+      architecture: ArchitectureOutput,
+      placed: { nodeIds: string[]; edgeIds: string[] }
+    ) => {
+      setLastGeneration({
+        generationId,
+        architecture,
+        nodeIds: placed.nodeIds,
+        edgeIds: placed.edgeIds,
+        reverted: false,
+        rating: null,
+      });
+    },
+    []
+  );
+
   return {
     ...state,
     generate,
@@ -335,5 +355,6 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
     restoreGeneration,
     rateGeneration,
     dismissLastGeneration,
+    registerPlacement,
   };
 }

@@ -6,6 +6,46 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-05 (evening) — Conversational agent core (Phase 1) + System Kit (Phase 2)
+
+**Product thesis locked** ([[spi-ai-product-direction]]): "the gap between seniors and vibe
+coders is the proper system — SYPI generates the system." Approved plan: Phase 1
+conversational core → Phase 2 System Kit → Phase 3 domain packs (gated on 👍/👎 data) →
+Phase 4 Trigger.dev retirement + landing repositioning.
+
+**Phase 1 — one conversation, no silent AI (approach A3: agent front-door + pipelines):**
+- `lib/ai/agent-tools.ts` — heavy tools wrapping the schema-enforced pipelines:
+  `generateArchitecture` (plan-approval contract in prompt; URL grounding; daily cap;
+  writes AIGeneration; updates shared mutable ctx so a review in the same turn sees the
+  new architecture), `runDesignReview` (inline critique), `refineArchitecture` (diff ops),
+  `researchUrl`. Chat route merges them with the light canvas tools; `stepCountIs(8)`,
+  `maxDuration = 300`.
+- `CHAT_SYSTEM_PROMPT` rewritten as agent conductor: propose-plan-before-build, narrate
+  before/after every tool, translate results to plain language, never dump JSON.
+- `ai-panel.tsx` ChatTab: mode pills (Generate/Chat/URL) + separate plan flow REMOVED —
+  single thread. Tool calls render as live action cards (`ToolActionCard`): running
+  spinner → result (components placed + reasoning / review severity list / changes
+  applied / research brief) or error. Client applies `placeArchitecture` via
+  placeArchitectureOnCanvas + `registerPlacement` (revert/rate card works for agent
+  generations) and `applyDiff` via canvas-diff engine.
+- `/api/ai/plan` + `/api/ai/generate` routes kept (API surface), but the panel now goes
+  through the agent exclusively.
+
+**Phase 2 — System Kit (the thesis feature):**
+- `lib/ai/kit.ts` — KIT_FILES (six-file definitions w/ per-file guidance distilled from
+  Dan's playbook), `KIT_SYSTEM_PROMPT` (derive from ACTUAL canvas, no filler), static
+  `kitEntryFile` (CLAUDE.md/AGENTS.md entry point).
+- `POST /api/ai/kit` — streams NDJSON per file (6 sequential generateText on owner-resolved
+  flash model); auth + access + 3/10min rate limit; maxDuration 300.
+- Spec tab hero card: "System Kit" with live per-file checklist → downloads
+  `{name}-system-kit.zip` (CLAUDE.md + AGENTS.md + context/×6 + spi-schema.json) via new
+  `downloadSystemKit` in lib/export.ts.
+- Help panel updated: modes removed from copy, System Kit documented.
+
+**Deferred:** Phase 3 domain packs; Phase 4 Trigger retirement (Review button still uses
+the worker); measuring full agent-turn latency in prod (watch: chained research→generate
+turns near the 300s cap on slow models).
+
 ### 2026-07-05 (final) — Site audit, onboarding v3, help refresh, repo ownership cleanup
 
 **Audit diagnosis (full-repo):** README was a tutorial e-book (playbook) → rewritten as SYPI's

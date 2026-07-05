@@ -46,21 +46,28 @@ import {
   generateV0Prompt,
   downloadAgentBundle,
   downloadSpiSchema,
+  downloadSystemKit,
   parseSpiSchema,
 } from "@/lib/export";
+import { KIT_FILES, kitEntryFile } from "@/lib/ai/kit";
+import { toast } from "sonner";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
+import { applyDiffOperations } from "@/lib/ai/canvas-diff";
+import type { ArchitectureOutput, DiffOperation, CritiqueIssue } from "@/lib/ai/schemas";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
-type ChatMode = "generate" | "chat" | "url";
-type PlanTurn = { role: "user" | "assistant"; content: string };
+/** Heavy agent tools rendered as action cards (light canvas tools stay chips). */
+const TOOL_META: Record<string, { icon: typeof Sparkles; running: string }> = {
+  "tool-generateArchitecture": { icon: Sparkles, running: "Designing the architecture…" },
+  "tool-runDesignReview": { icon: Lightbulb, running: "Reviewing the design…" },
+  "tool-refineArchitecture": { icon: Zap, running: "Applying changes…" },
+  "tool-researchUrl": { icon: Globe, running: "Reading the site…" },
+};
 
-/** Human labels for the server-streamed generation pipeline stages. */
-const STAGE_LABELS: Record<string, string> = {
-  researching: "Research",
-  generating: "Design",
-  reviewing: "Review",
-  refining: "Refine",
-  placing: "Place",
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "var(--state-error)",
+  warning: "var(--state-warning)",
+  suggestion: "var(--text-muted)",
 };
 
 const TABS = [
@@ -225,167 +232,53 @@ function ChatTab({
     getEdges,
   });
 
-  // Full architecture generation (prompt / URL → canvas), streamed inline
+  // Placement + revert/restore/rate for agent-generated architectures
   const {
     status: genStatus,
     step: genStep,
-    stages: genStages,
-    generate,
     lastGeneration,
     revertGeneration,
     restoreGeneration,
     rateGeneration,
     dismissLastGeneration,
+    registerPlacement,
+    placeArchitectureOnCanvas,
   } = useGeneration({
     projectId,
     getNodes,
     getEdges,
   });
-  const isGenerating =
-    genStatus === "submitting" ||
-    genStatus === "generating" ||
-    genStatus === "placing";
-
-  const [mode, setMode] = useState<ChatMode>("generate");
-  const [url, setUrl] = useState("");
-
-  // Plan-then-execute: discuss a plan as a conversation, then generate from it.
-  const [planMessages, setPlanMessages] = useState<PlanTurn[]>([]);
-  const [streamingPlan, setStreamingPlan] = useState<string | null>(null);
-  const [planning, setPlanning] = useState(false);
-  const [planError, setPlanError] = useState<string | null>(null);
+  const isPlacing = genStatus === "placing";
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // Track tool calls already applied to the canvas so we don't re-run them
   const appliedToolCallsRef = useRef<Set<string>>(new Set());
-  // Cancels an in-flight plan stream (unmount, new request, or mode change)
-  const planAbortRef = useRef<AbortController | null>(null);
 
-  // Abort any in-flight plan stream on unmount
-  useEffect(() => () => planAbortRef.current?.abort(), []);
-
-  // Auto-scroll to bottom on new messages / streaming plan
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, planMessages, streamingPlan]);
+  }, [messages]);
 
-  const busy = isLoading || isGenerating || planning;
-
-  // Stream a plan turn — starts the discussion or continues it.
-  const runPlan = useCallback(
-    async (userText: string) => {
-      const text = userText.trim();
-      if (!text) return;
-
-      // Supersede any in-flight plan request.
-      planAbortRef.current?.abort();
-      const controller = new AbortController();
-      planAbortRef.current = controller;
-      const isCurrent = () => planAbortRef.current === controller;
-
-      const history: PlanTurn[] = [...planMessages, { role: "user", content: text }];
-      setPlanMessages(history);
-      setPlanError(null);
-      setStreamingPlan("");
-      setPlanning(true);
-      try {
-        const nodes = getNodes();
-        const edges = getEdges();
-        const canvasContext =
-          nodes.length > 0 ? serializeCanvasForAI(nodes, edges) : undefined;
-
-        const res = await fetch("/api/ai/plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, canvasContext }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok || !res.body) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Failed to draft a plan");
-        }
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let acc = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          if (!isCurrent()) return; // superseded — don't clobber newer state
-          setStreamingPlan(acc);
-        }
-        if (!isCurrent()) return;
-        setPlanMessages((prev) => [...prev, { role: "assistant", content: acc }]);
-        setStreamingPlan(null);
-        setPlanning(false);
-      } catch (e) {
-        // Aborted (unmount / superseded / mode change) — leave state to the winner.
-        if (controller.signal.aborted || !isCurrent()) return;
-        setPlanning(false);
-        setStreamingPlan(null);
-        setPlanError(e instanceof Error ? e.message : "Failed to draft a plan");
-      }
-    },
-    [planMessages, getNodes, getEdges]
-  );
-
-  const resetPlan = useCallback(() => {
-    planAbortRef.current?.abort();
-    setPlanMessages([]);
-    setStreamingPlan(null);
-    setPlanning(false);
-    setPlanError(null);
-  }, []);
-
-  // Turn the discussed plan into a full generation.
-  const generateFromPlan = useCallback(() => {
-    if (planMessages.length === 0) return;
-    const transcript = planMessages
-      .map((m) => `${m.role === "user" ? "User" : "Architect"}: ${m.content}`)
-      .join("\n\n");
-    resetPlan();
-    generate(
-      `Design the system architecture we discussed and agreed on below. Honor the decisions made in the conversation.\n\n${transcript}`,
-      "generate"
-    );
-  }, [planMessages, resetPlan, generate]);
+  const busy = isLoading || isPlacing;
 
   // Auto-trigger when a prompt is pushed in from suggestions / critique handoff.
   const lastAutoPromptRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!initialPrompt || initialPrompt === lastAutoPromptRef.current) return;
     lastAutoPromptRef.current = initialPrompt;
-    setMode("generate");
-    const t = setTimeout(() => runPlan(initialPrompt), 150);
+    const t = setTimeout(() => sendMessage(initialPrompt), 150);
     return () => clearTimeout(t);
-  }, [initialPrompt, runPlan]);
+  }, [initialPrompt, sendMessage]);
 
   const handleSend = useCallback(() => {
     if (busy) return;
     const text = input.trim();
-
-    if (mode === "url") {
-      const urlValue = url.trim();
-      if (!urlValue) return;
-      generate(text || `Analyze the architecture of ${urlValue}`, "url-analyze", urlValue);
-      setInput("");
-      setUrl("");
-      return;
-    }
-
     if (!text) return;
-    if (mode === "generate") {
-      // Plan/discuss first, then generate from the conversation.
-      runPlan(text);
-    } else {
-      sendMessage(text);
-    }
+    sendMessage(text);
     setInput("");
-  }, [busy, mode, input, url, generate, sendMessage, setInput, runPlan]);
+  }, [busy, input, sendMessage, setInput]);
 
   // Handle tool call results — modify canvas
   useEffect(() => {
@@ -401,7 +294,23 @@ function ChatTab({
         if (!result?.action) continue;
         appliedToolCallsRef.current.add(part.toolCallId);
 
-        if (result.action === "addNode") {
+        if (result.action === "placeArchitecture") {
+          // Agent-generated architecture → stagger-place + register for revert/rate.
+          const architecture = result.architecture as ArchitectureOutput;
+          const generationId = result.generationId as string;
+          void (async () => {
+            const placed = await placeArchitectureOnCanvas(architecture);
+            registerPlacement(generationId, architecture, placed);
+          })();
+        } else if (result.action === "applyDiff") {
+          const operations = result.operations as DiffOperation[];
+          void applyDiffOperations(
+            reactFlow,
+            operations,
+            reactFlow.getNodes() as CanvasNode[],
+            reactFlow.getEdges() as CanvasEdge[]
+          );
+        } else if (result.action === "addNode") {
           const category = result.category as NodeCategory;
           const label = result.label as string;
           const description = result.description as string | undefined;
@@ -435,7 +344,7 @@ function ChatTab({
         }
       }
     }
-  }, [messages, reactFlow]);
+  }, [messages, reactFlow, placeArchitectureOnCanvas, registerPlacement]);
 
   const hasMessages = messages.length > 0;
 
@@ -443,71 +352,7 @@ function ChatTab({
     <>
       {/* Messages area */}
       <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto">
-        {mode === "generate" && (planMessages.length > 0 || planning) ? (
-          <div className="flex flex-col gap-3 p-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-[var(--accent-ai)]" />
-              <span className="text-sm font-medium text-[var(--text-primary)]">
-                Planning
-              </span>
-              {planning && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
-              )}
-              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
-                Discuss, then generate
-              </span>
-            </div>
-
-            {planMessages.map((m, i) =>
-              m.role === "user" ? (
-                <div
-                  key={i}
-                  className="self-end max-w-[85%] rounded-lg bg-[var(--bg-surface-raised)] px-3 py-2 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap"
-                >
-                  {m.content}
-                </div>
-              ) : (
-                <div
-                  key={i}
-                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap"
-                >
-                  {m.content}
-                </div>
-              )
-            )}
-
-            {streamingPlan !== null && (
-              <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] p-3 text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
-                {streamingPlan || "Drafting a plan…"}
-              </div>
-            )}
-
-            {!planning && planMessages.some((m) => m.role === "assistant") && (
-              <>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={generateFromPlan}
-                    className="flex-1 gap-1.5 bg-[var(--accent-ai)] text-white hover:bg-[var(--accent-ai)]/90"
-                  >
-                    <Check className="h-4 w-4" />
-                    Generate from this plan
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={resetPlan}
-                    className="gap-1.5 border border-[var(--border-default)] text-[var(--text-secondary)]"
-                  >
-                    <X className="h-4 w-4" />
-                    Discard
-                  </Button>
-                </div>
-                <p className="text-center text-[10px] text-[var(--text-muted)]">
-                  Keep typing below to refine the plan, or generate it.
-                </p>
-              </>
-            )}
-          </div>
-        ) : !hasMessages ? (
+        {!hasMessages ? (
           <div className="flex flex-1 flex-col items-center justify-center p-6">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-ai)]/10">
@@ -526,7 +371,6 @@ function ChatTab({
                     key={prompt}
                     type="button"
                     onClick={() => {
-                      setMode("generate");
                       setInput(prompt);
                       inputRef.current?.focus();
                     }}
@@ -564,24 +408,10 @@ function ChatTab({
                       .map((p) => p.text)
                       .join("")}
                   </p>
-                  {/* Show tool invocations */}
+                  {/* Tool invocations → action cards */}
                   {msg.parts?.map((part, i) => {
                     if (!isToolUIPart(part)) return null;
-                    return (
-                      <div
-                        key={i}
-                        className="mt-1.5 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)]"
-                      >
-                        <span className="font-medium text-[var(--accent-ai)]">
-                          {part.type.replace(/^tool-/, "")}
-                        </span>
-                        {part.state === "output-available" && (
-                          <span className="ml-1.5 text-[var(--state-success)]">
-                            Done
-                          </span>
-                        )}
-                      </div>
-                    );
+                    return <ToolActionCard key={i} part={part} />;
                   })}
                 </div>
               </div>
@@ -596,58 +426,27 @@ function ChatTab({
         )}
       </div>
 
-      {/* Generation pipeline — live stages streamed from the server */}
+      {/* Placement in progress */}
       <AnimatePresence>
-        {isGenerating && (
+        {isPlacing && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: "easeOut" }}
-            className="mx-3 mb-2 rounded-lg border border-[var(--accent-ai)]/20 bg-[var(--accent-ai)]/5 px-3 py-2.5"
+            className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-[var(--accent-ai)]/20 bg-[var(--accent-ai)]/5 px-3 py-2"
           >
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
-              <span className="text-xs font-medium text-[var(--accent-ai)]">
-                {genStep || "Working…"}
-              </span>
-            </div>
-            {genStages.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1">
-                {genStages.map((stage, i) => {
-                  const isCurrent = i === genStages.length - 1;
-                  return (
-                    <span key={stage} className="flex items-center gap-1">
-                      {i > 0 && (
-                        <span className="text-[10px] text-[var(--text-muted)]/50">→</span>
-                      )}
-                      <span
-                        className={cn(
-                          "flex items-center gap-1 text-[10px]",
-                          isCurrent
-                            ? "font-medium text-[var(--accent-ai)]"
-                            : "text-[var(--text-muted)]"
-                        )}
-                      >
-                        {isCurrent ? (
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-ai)]" />
-                        ) : (
-                          <Check className="h-2.5 w-2.5 text-[var(--state-success)]" />
-                        )}
-                        {STAGE_LABELS[stage] ?? stage}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
+            <span className="text-xs font-medium text-[var(--accent-ai)]">
+              {genStep || "Placing nodes on canvas…"}
+            </span>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Last generation — revert/restore + feedback */}
       <AnimatePresence>
-        {lastGeneration && !isGenerating && (
+        {lastGeneration && !isPlacing && (
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -729,13 +528,6 @@ function ChatTab({
         </div>
       )}
 
-      {/* Plan error */}
-      {planError && (
-        <div className="mx-3 mb-2 rounded-md bg-[var(--state-error)]/10 px-3 py-2 text-xs text-[var(--state-error)]">
-          {planError}
-        </div>
-      )}
-
       {/* Chat error */}
       {error && (
         <div className="mx-3 mb-2 rounded-md bg-[var(--state-error)]/10 px-3 py-2 text-xs text-[var(--state-error)]">
@@ -745,62 +537,11 @@ function ChatTab({
 
       {/* Input area */}
       <div className="border-t border-[var(--border-default)] p-3 shrink-0">
-        {/* Mode selector */}
-        <div className="mb-2 flex gap-1">
-          {([
-            { id: "generate", label: "Generate", icon: Sparkles },
-            { id: "chat", label: "Chat", icon: MessageSquare },
-            { id: "url", label: "URL", icon: Globe },
-          ] as const).map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => {
-                // Leaving Generate cancels any in-flight/pending plan.
-                if (m.id !== "generate") {
-                  resetPlan();
-                }
-                setMode(m.id);
-              }}
-              className={cn(
-                "flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
-                mode === m.id
-                  ? "bg-[var(--accent-ai)]/15 text-[var(--accent-ai)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              )}
-            >
-              <m.icon className="h-3 w-3" />
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        {/* URL field (URL mode only) */}
-        {mode === "url" && (
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-2.5 py-1.5">
-            <Globe className="h-3.5 w-3.5 shrink-0 text-[var(--accent-ai)]" />
-            <input
-              type="url"
-              placeholder="https://example.com"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              disabled={busy}
-              className="flex-1 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
-            />
-          </div>
-        )}
-
         <div className="flex items-end gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-2">
           <textarea
             ref={inputRef}
             rows={2}
-            placeholder={
-              mode === "generate"
-                ? "Describe your system architecture..."
-                : mode === "url"
-                  ? "What to focus on (optional)..."
-                  : "Ask about your architecture..."
-            }
+            placeholder="Describe a system, paste a URL, or ask anything…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={busy}
@@ -814,9 +555,9 @@ function ChatTab({
           />
           <Button
             size="icon"
-            disabled={busy || (mode === "url" ? !url.trim() : !input.trim())}
+            disabled={busy || !input.trim()}
             onClick={handleSend}
-            aria-label={mode === "chat" ? "Send message" : "Generate"}
+            aria-label="Send message"
             className="h-8 w-8 shrink-0 rounded-lg bg-[var(--accent-ai)] text-white hover:bg-[var(--accent-ai)]/90 disabled:opacity-40"
           >
             {busy ? (
@@ -831,6 +572,116 @@ function ChatTab({
         </p>
       </div>
     </>
+  );
+}
+
+/** Renders a tool invocation as a live action card (running → result/error). */
+function ToolActionCard({
+  part,
+}: {
+  part: { type: string; state: string; output?: unknown };
+}) {
+  const meta = TOOL_META[part.type];
+
+  // Light canvas tools (addNode etc.) keep the compact chip.
+  if (!meta) {
+    return (
+      <div className="mt-1.5 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-base)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)]">
+        <span className="font-medium text-[var(--accent-ai)]">
+          {part.type.replace(/^tool-/, "")}
+        </span>
+        {part.state === "output-available" && (
+          <span className="ml-1.5 text-[var(--state-success)]">Done</span>
+        )}
+      </div>
+    );
+  }
+
+  const Icon = meta.icon;
+
+  // Running state — the user should always see work happening.
+  if (part.state !== "output-available") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-1.5 flex items-center gap-2 rounded-lg border border-[var(--accent-ai)]/20 bg-[var(--accent-ai)]/5 px-3 py-2"
+      >
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-ai)]" />
+        <span className="text-xs font-medium text-[var(--accent-ai)]">{meta.running}</span>
+      </motion.div>
+    );
+  }
+
+  const output = (part.output ?? {}) as Record<string, unknown>;
+
+  if (output.error) {
+    return (
+      <div className="mt-1.5 rounded-lg border border-[var(--state-error)]/25 bg-[var(--state-error)]/8 px-3 py-2 text-xs text-[var(--state-error)]">
+        {String(output.error)}
+      </div>
+    );
+  }
+
+  let headline = "Done";
+  let detail: string | null = null;
+  let issues: CritiqueIssue[] | null = null;
+
+  if (part.type === "tool-generateArchitecture") {
+    headline = `Placed ${output.componentCount ?? "?"} components on the canvas`;
+    detail = typeof output.reasoning === "string" ? output.reasoning : null;
+  } else if (part.type === "tool-runDesignReview") {
+    issues = (output.issues as CritiqueIssue[]) ?? [];
+    const critical = issues.filter((i) => i.severity === "critical").length;
+    const warning = issues.filter((i) => i.severity === "warning").length;
+    headline =
+      issues.length === 0
+        ? "Review passed — no issues found"
+        : `Review: ${critical} critical · ${warning} warnings · ${issues.length - critical - warning} suggestions`;
+    detail = typeof output.summary === "string" ? output.summary : null;
+  } else if (part.type === "tool-refineArchitecture") {
+    headline = `Applied ${output.changeCount ?? "?"} changes to the canvas`;
+    detail = typeof output.reasoning === "string" ? output.reasoning : null;
+  } else if (part.type === "tool-researchUrl") {
+    headline = `Researched ${typeof output.url === "string" ? output.url : "the site"}`;
+    detail = typeof output.brief === "string" ? output.brief.slice(0, 160) + "…" : null;
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-1.5 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] px-3 py-2"
+    >
+      <div className="flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5 shrink-0 text-[var(--accent-ai)]" />
+        <span className="text-xs font-medium text-[var(--text-primary)]">{headline}</span>
+        <Check className="ml-auto h-3 w-3 shrink-0 text-[var(--state-success)]" />
+      </div>
+      {detail && (
+        <p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-[var(--text-muted)]">
+          {detail}
+        </p>
+      )}
+      {issues && issues.length > 0 && (
+        <div className="mt-1.5 space-y-1">
+          {issues.slice(0, 4).map((issue, i) => (
+            <div key={i} className="flex items-start gap-1.5 text-[11px]">
+              <span
+                className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: SEVERITY_COLORS[issue.severity] }}
+              />
+              <span className="text-[var(--text-secondary)]">{issue.title}</span>
+            </div>
+          ))}
+          {issues.length > 4 && (
+            <p className="text-[10px] text-[var(--text-muted)]">
+              +{issues.length - 4} more — ask me to fix them
+            </p>
+          )}
+        </div>
+      )}
+    </motion.div>
   );
 }
 
@@ -852,6 +703,12 @@ function SpecTab({
 
   const { exportPng, exporting } = useCanvasExport(projectName);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+
+  // System Kit — the six-file proper system, generated from the canvas.
+  const [kitFiles, setKitFiles] = useState<Record<string, string>>({});
+  const [kitCurrent, setKitCurrent] = useState<string | null>(null);
+  const [kitBusy, setKitBusy] = useState(false);
+  const [kitError, setKitError] = useState<string | null>(null);
 
   const nodeCount = reactFlow.getNodes().length;
   const nodes = reactFlow.getNodes() as CanvasNode[];
@@ -917,6 +774,74 @@ function SpecTab({
       setEnhancing(false);
     }
   }, [nodes, edges, projectId]);
+
+  const handleGenerateKit = useCallback(async () => {
+    setKitBusy(true);
+    setKitError(null);
+    setKitFiles({});
+    try {
+      const canvasContext = serializeCanvasForAI(nodes, edges);
+      const res = await fetch("/api/ai/kit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, canvasContext, projectName }),
+      });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to generate the kit");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const collected: Record<string, string> = {};
+
+      const handleLine = (raw: string) => {
+        if (!raw.trim()) return;
+        const event = JSON.parse(raw) as {
+          type: "start" | "file" | "done" | "error";
+          name?: string;
+          content?: string;
+          error?: string;
+        };
+        if (event.type === "start" && event.name) {
+          setKitCurrent(event.name);
+        } else if (event.type === "file" && event.name && event.content) {
+          collected[event.name] = event.content;
+          setKitFiles({ ...collected });
+        } else if (event.type === "error") {
+          throw new Error(event.error || "Kit generation failed");
+        }
+      };
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let newline;
+        while ((newline = buffer.indexOf("\n")) >= 0) {
+          const rawLine = buffer.slice(0, newline);
+          buffer = buffer.slice(newline + 1);
+          handleLine(rawLine);
+        }
+      }
+      if (buffer.trim()) handleLine(buffer);
+
+      if (Object.keys(collected).length < KIT_FILES.length) {
+        throw new Error("Kit generation ended early — please retry");
+      }
+
+      await downloadSystemKit(collected, kitEntryFile(projectName), nodes, edges, projectName);
+      toast.success("System Kit downloaded", {
+        description: "Drop the folder into any repo — your AI agent reads CLAUDE.md first.",
+      });
+    } catch (error) {
+      setKitError(error instanceof Error ? error.message : "Kit generation failed");
+    } finally {
+      setKitBusy(false);
+      setKitCurrent(null);
+    }
+  }, [nodes, edges, projectId, projectName]);
 
   const handleAgentBundle = useCallback(async () => {
     setBundling(true);
@@ -1054,6 +979,66 @@ function SpecTab({
               <Download className="h-3.5 w-3.5" />
             </Button>
           </div>
+        </div>
+
+        {/* System Kit — the hero export */}
+        <div className="rounded-lg border border-[var(--accent-ai)]/25 bg-[var(--accent-ai)]/5 p-3">
+          <div className="flex items-start gap-2.5">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--accent-ai)]/15">
+              <Package className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-[var(--text-primary)]">System Kit</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                The six-file proper system — overview, architecture, standards, workflow
+                rules, context, tracker — generated from this canvas. Leave with a system,
+                not just a diagram.
+              </p>
+            </div>
+          </div>
+          {kitBusy && (
+            <div className="mt-2.5 space-y-1">
+              {KIT_FILES.map((f) => {
+                const isDone = kitFiles[f.name] !== undefined;
+                const isCurrent = kitCurrent === f.name && !isDone;
+                return (
+                  <div key={f.name} className="flex items-center gap-1.5 text-[11px]">
+                    {isDone ? (
+                      <Check className="h-3 w-3 text-[var(--state-success)]" />
+                    ) : isCurrent ? (
+                      <Loader2 className="h-3 w-3 animate-spin text-[var(--accent-ai)]" />
+                    ) : (
+                      <span className="h-3 w-3 rounded-full border border-[var(--border-default)]" />
+                    )}
+                    <span
+                      className={cn(
+                        isDone || isCurrent
+                          ? "text-[var(--text-secondary)]"
+                          : "text-[var(--text-muted)]"
+                      )}
+                    >
+                      {f.title}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {kitError && (
+            <p className="mt-2 text-[11px] text-[var(--state-error)]">{kitError}</p>
+          )}
+          <Button
+            onClick={handleGenerateKit}
+            disabled={kitBusy}
+            className="mt-2.5 w-full gap-1.5 bg-[var(--accent-ai)] text-xs text-white hover:bg-[var(--accent-ai)]/90 disabled:opacity-50"
+          >
+            {kitBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Package className="h-3.5 w-3.5" />
+            )}
+            {kitBusy ? "Generating your system…" : "Generate System Kit (.zip)"}
+          </Button>
         </div>
 
         {/* Save as template */}

@@ -426,6 +426,39 @@ export async function downloadAgentBundle(
   URL.revokeObjectURL(url);
 }
 
+/** Download the six-file System Kit (AI-generated) + entry file + schema as a zip. */
+export async function downloadSystemKit(
+  kitFiles: Record<string, string>,
+  entryFile: string,
+  nodes: CanvasNode[],
+  edges: CanvasEdge[],
+  projectName: string
+): Promise<void> {
+  const { default: JSZip } = await import("jszip");
+
+  const zip = new JSZip();
+  const safe = (projectName || "project").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+
+  zip.file("CLAUDE.md", entryFile);
+  zip.file("AGENTS.md", entryFile);
+  const context = zip.folder("context")!;
+  for (const [name, content] of Object.entries(kitFiles)) {
+    context.file(name, content);
+  }
+  zip.file(
+    "spi-schema.json",
+    JSON.stringify(generateSpiSchema(nodes, edges, projectName), null, 2)
+  );
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${safe}-system-kit.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function downloadSpiSchema(
   nodes: CanvasNode[],
   edges: CanvasEdge[],

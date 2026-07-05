@@ -27,16 +27,16 @@ const SECTIONS: HelpSection[] = [
     summary: "Describe your system in plain English and let the AI build the canvas for you.",
     items: [
       {
-        title: "Plan → Approve → Generate",
-        description: "Click the AI Twin button (top-right on the canvas toolbar). Type your system description, e.g. 'E-commerce platform with microservices and Redis cache.' The AI drafts a plan first — read it, edit the prompt to refine, then hit Approve & Generate. Nodes appear on the canvas one by one.",
+        title: "One conversation for everything",
+        description: "Open the AI Twin panel and just talk. Describe a system — it proposes a plan in the chat, you discuss and approve, and it builds while narrating each step as visible action cards. No modes to switch, no silent background work: designing, reviewing, refining, and researching all happen in the same thread.",
       },
       {
         title: "Refine an existing canvas",
-        description: "With nodes already on the canvas, open AI Twin and type a follow-up: 'Add a Redis cache layer between the API gateway and services.' The AI applies the diff — adding or removing only what changed, leaving everything else intact.",
+        description: "With nodes already on the canvas, just say what to change: 'Add a Redis cache layer between the API gateway and services.' The AI applies the diff — adding or removing only what changed, leaving everything else intact — and reports what it did.",
       },
       {
         title: "URL-to-architecture — real grounding",
-        description: "Paste any public URL into ANY prompt (Generate, Chat, or URL mode). SYPI fetches the live site — framework fingerprints, response headers, page content — plus web research, and builds the architecture from that evidence. Components not visible in the evidence are marked 'Inferred'.",
+        description: "Paste any public URL into the conversation. SYPI fetches the live site — framework fingerprints, response headers, page content — plus web research, and builds the architecture from that evidence. Components not visible in the evidence are marked 'Inferred'.",
       },
       {
         title: "Self-review before placing",
@@ -47,8 +47,8 @@ const SECTIONS: HelpSection[] = [
         description: "After a generation, a result card appears in the panel. Revert removes everything that generation placed; Restore brings it back. Rate it 👍/👎 — your feedback improves generation quality over time.",
       },
       {
-        title: "Chat mode",
-        description: "Switch to Chat mode to ask questions about your canvas: 'What is the single point of failure here?' or 'How would I add horizontal scaling to the Order Service?' The AI explains and can also make canvas changes via tool calls.",
+        title: "Ask anything",
+        description: "The same conversation answers questions: 'What is the single point of failure here?' or 'How would I add horizontal scaling to the Order Service?' The AI explains — and can make the change directly if you ask it to.",
       },
     ],
   },
@@ -148,6 +148,10 @@ const SECTIONS: HelpSection[] = [
       {
         title: "Mermaid diagram",
         description: "Export as a Mermaid flowchart — paste it into a GitHub README, Notion page, or any Markdown document that supports Mermaid rendering.",
+      },
+      {
+        title: "System Kit — your proper system",
+        description: "The hero export. From the Spec tab, generate the six-file context system seniors use — project overview, architecture, code standards, AI workflow rules, UI context, progress tracker — written from YOUR actual canvas. Drop the zip into any repo and every AI coding agent (Claude Code, Codex, Cursor) starts each session with senior-grade discipline.",
       },
       {
         title: "Agent Bundle (ZIP)",
