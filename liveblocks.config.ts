@@ -5,6 +5,8 @@ declare global {
       cursor: { x: number; y: number } | null;
       selectedNodeIds: string[];
       isThinking: boolean;
+      /** Hold L — cursor becomes a laser pointer for everyone. */
+      laser: boolean;
     };
 
     // Storage is managed by @liveblocks/react-flow via useLiveblocksFlow.
@@ -29,12 +31,16 @@ declare global {
       | { type: "AI_STATUS_UPDATE"; message: string; step: string }
       | { type: "NODE_HIGHLIGHT"; nodeId: string };
 
-    // Custom metadata set on threads
-    ThreadMetadata: {};
+    // Custom metadata set on threads — canvas-anchored pins carry flow coords.
+    // Optional so panel-created (unanchored) threads keep working.
+    ThreadMetadata: {
+      x?: number;
+      y?: number;
+    };
 
-    // Feed metadata (for ai-chat and ai-status-feed)
+    // Feed metadata (ai-chat, ai-status, and the human team chat)
     FeedMetadata: {
-      type: "ai-chat" | "ai-status";
+      type: "ai-chat" | "ai-status" | "team-chat";
     };
 
     // Feed message data shape

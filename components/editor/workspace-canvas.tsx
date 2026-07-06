@@ -10,6 +10,7 @@ import {
   type EdgeTypes,
 } from "@xyflow/react";
 import { useLiveblocksFlow, Cursors } from "@liveblocks/react-flow";
+import { useUpdateMyPresence } from "@liveblocks/react/suspense";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -28,6 +29,7 @@ import { CustomEdge } from "@/components/canvas/custom-edge";
 import { NodePalette } from "@/components/canvas/node-palette";
 import { PresenceAvatars } from "@/components/canvas/presence-avatars";
 import { CanvasToolbar } from "@/components/canvas/canvas-toolbar";
+import { CommentLayer } from "@/components/canvas/comment-layer";
 import { CustomCursor } from "@/components/canvas/custom-cursor";
 import { useCanvasShortcuts } from "@/hooks/use-canvas-shortcuts";
 import { useCanvasAutosave, type SaveStatus } from "@/hooks/use-canvas-autosave";
@@ -60,6 +62,8 @@ interface WorkspaceCanvasProps {
   suggestions?: Suggestion[];
   onDismissSuggestion?: (id: string) => void;
   onApplySuggestion?: (action: string) => void;
+  /** When a right panel is open, hide the floating chips (they live in the panel). */
+  rightPanelOpen?: boolean;
 }
 
 export function WorkspaceCanvas({
@@ -73,6 +77,7 @@ export function WorkspaceCanvas({
   suggestions,
   onDismissSuggestion,
   onApplySuggestion,
+  rightPanelOpen,
 }: WorkspaceCanvasProps) {
   const flowResult = useLiveblocksFlow<CanvasNode, CanvasEdge>({
     suspense: true,
@@ -84,10 +89,37 @@ export function WorkspaceCanvas({
   const reactFlowInstance = useReactFlow();
   const [showEmptyState, setShowEmptyState] = useState(true);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [commentMode, setCommentMode] = useState(false);
   const hasLoadedRef = useRef(false);
 
   // Register keyboard shortcuts
   useCanvasShortcuts();
+
+  // Laser pointer: hold L → everyone sees your cursor as a glowing laser.
+  const updateMyPresence = useUpdateMyPresence();
+  useEffect(() => {
+    const isTyping = (el: EventTarget | null) =>
+      el instanceof HTMLElement &&
+      (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+    const down = (e: KeyboardEvent) => {
+      if (
+        (e.key === "l" || e.key === "L") &&
+        !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey &&
+        !isTyping(e.target)
+      ) {
+        updateMyPresence({ laser: true });
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === "l" || e.key === "L") updateMyPresence({ laser: false });
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [updateMyPresence]);
 
   // Manual save only — no autosave, no performance impact
   const getNodes = useCallback(() => reactFlowInstance.getNodes(), [reactFlowInstance]);
@@ -314,15 +346,28 @@ export function WorkspaceCanvas({
 
       </ReactFlow>
 
+      {/* Canvas-anchored comment pins + placement mode */}
+      <CommentLayer active={commentMode} onExit={() => setCommentMode(false)} />
+
       {/* Presence avatars — top right */}
       <PresenceAvatars />
 
-      {/* Canvas toolbar — bottom left (zoom + undo/redo) */}
-      <CanvasToolbar />
+      {/* Canvas toolbar — bottom left (zoom + undo/redo + comment pin) */}
+      <CanvasToolbar
+        commentMode={commentMode}
+        onToggleCommentMode={() => setCommentMode((v) => !v)}
+      />
 
-      {/* Suggestion chips — bottom-right, up to 3 */}
+      {/* Suggestion chips — bottom-right, up to 3.
+          When a right panel is open the canvas narrows, so scale the stack
+          down (pinned to its corner) to stay clear of the panel and node
+          palette instead of crowding them. */}
       {suggestions && suggestions.length > 0 && (
-        <div className="absolute bottom-16 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none">
+        <div
+          className={`absolute bottom-16 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none origin-bottom-right transition-transform duration-200 ${
+            rightPanelOpen ? "scale-90" : "scale-100"
+          }`}
+        >
           <AnimatePresence>
             {suggestions.slice(0, 3).map((s) => (
               <div key={s.id} className="pointer-events-auto">

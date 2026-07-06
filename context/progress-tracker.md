@@ -6,6 +6,28 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-06 — Collaboration bundle: canvas comment pins, laser pointer, team chat
+
+Finishes the deferred "node-anchored comments" (Phase B v2) plus two live-collab features.
+tsc + `next build` exit 0 (39 routes).
+
+- **Canvas-anchored comment pins**: new `components/canvas/comment-layer.tsx` — threads with
+  `{x, y}` metadata (flow coords, `ThreadMetadata` now typed optional so panel threads still
+  work) render as pins that track pan/zoom; click opens the thread inline; resolved pins hide.
+  Pin tool added to the canvas toolbar (`MessageSquarePlus`) → placement mode: click-catcher
+  captures one canvas click → inline `Composer` with the coords as metadata. Esc backs out
+  (draft → mode → open thread).
+- **Comments panel → "Collaborate" panel** (`comments-panel.tsx`): two tabs — **Threads**
+  (pinned threads get a "Canvas" jump button that `setCenter`s the flow to the pin) and
+  **Team chat** (Liveblocks feed `team-chat`, `FeedMetadata.type` extended; bubble UI,
+  Enter to send). Human chat is deliberately separate from AI Twin + comment threads.
+- **Laser pointer**: hold `L` on the canvas → `presence.laser` broadcasts; `custom-cursor.tsx`
+  renders others' cursors as a glowing red pulse with name tag. Guarded against typing targets.
+- **Polish**: suggestion chips scale to 90% when a right panel is open (canvas narrows).
+
+**Deferred:** laser can stick on if the window loses focus mid-hold (blur handler);
+comment pin overflow indicator when pins are off-viewport.
+
 ### 2026-07-05 (evening) — Conversational agent core (Phase 1) + System Kit (Phase 2)
 
 **Product thesis locked** ([[spi-ai-product-direction]]): "the gap between seniors and vibe

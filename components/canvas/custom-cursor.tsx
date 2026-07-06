@@ -16,9 +16,38 @@ export function CustomCursor({ connectionId }: CursorsCursorProps) {
   const info = useOther(connectionId, (other) => other.info) as
     | { name?: string; avatar?: string; cursorColor?: string }
     | undefined;
+  const laser = useOther(connectionId, (other) => other.presence.laser) as
+    | boolean
+    | undefined;
 
   const color = info?.cursorColor ?? "#6366f1";
   const name = info?.name ?? "Anonymous";
+
+  // Laser pointer (they're holding L) — glowing pulse instead of the arrow,
+  // for pointing at things during live discussion.
+  if (laser) {
+    return (
+      <div className="pointer-events-none relative" style={{ zIndex: 9999 }}>
+        <span
+          className="absolute -left-3 -top-3 h-6 w-6 animate-ping rounded-full opacity-40"
+          style={{ backgroundColor: "#ef4444" }}
+        />
+        <span
+          className="absolute -left-1.5 -top-1.5 h-3 w-3 rounded-full"
+          style={{
+            backgroundColor: "#ef4444",
+            boxShadow: "0 0 12px 4px rgba(239,68,68,0.6)",
+          }}
+        />
+        <div
+          className="absolute left-3 top-3 whitespace-nowrap rounded-full px-1.5 py-px text-[9px] font-medium text-white shadow-sm"
+          style={{ backgroundColor: "#ef4444", lineHeight: "14px" }}
+        >
+          {name}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pointer-events-none relative" style={{ zIndex: 9999 }}>

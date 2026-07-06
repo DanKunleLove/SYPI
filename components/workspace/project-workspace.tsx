@@ -187,6 +187,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               suggestions={suggestions}
               onDismissSuggestion={dismissSuggestion}
               onApplySuggestion={handleApplySuggestion}
+              rightPanelOpen={rightPanel.type !== "closed"}
             />
 
             <AiPanel

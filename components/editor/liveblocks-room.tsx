@@ -92,6 +92,7 @@ export function LiveblocksRoom({ roomId, children }: LiveblocksRoomProps) {
           cursor: null,
           selectedNodeIds: [],
           isThinking: false,
+          laser: false,
         }}
       >
         <ClientSideSuspense fallback={<LoadingFallback />}>

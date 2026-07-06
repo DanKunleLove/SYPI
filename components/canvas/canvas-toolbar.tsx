@@ -4,7 +4,7 @@ import { useReactFlow } from "@xyflow/react";
 import { useLiveblocksFlow } from "@liveblocks/react-flow";
 import { useHistory, useCanUndo, useCanRedo } from "@liveblocks/react/suspense";
 import { motion } from "framer-motion";
-import { Undo2, Redo2, Minus, Plus, Maximize2, LayoutGrid } from "lucide-react";
+import { Undo2, Redo2, Minus, Plus, Maximize2, LayoutGrid, MessageSquarePlus } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -26,7 +26,12 @@ const TIER_MAP: Record<NodeCategory, number> = {
 const H_GAP = 250;
 const V_GAP = 200;
 
-export function CanvasToolbar() {
+interface CanvasToolbarProps {
+  commentMode?: boolean;
+  onToggleCommentMode?: () => void;
+}
+
+export function CanvasToolbar({ commentMode, onToggleCommentMode }: CanvasToolbarProps) {
   const reactFlow = useReactFlow();
   const { nodes } = useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true });
   const history = useHistory();
@@ -140,6 +145,31 @@ export function CanvasToolbar() {
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">Auto-layout</TooltipContent>
         </Tooltip>
+
+        {/* Comment pin mode */}
+        {onToggleCommentMode && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label="Add a comment pin"
+                  onClick={onToggleCommentMode}
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                    commentMode
+                      ? "bg-[var(--accent-primary)]/15 text-[var(--accent-primary)]"
+                      : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-primary)]"
+                  }`}
+                />
+              }
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              Comment pin — click the canvas to drop one
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Separator */}
         <div className="mx-0.5 h-5 w-px bg-[var(--border-default)]" />
