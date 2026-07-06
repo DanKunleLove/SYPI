@@ -113,11 +113,17 @@ export function WorkspaceCanvas({
     const up = (e: KeyboardEvent) => {
       if (e.key === "l" || e.key === "L") updateMyPresence({ laser: false });
     };
+    // Keyup never fires if focus leaves mid-hold — release the laser.
+    const release = () => updateMyPresence({ laser: false });
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", release);
+    document.addEventListener("visibilitychange", release);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", release);
     };
   }, [updateMyPresence]);
 

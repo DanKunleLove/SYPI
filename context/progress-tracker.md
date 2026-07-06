@@ -25,8 +25,10 @@ tsc + `next build` exit 0 (39 routes).
   renders others' cursors as a glowing red pulse with name tag. Guarded against typing targets.
 - **Polish**: suggestion chips scale to 90% when a right panel is open (canvas narrows).
 
-**Deferred:** laser can stick on if the window loses focus mid-hold (blur handler);
-comment pin overflow indicator when pins are off-viewport.
+**Follow-up 2026-07-07 (both deferred items done):** laser now releases on window
+`blur`/`visibilitychange` (keyup can't fire if focus leaves mid-hold); off-viewport
+comment pins render as small edge-clamped indicators (ResizeObserver-measured layer)
+that `setCenter` the flow to the pin on click.
 
 ### 2026-07-05 (evening) — Conversational agent core (Phase 1) + System Kit (Phase 2)
 

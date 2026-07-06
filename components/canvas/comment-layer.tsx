@@ -3,7 +3,7 @@
 import "@liveblocks/react-ui/styles.css";
 import "@liveblocks/react-ui/styles/dark/attributes.css";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useViewport, useReactFlow } from "@xyflow/react";
 import { useThreads } from "@liveblocks/react";
 import { Thread, Composer } from "@liveblocks/react-ui";
@@ -25,10 +25,23 @@ interface CommentLayerProps {
 export function CommentLayer({ active, onExit }: CommentLayerProps) {
   const { resolvedTheme } = useTheme();
   const viewport = useViewport();
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setCenter } = useReactFlow();
   const { threads } = useThreads();
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ x: number; y: number } | null>(null);
+
+  // Track layer size so off-viewport pins get an edge indicator.
+  const layerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = layerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const pinned = (threads ?? []).filter(
     (t) => typeof t.metadata?.x === "number" && typeof t.metadata?.y === "number" && !t.resolved
@@ -64,8 +77,33 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
 
   const theme = resolvedTheme === "dark" ? "dark" : "light";
 
+  // Pins whose screen position falls outside the layer, clamped to its edges.
+  const EDGE_MARGIN = 16;
+  const offscreen =
+    size.width > 0
+      ? pinned.flatMap((thread) => {
+          const fx = thread.metadata.x as number;
+          const fy = thread.metadata.y as number;
+          const pos = toScreen(fx, fy);
+          if (
+            pos.left >= 0 && pos.left <= size.width &&
+            pos.top >= 0 && pos.top <= size.height
+          ) {
+            return [];
+          }
+          return [{
+            thread,
+            fx,
+            fy,
+            left: Math.min(Math.max(pos.left, EDGE_MARGIN), size.width - EDGE_MARGIN),
+            top: Math.min(Math.max(pos.top, EDGE_MARGIN), size.height - EDGE_MARGIN),
+          }];
+        })
+      : [];
+
   return (
     <div
+      ref={layerRef}
       className="pointer-events-none absolute inset-0 z-20 overflow-hidden"
       data-theme={theme}
     >
@@ -131,6 +169,21 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
           </div>
         );
       })}
+
+      {/* Off-viewport pins: edge indicators that pan to the pin */}
+      {offscreen.map(({ thread, fx, fy, left, top }) => (
+        <button
+          key={`off-${thread.id}`}
+          type="button"
+          aria-label="Jump to off-screen comment"
+          title="Jump to comment"
+          onClick={() => setCenter(fx, fy, { zoom: viewport.zoom, duration: 300 })}
+          className="pointer-events-auto absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--accent-primary)]/50 bg-[var(--bg-surface)]/95 shadow-md backdrop-blur transition-transform hover:scale-110"
+          style={{ left, top }}
+        >
+          <MessageSquare className="h-3 w-3 text-[var(--accent-primary)]" />
+        </button>
+      ))}
 
       {/* Draft composer at the clicked spot */}
       {draft && (
