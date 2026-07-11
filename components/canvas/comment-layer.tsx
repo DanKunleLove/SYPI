@@ -5,11 +5,16 @@ import "@liveblocks/react-ui/styles/dark/attributes.css";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useViewport, useReactFlow } from "@xyflow/react";
-import { useThreads } from "@liveblocks/react";
+import {
+  useThreads,
+  useDeleteThread,
+  useEditThreadMetadata,
+  useMarkThreadAsResolved,
+} from "@liveblocks/react";
 import { Thread, Composer } from "@liveblocks/react-ui";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, X } from "lucide-react";
+import { MessageSquare, X, Check, Trash2 } from "lucide-react";
 
 interface CommentLayerProps {
   /** Comment-placement mode: next canvas click drops a pin. */
@@ -27,8 +32,17 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
   const viewport = useViewport();
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { threads } = useThreads();
+  const deleteThread = useDeleteThread();
+  const editThreadMetadata = useEditThreadMetadata();
+  const markThreadAsResolved = useMarkThreadAsResolved();
   const [openThreadId, setOpenThreadId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ x: number; y: number } | null>(null);
+
+  // Pin dragging: live screen position while a pin is being moved, plus a
+  // ref that tracks the gesture so a drag doesn't also fire the open-click.
+  const dragRef = useRef<{ threadId: string; startX: number; startY: number; moved: boolean } | null>(null);
+  const justDraggedRef = useRef(false);
+  const [dragPos, setDragPos] = useState<{ threadId: string; left: number; top: number } | null>(null);
 
   // Track layer size so off-viewport pins get an edge indicator.
   const layerRef = useRef<HTMLDivElement>(null);
@@ -121,18 +135,68 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
 
       {/* Pins */}
       {pinned.map((thread) => {
-        const pos = toScreen(thread.metadata.x as number, thread.metadata.y as number);
+        const base = toScreen(thread.metadata.x as number, thread.metadata.y as number);
+        const isDragging = dragPos?.threadId === thread.id;
+        const pos = isDragging ? { left: dragPos.left, top: dragPos.top } : base;
         const isOpen = openThreadId === thread.id;
         return (
           <div key={thread.id} className="absolute" style={pos}>
             <button
               type="button"
-              aria-label="Open comment thread"
+              aria-label="Comment thread — click to open, drag to move"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+                dragRef.current = {
+                  threadId: thread.id,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  moved: false,
+                };
+              }}
+              onPointerMove={(e) => {
+                const d = dragRef.current;
+                if (!d || d.threadId !== thread.id) return;
+                if (
+                  !d.moved &&
+                  Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 4
+                ) {
+                  d.moved = true;
+                  setOpenThreadId(null); // don't drag the popup around
+                }
+                if (d.moved) {
+                  const rect = layerRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    setDragPos({
+                      threadId: thread.id,
+                      left: e.clientX - rect.left,
+                      top: e.clientY - rect.top,
+                    });
+                  }
+                }
+              }}
+              onPointerUp={(e) => {
+                const d = dragRef.current;
+                dragRef.current = null;
+                if (d?.moved) {
+                  justDraggedRef.current = true;
+                  const flow = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+                  editThreadMetadata({
+                    threadId: thread.id,
+                    metadata: { x: flow.x, y: flow.y },
+                  });
+                  setDragPos(null);
+                }
+              }}
               onClick={(e) => {
                 e.stopPropagation();
+                if (justDraggedRef.current) {
+                  justDraggedRef.current = false;
+                  return;
+                }
                 setOpenThreadId(isOpen ? null : thread.id);
               }}
-              className={`pointer-events-auto -translate-x-1/2 -translate-y-full flex h-7 w-7 items-center justify-center rounded-full rounded-bl-none border-2 shadow-md transition-transform hover:scale-110 ${
+              className={`pointer-events-auto -translate-x-1/2 -translate-y-full flex h-7 w-7 cursor-grab items-center justify-center rounded-full rounded-bl-none border-2 shadow-md transition-transform hover:scale-110 active:cursor-grabbing ${
                 isOpen
                   ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]"
                   : "border-white/70 bg-[var(--accent-primary)]"
@@ -142,7 +206,7 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
             </button>
 
             <AnimatePresence>
-              {isOpen && (
+              {isOpen && !isDragging && (
                 <motion.div
                   initial={{ opacity: 0, y: 4, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -150,7 +214,34 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
                   transition={{ duration: 0.15, ease: "easeOut" }}
                   className="pointer-events-auto absolute left-4 top-1 z-10 w-80 overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-2xl"
                 >
-                  <div className="flex items-center justify-end border-b border-[var(--border-default)] px-2 py-1">
+                  <div className="flex items-center justify-between border-b border-[var(--border-default)] px-2 py-1">
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        aria-label="Resolve and remove pin"
+                        title="Resolve — marks it done and removes the pin"
+                        onClick={() => {
+                          markThreadAsResolved(thread.id);
+                          setOpenThreadId(null);
+                        }}
+                        className="flex items-center gap-1 rounded px-1.5 py-1 text-xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-raised)] hover:text-[var(--accent-primary)]"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Resolve
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Delete thread"
+                        title="Delete this comment thread"
+                        onClick={() => {
+                          deleteThread(thread.id);
+                          setOpenThreadId(null);
+                        }}
+                        className="rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-surface-raised)] hover:text-red-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     <button
                       type="button"
                       aria-label="Close thread"
@@ -161,7 +252,11 @@ export function CommentLayer({ active, onExit }: CommentLayerProps) {
                     </button>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
-                    <Thread thread={thread} className="!bg-transparent" />
+                    <Thread
+                      thread={thread}
+                      showResolveAction={false}
+                      className="!bg-transparent"
+                    />
                   </div>
                 </motion.div>
               )}
