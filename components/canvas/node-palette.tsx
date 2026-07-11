@@ -50,7 +50,7 @@ export function NodePalette() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.2, ease: "easeOut" }}
-      className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
+      className="shrink-0"
     >
       <div className="flex items-center gap-1 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]/95 px-2 py-1.5 shadow-xl shadow-black/25 backdrop-blur-md">
         {PALETTE_CATEGORIES.map((category) => {

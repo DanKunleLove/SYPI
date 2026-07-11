@@ -73,7 +73,7 @@ export function CanvasToolbar({ commentMode, onToggleCommentMode }: CanvasToolba
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.1, ease: "easeOut" }}
-      className="absolute bottom-4 left-4 z-20"
+      className="shrink-0"
     >
       <div className="flex items-center gap-1 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)]/95 p-1 shadow-lg shadow-black/20 backdrop-blur-md">
         {/* Zoom controls */}

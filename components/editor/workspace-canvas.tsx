@@ -358,35 +358,48 @@ export function WorkspaceCanvas({
       {/* Presence avatars — top right */}
       <PresenceAvatars />
 
-      {/* Canvas toolbar — bottom left (zoom + undo/redo + comment pin) */}
-      <CanvasToolbar
-        commentMode={commentMode}
-        onToggleCommentMode={() => setCommentMode((v) => !v)}
-      />
-
-      {/* Suggestion chips — bottom-right, up to 3.
-          When a right panel is open the canvas narrows, so scale the stack
-          down (pinned to its corner) to stay clear of the panel and node
-          palette instead of crowding them. */}
-      {suggestions && suggestions.length > 0 && (
-        <div
-          className={`absolute bottom-16 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none origin-bottom-right transition-transform duration-200 ${
-            rightPanelOpen ? "scale-90" : "scale-100"
-          }`}
-        >
-          <AnimatePresence>
-            {suggestions.slice(0, 3).map((s) => (
-              <div key={s.id} className="pointer-events-auto">
-                <SuggestionChip
-                  suggestion={s}
-                  onApply={(action) => onApplySuggestion?.(action)}
-                  onDismiss={() => onDismissSuggestion?.(s.id)}
-                />
-              </div>
-            ))}
-          </AnimatePresence>
+      {/* Bottom chrome — a single responsive row so the zoom toolbar (left),
+          node palette (center) and suggestion chips (right) share the canvas
+          width via justify-between and never overlap when it narrows. The
+          palette can scroll internally instead of colliding with its
+          neighbours. */}
+      <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 flex items-end justify-between gap-2">
+        {/* Left lane — zoom / auto-layout / undo / comment pin */}
+        <div className="pointer-events-auto shrink-0">
+          <CanvasToolbar
+            commentMode={commentMode}
+            onToggleCommentMode={() => setCommentMode((v) => !v)}
+          />
         </div>
-      )}
+
+        {/* Center lane — node palette (flexible, scrolls if space is tight) */}
+        {(!showEmptyState || !isEmpty) && (
+          <div className="pointer-events-auto flex min-w-0 flex-1 justify-center overflow-x-auto">
+            <NodePalette />
+          </div>
+        )}
+
+        {/* Right lane — suggestion chips, sized down while a panel is open */}
+        {suggestions && suggestions.length > 0 && (
+          <div
+            className={`pointer-events-auto flex shrink-0 flex-col items-end gap-2 origin-bottom-right transition-transform duration-200 ${
+              rightPanelOpen ? "scale-90" : "scale-100"
+            }`}
+          >
+            <AnimatePresence>
+              {suggestions.slice(0, 3).map((s) => (
+                <div key={s.id} className="pointer-events-auto">
+                  <SuggestionChip
+                    suggestion={s}
+                    onApply={(action) => onApplySuggestion?.(action)}
+                    onDismiss={() => onDismissSuggestion?.(s.id)}
+                  />
+                </div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
 
       {/* Empty state overlay */}
       <AnimatePresence>
@@ -408,9 +421,6 @@ export function WorkspaceCanvas({
           />
         )}
       </AnimatePresence>
-
-      {/* Node palette */}
-      {(!showEmptyState || !isEmpty) && <NodePalette />}
 
       {/* First-run onboarding overlay */}
       <OnboardingOverlay isFirstProject={true} />
