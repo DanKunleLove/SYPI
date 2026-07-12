@@ -151,7 +151,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "System Kit — your proper system",
-        description: "The hero export. From the Spec tab, generate the six-file context system seniors use — project overview, architecture, code standards, AI workflow rules, UI context, progress tracker — written from YOUR actual canvas. Drop the zip into any repo and every AI coding agent (Claude Code, Codex, Cursor) starts each session with senior-grade discipline.",
+        description: "The hero export. From the Spec tab, pick where you build — Claude Code, Cursor, Copilot, Windsurf, Lovable/v0 — and generate the context system seniors use: project overview, architecture, code standards, AI workflow rules, UI context, progress tracker, and a documented .env template, written from YOUR actual canvas. The zip ships AGENTS.md plus each tool's native setup files (CLAUDE.md, .cursor/rules, Knowledge doc…), so every AI agent starts each session with senior-grade discipline.",
       },
       {
         title: "Agent Bundle (ZIP)",

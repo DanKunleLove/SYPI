@@ -4,6 +4,18 @@
  */
 
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
+import {
+  cursorRuleFile,
+  lovableKnowledgeFile,
+  lovablePromptingGuide,
+  type KitProfileId,
+} from "@/lib/ai/kit";
+
+/** Models sometimes wrap non-Markdown output in a fence despite instructions. */
+function stripCodeFence(text: string): string {
+  const match = text.trim().match(/^```[a-z]*\n([\s\S]*?)\n```$/i);
+  return match ? match[1] : text;
+}
 
 // ─── spi-schema (canonical import/export format) ─────────────────────────────
 
@@ -426,29 +438,55 @@ export async function downloadAgentBundle(
   URL.revokeObjectURL(url);
 }
 
-/** Download the six-file System Kit (AI-generated) + entry file + schema as a zip. */
+/**
+ * Download the System Kit as a zip: AGENTS.md + context/ + .env.example always,
+ * plus tool-native entry files for each selected platform profile.
+ */
 export async function downloadSystemKit(
   kitFiles: Record<string, string>,
   entryFile: string,
   nodes: CanvasNode[],
   edges: CanvasEdge[],
-  projectName: string
+  projectName: string,
+  profiles: KitProfileId[]
 ): Promise<void> {
   const { default: JSZip } = await import("jszip");
 
   const zip = new JSZip();
   const safe = (projectName || "project").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
 
-  zip.file("CLAUDE.md", entryFile);
+  // Core — ships in every kit. AGENTS.md is the cross-tool standard.
   zip.file("AGENTS.md", entryFile);
   const context = zip.folder("context")!;
   for (const [name, content] of Object.entries(kitFiles)) {
-    context.file(name, content);
+    if (name === "env.example") {
+      zip.file(".env.example", stripCodeFence(content));
+    } else {
+      context.file(name, content);
+    }
   }
   zip.file(
     "spi-schema.json",
     JSON.stringify(generateSpiSchema(nodes, edges, projectName), null, 2)
   );
+
+  // Platform overlays.
+  if (profiles.includes("claude-code")) {
+    zip.file("CLAUDE.md", entryFile);
+  }
+  if (profiles.includes("cursor")) {
+    zip.file(".cursor/rules/sypi-system.mdc", cursorRuleFile(projectName, entryFile));
+  }
+  if (profiles.includes("copilot")) {
+    zip.file(".github/copilot-instructions.md", entryFile);
+  }
+  if (profiles.includes("windsurf")) {
+    zip.file(".windsurf/rules/sypi-system.md", entryFile);
+  }
+  if (profiles.includes("lovable")) {
+    zip.file("lovable/KNOWLEDGE.md", lovableKnowledgeFile(projectName, kitFiles));
+    zip.file("lovable/PROMPTING-GUIDE.md", lovablePromptingGuide(projectName));
+  }
 
   const blob = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(blob);

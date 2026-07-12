@@ -6,6 +6,37 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-12 — System Kit v2: platform profiles + .env template
+
+The kit is now a multi-platform system generator (research brief same date: AGENTS.md is
+the Linux Foundation cross-tool standard, 28+ tools; competitors like rule-porter/RepoRules
+only convert/analyze existing repos — SYPI generates the system from the designed
+architecture before code exists).
+
+- `lib/ai/kit.ts`: 7th AI-generated file `env.example` (raw dotenv, per-component vars with
+  where-to-get-it comments); `KIT_PROFILES` (claude-code / cursor / copilot / windsurf /
+  lovable); `cursorRuleFile()` (.mdc frontmatter wrapper), `lovableKnowledgeFile()`
+  (paste-ready Knowledge doc concatenating 5 kit files), `lovablePromptingGuide()` (static
+  4-part prompt structure guide). Entry file now uses `context/` paths + .env instructions.
+- `lib/export.ts` `downloadSystemKit(..., profiles)`: always ships AGENTS.md + context/×6 +
+  `.env.example` (fence-stripped) + spi-schema.json; overlays per profile — CLAUDE.md,
+  `.cursor/rules/sypi-system.mdc`, `.github/copilot-instructions.md`,
+  `.windsurf/rules/sypi-system.md`, `lovable/KNOWLEDGE.md` + `lovable/PROMPTING-GUIDE.md`.
+- Spec tab kit card: "Where will you build?" toggle pills (persisted in
+  `spi-kit-profiles` localStorage, default claude-code). Help panel copy updated.
+- API route unchanged except it now streams 7 files (iterates KIT_FILES); still 3/10min
+  rate limit. No extra profile cost — overlays are deterministic client-side transforms.
+
+**ROADMAP — next after this ships (Dan, 2026-07-12):**
+1. **Non-code domain kits** (Dan wants a reminder post-push): system packs for AI video
+   generation, image generation, music generation, writing, etc. — folds into the Phase 3
+   domain-pack registry (gated on 👍/👎 data per the locked thesis).
+2. Capacity/scaling when monetizing: enable Gemini billing (removes the 250 req/day shared
+   ceiling ≈ 10–20 AI-active users/day), Vercel Pro (Hobby forbids commercial use), then
+   Liveblocks (500 rooms/mo) and Neon paid as pressure appears. BYOK users bypass the
+   Gemini ceiling entirely.
+3. Phase 4: Trigger.dev retirement + landing repositioned around the system-generator thesis.
+
 ### 2026-07-06 — Collaboration bundle: canvas comment pins, laser pointer, team chat
 
 Finishes the deferred "node-anchored comments" (Phase B v2) plus two live-collab features.

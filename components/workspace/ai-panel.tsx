@@ -49,7 +49,7 @@ import {
   downloadSystemKit,
   parseSpiSchema,
 } from "@/lib/export";
-import { KIT_FILES, kitEntryFile } from "@/lib/ai/kit";
+import { KIT_FILES, KIT_PROFILES, kitEntryFile, type KitProfileId } from "@/lib/ai/kit";
 import { toast } from "sonner";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import { applyDiffOperations } from "@/lib/ai/canvas-diff";
@@ -704,11 +704,34 @@ function SpecTab({
   const { exportPng, exporting } = useCanvasExport(projectName);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
 
-  // System Kit — the six-file proper system, generated from the canvas.
+  // System Kit — the proper-system files, generated from the canvas.
   const [kitFiles, setKitFiles] = useState<Record<string, string>>({});
   const [kitCurrent, setKitCurrent] = useState<string | null>(null);
   const [kitBusy, setKitBusy] = useState(false);
   const [kitError, setKitError] = useState<string | null>(null);
+  const [kitProfiles, setKitProfiles] = useState<KitProfileId[]>(() => {
+    if (typeof window === "undefined") return ["claude-code"];
+    try {
+      const saved = JSON.parse(localStorage.getItem("spi-kit-profiles") ?? "");
+      if (Array.isArray(saved)) {
+        const valid = saved.filter((id): id is KitProfileId =>
+          KIT_PROFILES.some((p) => p.id === id)
+        );
+        if (valid.length > 0) return valid;
+      }
+    } catch {
+      // Fall through to the default.
+    }
+    return ["claude-code"];
+  });
+
+  const toggleKitProfile = useCallback((id: KitProfileId) => {
+    setKitProfiles((prev) => {
+      const next = prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id];
+      localStorage.setItem("spi-kit-profiles", JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const nodeCount = reactFlow.getNodes().length;
   const nodes = reactFlow.getNodes() as CanvasNode[];
@@ -831,9 +854,16 @@ function SpecTab({
         throw new Error("Kit generation ended early — please retry");
       }
 
-      await downloadSystemKit(collected, kitEntryFile(projectName), nodes, edges, projectName);
+      await downloadSystemKit(
+        collected,
+        kitEntryFile(projectName),
+        nodes,
+        edges,
+        projectName,
+        kitProfiles
+      );
       toast.success("System Kit downloaded", {
-        description: "Drop the folder into any repo — your AI agent reads CLAUDE.md first.",
+        description: "Drop the files into your repo — your AI tools read their setup natively.",
       });
     } catch (error) {
       setKitError(error instanceof Error ? error.message : "Kit generation failed");
@@ -841,7 +871,7 @@ function SpecTab({
       setKitBusy(false);
       setKitCurrent(null);
     }
-  }, [nodes, edges, projectId, projectName]);
+  }, [nodes, edges, projectId, projectName, kitProfiles]);
 
   const handleAgentBundle = useCallback(async () => {
     setBundling(true);
@@ -990,11 +1020,42 @@ function SpecTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-[var(--text-primary)]">System Kit</p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
-                The six-file proper system — overview, architecture, standards, workflow
-                rules, context, tracker — generated from this canvas. Leave with a system,
-                not just a diagram.
+                The proper system — overview, architecture, standards, workflow rules,
+                tracker, env template — generated from this canvas, packaged for the tools
+                you build with. Leave with a system, not just a diagram.
               </p>
             </div>
+          </div>
+
+          {/* Platform profiles — AGENTS.md + context/ always ship; these add overlays */}
+          <div className="mt-2.5">
+            <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
+              Where will you build?
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {KIT_PROFILES.map((profile) => {
+                const active = kitProfiles.includes(profile.id);
+                return (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onClick={() => toggleKitProfile(profile.id)}
+                    title={`Adds ${profile.hint}`}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                      active
+                        ? "border-[var(--accent-ai)]/50 bg-[var(--accent-ai)]/15 text-[var(--accent-ai)]"
+                        : "border-[var(--border-default)] text-[var(--text-muted)] hover:border-[var(--border-subtle)] hover:text-[var(--text-secondary)]"
+                    )}
+                  >
+                    {profile.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+              AGENTS.md, context files &amp; .env template are always included.
+            </p>
           </div>
           {kitBusy && (
             <div className="mt-2.5 space-y-1">

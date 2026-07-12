@@ -2,9 +2,10 @@
  * System Kit — SYPI's thesis feature.
  *
  * The gap between senior engineers and vibe coders is the proper system:
- * documented context, standards, workflow rules, and a progress tracker.
- * The kit generates that six-file system from the user's actual canvas so
- * any project leaves SYPI with senior-grade discipline, not just a diagram.
+ * documented context, standards, workflow rules, a progress tracker, and an
+ * environment template. The kit generates that system from the user's actual
+ * canvas, packaged per platform (Claude Code, Cursor, Copilot, Windsurf,
+ * Lovable/v0) so any project leaves SYPI with senior-grade discipline.
  */
 
 export interface KitFileSpec {
@@ -76,6 +77,17 @@ derived from the architecture (dependencies first: auth before features, backend
 frontend wiring); Open Questions (infer 2-4 real unresolved decisions from the design);
 Architecture Decisions (list the key ones already made, from the canvas); Session Notes.`,
   },
+  {
+    name: "env.example",
+    title: "Environment Template",
+    guidance: `Write .env.example for this system in RAW dotenv format — NOT Markdown: no code
+fences, no headings, no prose outside # comments. Derive every variable from the actual
+components and their configured technologies (database connection strings, cache endpoints,
+auth secrets, third-party API keys, queue URLs, service ports, the public app URL). For each
+variable: a # comment stating what it's for, where to obtain it, and the expected format,
+then the VAR_NAME= line with an obvious placeholder (never a realistic-looking secret).
+Group variables per component with # ── section header comments.`,
+  },
 ];
 
 /** Static entry-point file included in every kit (not AI-generated). */
@@ -90,17 +102,110 @@ export function kitEntryFile(projectName: string): string {
 Read the following files in order before implementing or making any
 architectural decision:
 
-1. \`project-overview.md\` — product definition, goals, features, and scope
-2. \`architecture.md\` — system structure, boundaries, storage model, and invariants
-3. \`ui-context.md\` — theme, interface conventions, and experience patterns
-4. \`code-standards.md\` — implementation rules and conventions
-5. \`ai-workflow-rules.md\` — development workflow, scoping rules, and delivery approach
-6. \`progress-tracker.md\` — current phase, completed work, open questions, next steps
+1. \`context/project-overview.md\` — product definition, goals, features, and scope
+2. \`context/architecture.md\` — system structure, boundaries, storage model, and invariants
+3. \`context/ui-context.md\` — theme, interface conventions, and experience patterns
+4. \`context/code-standards.md\` — implementation rules and conventions
+5. \`context/ai-workflow-rules.md\` — development workflow, scoping rules, and delivery approach
+6. \`context/progress-tracker.md\` — current phase, completed work, open questions, next steps
 
-Update \`progress-tracker.md\` after each meaningful implementation change.
+Update \`context/progress-tracker.md\` after each meaningful implementation change.
+
+Copy \`.env.example\` to \`.env\` and fill in every value before running anything.
+Never commit \`.env\` or any real secret to version control.
 
 If implementation changes the architecture, scope, or standards documented in
 these files, update the relevant file before continuing.
+`;
+}
+
+// ─── Platform profiles ────────────────────────────────────────────────────────
+// AGENTS.md (the cross-tool standard) + context/ + .env.example ship in every kit.
+// Profiles add the tool-specific entry files on top, in each tool's native layout.
+
+export type KitProfileId = "claude-code" | "cursor" | "copilot" | "windsurf" | "lovable";
+
+export interface KitProfile {
+  id: KitProfileId;
+  label: string;
+  /** What the profile adds to the zip — shown in the picker tooltip. */
+  hint: string;
+}
+
+export const KIT_PROFILES: KitProfile[] = [
+  { id: "claude-code", label: "Claude Code", hint: "CLAUDE.md" },
+  { id: "cursor", label: "Cursor", hint: ".cursor/rules/" },
+  { id: "copilot", label: "Copilot", hint: ".github/copilot-instructions.md" },
+  { id: "windsurf", label: "Windsurf", hint: ".windsurf/rules/" },
+  { id: "lovable", label: "Lovable / v0", hint: "Knowledge doc + prompting guide" },
+];
+
+/** Wrap the entry file as a Cursor project rule (.mdc with frontmatter). */
+export function cursorRuleFile(projectName: string, entryFile: string): string {
+  return `---
+description: ${projectName} build system — read the context files before any change
+alwaysApply: true
+---
+
+${entryFile}`;
+}
+
+/** Files combined into the Lovable/v0 Knowledge doc (progress tracker + env excluded). */
+const KNOWLEDGE_FILES = [
+  "project-overview.md",
+  "architecture.md",
+  "ui-context.md",
+  "code-standards.md",
+  "ai-workflow-rules.md",
+];
+
+/** One paste-ready Knowledge doc for Lovable / v0 style platforms. */
+export function lovableKnowledgeFile(
+  projectName: string,
+  kitFiles: Record<string, string>
+): string {
+  const sections = KNOWLEDGE_FILES.map((name) => kitFiles[name])
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+  return `# ${projectName} — Knowledge
+
+> Generated by SYPI (sypi-ai-dev.vercel.app). Paste this whole document into your
+> platform's persistent context (Lovable: Settings → Knowledge. v0/Bolt: project
+> instructions). It is sent with every prompt, so the AI always knows the system.
+
+${sections}
+`;
+}
+
+/** Static prompting guide shipped alongside the Knowledge doc. */
+export function lovablePromptingGuide(projectName: string): string {
+  return `# ${projectName} — Prompting Guide
+
+> How to build this system on Lovable, v0, Bolt, or any prompt-driven platform
+> without it collapsing after week one. Pair with KNOWLEDGE.md (paste that into
+> the platform's Knowledge/instructions first).
+
+## Every prompt has four parts
+
+1. **Context** — where in the system you are: "In the checkout flow, which calls the
+   Payments service…"
+2. **Scope** — the ONE piece to build or change. One component per prompt.
+3. **Outcome** — what working looks like, verifiable: "a signed-in user can X".
+4. **Constraints** — what must NOT change: "don't touch auth, keep the existing schema".
+
+## Working rules
+
+- Build in the order listed in \`context/progress-tracker.md\` — dependencies first
+  (auth before features, backend before frontend wiring).
+- One component at a time. Test it works before prompting the next.
+- Use the platform's plan/chat mode to discuss any change that touches more than one
+  component BEFORE letting it edit.
+- When the AI breaks something: don't pile on fix prompts. Revert to the last working
+  version, then re-prompt with tighter scope and constraints.
+- After each finished piece, ask the AI to update \`context/progress-tracker.md\`
+  (or keep it updated yourself) — it is the memory that survives between sessions.
+- Secrets go in the platform's env/secrets settings, never in prompts or code.
+  \`.env.example\` lists everything this system needs.
 `;
 }
 
@@ -115,7 +220,8 @@ RULES:
   configured technologies, connections). Reference real component labels.
 - Be specific and concrete. If the canvas doesn't answer something, make ONE reasonable
   decision and state it plainly — never write "TBD" or generic filler.
-- Plain Markdown. Start with a single H1 title. No preamble, no closing summary.
+- Plain Markdown with a single H1 title — unless the file's own instructions specify a
+  different format (e.g. raw dotenv). No preamble, no closing summary.
 - Keep each file focused on its own job — do not repeat content that belongs in the
   other files of the system.
 `.trim();
