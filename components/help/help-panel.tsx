@@ -151,7 +151,7 @@ const SECTIONS: HelpSection[] = [
       },
       {
         title: "System Kit — your proper system",
-        description: "The hero export. From the Spec tab, pick where you build — Claude Code, Cursor, Copilot, Windsurf, Lovable/v0 — and generate the context system seniors use: project overview, architecture, code standards, AI workflow rules, UI context, progress tracker, and a documented .env template, written from YOUR actual canvas. The zip ships AGENTS.md plus each tool's native setup files (CLAUDE.md, .cursor/rules, Knowledge doc…), so every AI agent starts each session with senior-grade discipline.",
+        description: "The hero export. From the Spec tab, pick WHAT you're building — Software, Automation, Video, Image, Music, Writing, Marketing, or Business — and generate the context system seniors use, written from YOUR actual canvas: overview, structure, standards, AI workflow rules, and a progress tracker, tailored per domain (creative kits add style/consistency guides, asset libraries, and tool setup; code kits add code standards and a documented .env template). Code kits also let you pick WHERE you build (Claude Code, Cursor, Copilot, Windsurf, Lovable/v0) and ship each tool's native setup files; creative kits include a paste-ready KNOWLEDGE.md for ChatGPT/Claude/Gemini plus a prompting guide.",
       },
       {
         title: "Agent Bundle (ZIP)",

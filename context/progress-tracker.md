@@ -6,6 +6,37 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-12 (later) — System Kit v3: DOMAIN PACKS (Phase 3 shipped, expanded scope)
+
+Dan approved building Phase 3 immediately (ungated) and expanding past the named fields.
+The kit now serves 8 domains via a pack registry (`KIT_DOMAINS` in `lib/ai/kit.ts`):
+**Software, Automation (n8n/agents), Video, Image, Music, Writing, Marketing, Business.**
+
+- Each domain = `KitDomain { id, label, hint, role, files, codeProfiles }`. Per-domain file
+  sets (5–7 files) follow the same skeleton — overview, structure-from-canvas, consistency
+  system, AI workflow rules, progress tracker — with domain-expert guidance grounded in
+  2026 research: video (reference-anchor consistency, shot-based iteration, first/last
+  frames), image (style refs/seeds, prompt library, one-variable iteration), music
+  (~10 focused descriptors, stems→DAW handoff, rights via human elements), writing
+  (content bible/continuity record, fact discipline, voice passes), marketing (funnel
+  architecture, claim rules, review gates), business (SOPs, decision rights, data
+  discipline), automation (idempotency, error paths, credential rules).
+- `kitSystemPrompt(domain)` frames the generator role per domain (engineer / art
+  director / producer / editor / strategist / ops consultant).
+- `kitEntryFile(projectName, domain)` — entry read-order list is now built dynamically
+  from the domain's file specs (each spec gained a `summary`).
+- Route `POST /api/ai/kit` accepts `domain` (validated against registry, 400 on unknown,
+  falls back to software when absent) and iterates `domain.files`.
+- Zip layout: code domains (software/automation) keep the platform-profile overlays;
+  creative/business domains always ship root `KNOWLEDGE.md` (paste into ChatGPT/Claude/
+  Gemini/Lovable persistent context; excludes tracker/env/tool-setup) + `PROMPTING-GUIDE.md`.
+  `lovableKnowledgeFile`/`lovablePromptingGuide` generalized → `kitKnowledgeFile(domain)`/
+  `kitPromptingGuide`.
+- UI: "What are you building?" domain pills (single-select, `spi-kit-domain` localStorage)
+  above the platform pills (shown only for code domains). Checklist renders the domain's
+  files. Help panel copy updated.
+- Cost note: kits are 5–7 LLM calls depending on domain (unchanged ceiling math).
+
 ### 2026-07-12 — System Kit v2: platform profiles + .env template
 
 The kit is now a multi-platform system generator (research brief same date: AGENTS.md is

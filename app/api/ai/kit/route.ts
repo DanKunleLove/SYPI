@@ -4,11 +4,11 @@ import {
   getUserInstructions,
   resolveModelForProject,
 } from "@/lib/ai/index";
-import { KIT_FILES, KIT_SYSTEM_PROMPT } from "@/lib/ai/kit";
+import { KIT_DOMAINS, getKitDomain, kitSystemPrompt } from "@/lib/ai/kit";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
-// Six sequential doc generations — give the kit room to finish.
+// Up to 7 sequential doc generations — give the kit room to finish.
 export const maxDuration = 300;
 
 function line(obj: Record<string, unknown>): Uint8Array {
@@ -29,12 +29,22 @@ export async function POST(request: Request) {
   const burst = checkRateLimit(`kit:${user.id}`, 3, 10 * 60_000);
   if (!burst.ok) return rateLimitResponse(burst.retryAfter);
 
-  let body: { projectId?: unknown; canvasContext?: unknown; projectName?: unknown };
+  let body: {
+    projectId?: unknown;
+    canvasContext?: unknown;
+    projectName?: unknown;
+    domain?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+
+  if (body.domain !== undefined && !KIT_DOMAINS.some((d) => d.id === body.domain)) {
+    return Response.json({ error: "Unknown kit domain" }, { status: 400 });
+  }
+  const domain = getKitDomain(body.domain);
 
   const projectId = typeof body.projectId === "string" ? body.projectId : null;
   const canvasContext =
@@ -60,12 +70,12 @@ export async function POST(request: Request) {
     resolveModelForProject(projectId, "flash"),
     getUserInstructions(user.id),
   ]);
-  const system = applyUserInstructions(KIT_SYSTEM_PROMPT, instructions);
+  const system = applyUserInstructions(kitSystemPrompt(domain), instructions);
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for (const file of KIT_FILES) {
+        for (const file of domain.files) {
           controller.enqueue(line({ type: "start", name: file.name, title: file.title }));
 
           const result = await generateText({

@@ -6,8 +6,9 @@
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 import {
   cursorRuleFile,
-  lovableKnowledgeFile,
-  lovablePromptingGuide,
+  kitKnowledgeFile,
+  kitPromptingGuide,
+  type KitDomain,
   type KitProfileId,
 } from "@/lib/ai/kit";
 
@@ -439,8 +440,10 @@ export async function downloadAgentBundle(
 }
 
 /**
- * Download the System Kit as a zip: AGENTS.md + context/ + .env.example always,
- * plus tool-native entry files for each selected platform profile.
+ * Download the System Kit as a zip: AGENTS.md + context/ (+ .env.example when the
+ * domain has one) always. Code domains add tool-native entry files per selected
+ * platform profile; creative/business domains get a paste-ready KNOWLEDGE.md +
+ * PROMPTING-GUIDE.md instead.
  */
 export async function downloadSystemKit(
   kitFiles: Record<string, string>,
@@ -448,7 +451,8 @@ export async function downloadSystemKit(
   nodes: CanvasNode[],
   edges: CanvasEdge[],
   projectName: string,
-  profiles: KitProfileId[]
+  profiles: KitProfileId[],
+  domain: KitDomain
 ): Promise<void> {
   const { default: JSZip } = await import("jszip");
 
@@ -470,22 +474,29 @@ export async function downloadSystemKit(
     JSON.stringify(generateSpiSchema(nodes, edges, projectName), null, 2)
   );
 
-  // Platform overlays.
-  if (profiles.includes("claude-code")) {
-    zip.file("CLAUDE.md", entryFile);
-  }
-  if (profiles.includes("cursor")) {
-    zip.file(".cursor/rules/sypi-system.mdc", cursorRuleFile(projectName, entryFile));
-  }
-  if (profiles.includes("copilot")) {
-    zip.file(".github/copilot-instructions.md", entryFile);
-  }
-  if (profiles.includes("windsurf")) {
-    zip.file(".windsurf/rules/sypi-system.md", entryFile);
-  }
-  if (profiles.includes("lovable")) {
-    zip.file("lovable/KNOWLEDGE.md", lovableKnowledgeFile(projectName, kitFiles));
-    zip.file("lovable/PROMPTING-GUIDE.md", lovablePromptingGuide(projectName));
+  if (domain.codeProfiles) {
+    // Platform overlays for code-tool domains.
+    if (profiles.includes("claude-code")) {
+      zip.file("CLAUDE.md", entryFile);
+    }
+    if (profiles.includes("cursor")) {
+      zip.file(".cursor/rules/sypi-system.mdc", cursorRuleFile(projectName, entryFile));
+    }
+    if (profiles.includes("copilot")) {
+      zip.file(".github/copilot-instructions.md", entryFile);
+    }
+    if (profiles.includes("windsurf")) {
+      zip.file(".windsurf/rules/sypi-system.md", entryFile);
+    }
+    if (profiles.includes("lovable")) {
+      zip.file("lovable/KNOWLEDGE.md", kitKnowledgeFile(projectName, domain, kitFiles));
+      zip.file("lovable/PROMPTING-GUIDE.md", kitPromptingGuide(projectName));
+    }
+  } else {
+    // Creative/business kits are driven from chat platforms — always ship the
+    // paste-ready docs.
+    zip.file("KNOWLEDGE.md", kitKnowledgeFile(projectName, domain, kitFiles));
+    zip.file("PROMPTING-GUIDE.md", kitPromptingGuide(projectName));
   }
 
   const blob = await zip.generateAsync({ type: "blob" });

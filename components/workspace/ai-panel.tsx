@@ -49,7 +49,14 @@ import {
   downloadSystemKit,
   parseSpiSchema,
 } from "@/lib/export";
-import { KIT_FILES, KIT_PROFILES, kitEntryFile, type KitProfileId } from "@/lib/ai/kit";
+import {
+  KIT_DOMAINS,
+  KIT_PROFILES,
+  getKitDomain,
+  kitEntryFile,
+  type KitDomainId,
+  type KitProfileId,
+} from "@/lib/ai/kit";
 import { toast } from "sonner";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import { applyDiffOperations } from "@/lib/ai/canvas-diff";
@@ -733,6 +740,18 @@ function SpecTab({
     });
   }, []);
 
+  const [kitDomainId, setKitDomainId] = useState<KitDomainId>(() => {
+    if (typeof window === "undefined") return "software";
+    const saved = localStorage.getItem("spi-kit-domain");
+    return KIT_DOMAINS.some((d) => d.id === saved) ? (saved as KitDomainId) : "software";
+  });
+  const kitDomain = getKitDomain(kitDomainId);
+
+  const selectKitDomain = useCallback((id: KitDomainId) => {
+    setKitDomainId(id);
+    localStorage.setItem("spi-kit-domain", id);
+  }, []);
+
   const nodeCount = reactFlow.getNodes().length;
   const nodes = reactFlow.getNodes() as CanvasNode[];
   const edges = reactFlow.getEdges() as CanvasEdge[];
@@ -807,7 +826,7 @@ function SpecTab({
       const res = await fetch("/api/ai/kit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, canvasContext, projectName }),
+        body: JSON.stringify({ projectId, canvasContext, projectName, domain: kitDomain.id }),
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
@@ -850,17 +869,18 @@ function SpecTab({
       }
       if (buffer.trim()) handleLine(buffer);
 
-      if (Object.keys(collected).length < KIT_FILES.length) {
+      if (Object.keys(collected).length < kitDomain.files.length) {
         throw new Error("Kit generation ended early — please retry");
       }
 
       await downloadSystemKit(
         collected,
-        kitEntryFile(projectName),
+        kitEntryFile(projectName, kitDomain),
         nodes,
         edges,
         projectName,
-        kitProfiles
+        kitProfiles,
+        kitDomain
       );
       toast.success("System Kit downloaded", {
         description: "Drop the files into your repo — your AI tools read their setup natively.",
@@ -871,7 +891,7 @@ function SpecTab({
       setKitBusy(false);
       setKitCurrent(null);
     }
-  }, [nodes, edges, projectId, projectName, kitProfiles]);
+  }, [nodes, edges, projectId, projectName, kitProfiles, kitDomain]);
 
   const handleAgentBundle = useCallback(async () => {
     setBundling(true);
@@ -1020,27 +1040,27 @@ function SpecTab({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-[var(--text-primary)]">System Kit</p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
-                The proper system — overview, architecture, standards, workflow rules,
-                tracker, env template — generated from this canvas, packaged for the tools
-                you build with. Leave with a system, not just a diagram.
+                The proper system — overview, structure, standards, workflow rules,
+                tracker — generated from this canvas for the kind of work you&apos;re doing.
+                Leave with a system, not just a diagram.
               </p>
             </div>
           </div>
 
-          {/* Platform profiles — AGENTS.md + context/ always ship; these add overlays */}
+          {/* Domain — which kind of system this canvas describes */}
           <div className="mt-2.5">
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
-              Where will you build?
+              What are you building?
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {KIT_PROFILES.map((profile) => {
-                const active = kitProfiles.includes(profile.id);
+              {KIT_DOMAINS.map((domain) => {
+                const active = kitDomainId === domain.id;
                 return (
                   <button
-                    key={profile.id}
+                    key={domain.id}
                     type="button"
-                    onClick={() => toggleKitProfile(profile.id)}
-                    title={`Adds ${profile.hint}`}
+                    onClick={() => selectKitDomain(domain.id)}
+                    title={domain.hint}
                     className={cn(
                       "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
                       active
@@ -1048,18 +1068,53 @@ function SpecTab({
                         : "border-[var(--border-default)] text-[var(--text-muted)] hover:border-[var(--border-subtle)] hover:text-[var(--text-secondary)]"
                     )}
                   >
-                    {profile.label}
+                    {domain.label}
                   </button>
                 );
               })}
             </div>
-            <p className="mt-1 text-[10px] text-[var(--text-muted)]">
-              AGENTS.md, context files &amp; .env template are always included.
-            </p>
           </div>
+
+          {/* Platform profiles — only code-tool domains have tool-native files */}
+          {kitDomain.codeProfiles ? (
+            <div className="mt-2.5">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
+                Where will you build?
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {KIT_PROFILES.map((profile) => {
+                  const active = kitProfiles.includes(profile.id);
+                  return (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => toggleKitProfile(profile.id)}
+                      title={`Adds ${profile.hint}`}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                        active
+                          ? "border-[var(--accent-ai)]/50 bg-[var(--accent-ai)]/15 text-[var(--accent-ai)]"
+                          : "border-[var(--border-default)] text-[var(--text-muted)] hover:border-[var(--border-subtle)] hover:text-[var(--text-secondary)]"
+                      )}
+                    >
+                      {profile.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                AGENTS.md, context files &amp; .env template are always included.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-2 text-[10px] text-[var(--text-muted)]">
+              Includes a paste-ready KNOWLEDGE.md for ChatGPT/Claude/Gemini plus a
+              prompting guide, context files &amp; tool setup.
+            </p>
+          )}
           {kitBusy && (
             <div className="mt-2.5 space-y-1">
-              {KIT_FILES.map((f) => {
+              {kitDomain.files.map((f) => {
                 const isDone = kitFiles[f.name] !== undefined;
                 const isCurrent = kitCurrent === f.name && !isDone;
                 return (
