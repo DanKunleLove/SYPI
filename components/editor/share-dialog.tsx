@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { recordEvent } from "@/lib/events";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -116,6 +117,7 @@ export function ShareDialog({
         const data = await res.json();
         setCollaborators((prev) => [...prev, data.collaborator]);
         setInviteEmail("");
+        recordEvent("share_invited");
       } else {
         const data = await res.json();
         setInviteError(data.error || "Failed to invite");

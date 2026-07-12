@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+import { prisma } from "@/lib/prisma";
 import {
   applyUserInstructions,
   getUserInstructions,
@@ -89,6 +90,16 @@ export async function POST(request: Request) {
           );
         }
         controller.enqueue(line({ type: "done" }));
+        // Deep-value activation event — best-effort, never fails the kit.
+        await prisma.usageEvent
+          .create({
+            data: {
+              userId: user.id,
+              type: "kit_generated",
+              meta: { domain: domain.id, project: projectId },
+            },
+          })
+          .catch(() => {});
       } catch (error) {
         controller.enqueue(
           line({

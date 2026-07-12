@@ -57,6 +57,7 @@ import {
   type KitDomainId,
   type KitProfileId,
 } from "@/lib/ai/kit";
+import { recordEvent } from "@/lib/events";
 import { toast } from "sonner";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import { applyDiffOperations } from "@/lib/ai/canvas-diff";
@@ -784,6 +785,7 @@ function SpecTab({
     a.download = `${safe}-spec.md`;
     a.click();
     URL.revokeObjectURL(url);
+    recordEvent("spec_exported");
   }, [spec, projectName]);
 
   const handleDownloadMermaid = useCallback(() => {
@@ -796,6 +798,7 @@ function SpecTab({
     a.download = `${safe}-diagram.mmd`;
     a.click();
     URL.revokeObjectURL(url);
+    recordEvent("mermaid_exported");
   }, [nodes, edges, projectName]);
 
   const handleEnhance = useCallback(async () => {
@@ -897,6 +900,7 @@ function SpecTab({
     setBundling(true);
     try {
       await downloadAgentBundle(nodes, edges, projectName, spec);
+      recordEvent("bundle_exported");
     } finally {
       setBundling(false);
     }
@@ -1190,7 +1194,10 @@ function SpecTab({
               description="High-res diagram for slides & docs"
               actionLabel={exporting ? "Exporting…" : "Download"}
               loading={exporting}
-              onClick={exportPng}
+              onClick={() => {
+                recordEvent("png_exported");
+                exportPng();
+              }}
             />
 
             {/* Mermaid */}

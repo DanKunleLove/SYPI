@@ -8,6 +8,7 @@ import {
   ChevronRight, ChevronDown, ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { openFeedback } from "@/components/feedback/feedback-widget";
 
 interface HelpSection {
   id: string;
@@ -427,12 +428,16 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
               <p className="text-[10px] text-[var(--text-muted)]">
                 Press <kbd className="rounded border border-[var(--border-subtle)] px-1 text-[10px]">?</kbd> anywhere to toggle
               </p>
-              <a
-                href="mailto:theaiteam2025@gmail.com?subject=SYPI%20support"
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  openFeedback();
+                }}
                 className="inline-flex items-center gap-1 text-[10px] text-[var(--accent-ai)] hover:underline"
               >
-                Email support <ExternalLink className="h-3 w-3" />
-              </a>
+                Send feedback <ExternalLink className="h-3 w-3" />
+              </button>
             </div>
           </motion.div>
         </>

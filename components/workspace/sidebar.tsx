@@ -17,6 +17,8 @@ import {
   Settings,
   Users,
   HelpCircle,
+  MessageSquareHeart,
+  ShieldCheck,
   Sun,
   Moon,
 } from "lucide-react";
@@ -34,6 +36,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { openFeedback } from "@/components/feedback/feedback-widget";
 import type { Project } from "@/lib/mock-projects";
 
 const SIDEBAR_KEY = "spi-sidebar-collapsed";
@@ -75,9 +78,18 @@ export function Sidebar({
   const [isRecentExpanded, setIsRecentExpanded] = useState(true);
   const [isSharedExpanded, setIsSharedExpanded] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const profileContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMounted(true), []);
+
+  // Show the Admin link only to admins (server re-verifies on /admin anyway).
+  useEffect(() => {
+    fetch("/api/admin/me")
+      .then((r) => (r.ok ? r.json() : { admin: false }))
+      .then((d) => setIsAdmin(!!d.admin))
+      .catch(() => {});
+  }, []);
 
   const isHome = pathname === "/dashboard";
   const { resolvedTheme, setTheme } = useTheme();
@@ -311,6 +323,7 @@ export function Sidebar({
         {[
           { icon: Users, label: "Team", href: "/team" },
           { icon: Settings, label: "Settings", href: "/settings" },
+          ...(isAdmin ? [{ icon: ShieldCheck, label: "Admin", href: "/admin" }] : []),
         ].map(({ icon: Icon, label, href }) => {
           const isActive = pathname === href;
           return (
@@ -346,6 +359,18 @@ export function Sidebar({
             {!collapsed && <span>Help & shortcuts</span>}
           </button>
         )}
+        <button
+          type="button"
+          onClick={openFeedback}
+          title={collapsed ? "Send feedback" : undefined}
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-raised)]/60 hover:text-[var(--text-primary)]",
+            collapsed && "justify-center"
+          )}
+        >
+          <MessageSquareHeart className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Send feedback</span>}
+        </button>
         <button
           type="button"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
