@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { FeedbackBoard, type AdminFeedbackItem } from "@/components/admin/feedback-board";
 import { ComplaintRadar, type RadarItem } from "@/components/admin/complaint-radar";
 import { MetricsPanel } from "@/components/admin/metrics-panel";
+import { AdminNav } from "@/components/admin/admin-nav";
 import { getPlatformMetrics } from "@/lib/metrics";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export default async function AdminPage() {
         <p className="mt-1 text-sm text-[var(--text-muted)]">
           Feedback, complaints, and platform signals — visible only to admins.
         </p>
+        <AdminNav active="/admin" />
 
         <div className="mt-6 space-y-8">
           <MetricsPanel metrics={metrics} />

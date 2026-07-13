@@ -69,14 +69,18 @@ export async function checkAiQuota(
   }
 
   const dayAgo = new Date(Date.now() - DAY_MS);
-  const [used, byokKeys] = await Promise.all([
+  const [used, byokKeys, user] = await Promise.all([
     prisma.usageEvent.count({
       where: { userId, type: `ai:${kind}`, createdAt: { gte: dayAgo } },
     }),
     prisma.userApiKey.count({ where: { userId } }),
+    // Admin can override the generate cap per user (/admin/users).
+    kind === "generate"
+      ? prisma.user.findUnique({ where: { id: userId }, select: { dailyGenLimit: true } })
+      : null,
   ]);
 
-  const cap = byokKeys > 0 ? limits.byokDaily : limits.daily;
+  const cap = user?.dailyGenLimit ?? (byokKeys > 0 ? limits.byokDaily : limits.daily);
   if (used >= cap) {
     return {
       ok: false,

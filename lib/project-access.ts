@@ -8,7 +8,8 @@ export async function getDbUser() {
   if (!clerkId) return null;
 
   const existing = await prisma.user.findUnique({ where: { clerkId } });
-  if (existing) return existing;
+  // Suspended accounts fail auth everywhere — one check covers every route.
+  if (existing) return existing.status === "suspended" ? null : existing;
 
   // User authenticated via Clerk but not in DB — auto-create (handles missing webhook in dev)
   const clerkUser = await currentUser();

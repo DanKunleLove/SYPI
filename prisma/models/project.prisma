@@ -12,6 +12,9 @@ model User {
   imageUrl       String?
   defaultModel   String? // "provider:modelId", e.g. "anthropic:claude-opus-4-8"
   customInstructions String? // user-layer prompt, APPENDED to AI system prompts (never replaces the base contract)
+  platformRole   String   @default("user")   // user | admin — platform staff, unrelated to project Role
+  status         String   @default("active") // active | suspended — suspended users fail all API auth
+  dailyGenLimit  Int?     // admin override for the daily "generate" quota (null = plan default)
   ownedProjects  Project[]
   collaborations Collaborator[]
   apiKeys        UserApiKey[]
