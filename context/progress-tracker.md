@@ -6,6 +6,39 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-13 — Global command palette (Ctrl/⌘+K)
+
+Linear-style palette, mounted in `(workspace)/layout.tsx` so it works on dashboard, canvas,
+settings, team. New `components/command-palette.tsx` (cmdk@1.1.1).
+
+- Groups: **This canvas** (AI Twin, System Kit/export, review, comments, share, save —
+  shown only inside a project), **Go to** (new project, dashboard, AI settings, team),
+  **Projects** (fuzzy search, top 30, jump to canvas), **Help & app** (help panel,
+  feedback widget, theme toggle).
+- Canvas-scoped actions dispatch a `spi:workspace-command` window event; `WorkspaceContent`
+  (project-workspace.tsx) listens and drives `setRightPanel`/critique/share/save. Keeps the
+  palette global without threading workspace state up the tree.
+- Every selection records a `palette_used` UsageEvent (action id) for the activation funnel.
+- tsc + `next build` exit 0 (41 routes).
+
+### 2026-07-12 (final) — Admin dashboard: feedback loop + activation metrics (commit 87290b1)
+
+First admin surface. `/admin` page (server-rendered, `force-dynamic`), gated by
+`lib/admin.ts` `getAdminUser()` — `ADMIN_EMAILS` env (comma-separated, case-insensitive);
+non-admins get 404. Sidebar Admin link shown via `GET /api/admin/me`.
+
+- **MetricsPanel** (`lib/metrics.ts` `getPlatformMetrics()`): total users, all-time
+  activation rate (first completed generation within 7d of signup), median TTV, generations,
+  kits by domain, exports, 👍/👎, open feedback, 8-week signup cohorts (activation % +
+  week-2 return %). Computed in JS over bounded queries — move to SQL aggregates at scale.
+- **FeedbackBoard**: in-app feedback widget (`components/feedback/feedback-widget.tsx`,
+  `POST /api/feedback`) → `Feedback` model (type/message/path/status/adminNote); admin
+  triages via `PATCH /api/admin/feedback`.
+- **ComplaintRadar**: 25 most recent 👎-rated generations with prompt + project + owner.
+- **UsageEvent** model + `lib/events.ts` `recordEvent()` + `POST /api/events` (fire-and-
+  forget client tracking: kit_generated, exports, palette_used…). Migration
+  `20260712070125_feedback_usage_events` applied.
+
 ### 2026-07-12 (later) — System Kit v3: DOMAIN PACKS (Phase 3 shipped, expanded scope)
 
 Dan approved building Phase 3 immediately (ungated) and expanding past the named fields.

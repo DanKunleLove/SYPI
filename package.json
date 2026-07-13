@@ -36,6 +36,7 @@
     "ai": "^6.0.191",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "dotenv": "^17.4.2",
     "framer-motion": "^12.38.0",
     "html-to-image": "^1.11.13",

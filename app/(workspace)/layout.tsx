@@ -11,6 +11,7 @@ import { RenameProjectDialog } from "@/components/editor/rename-project-dialog";
 import { DeleteProjectDialog } from "@/components/editor/delete-project-dialog";
 import { HelpPanel } from "@/components/help/help-panel";
 import { FeedbackWidget } from "@/components/feedback/feedback-widget";
+import { CommandPalette } from "@/components/command-palette";
 import { useProjects } from "@/hooks/use-projects";
 import { useProjectDialogs } from "@/hooks/use-project-dialogs";
 import { useCreateProjectListener } from "@/hooks/use-create-project-event";
@@ -273,6 +274,12 @@ export default function WorkspaceLayout({
 
       <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
       <FeedbackWidget />
+      <CommandPalette
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onNewProject={openCreate}
+        onHelp={() => setHelpOpen(true)}
+      />
       <Toaster position="bottom-right" />
     </div>
   );

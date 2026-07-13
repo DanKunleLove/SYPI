@@ -142,6 +142,38 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
     setRightPanel({ type: "closed" });
   }, []);
 
+  // Command-palette actions (Ctrl+K), dispatched as window events
+  useEffect(() => {
+    function onCommand(e: Event) {
+      const detail = (e as CustomEvent).detail as { action?: string } | undefined;
+      switch (detail?.action) {
+        case "ai":
+          setRightPanel({ type: "ai", tab: "chat" });
+          break;
+        case "spec":
+          setRightPanel({ type: "ai", tab: "spec" });
+          break;
+        case "review":
+          setRightPanel((prev) => {
+            if (prev.type !== "critique") critique.startCritique();
+            return { type: "critique" };
+          });
+          break;
+        case "comments":
+          setRightPanel({ type: "comments" });
+          break;
+        case "share":
+          setShareDialogOpen(true);
+          break;
+        case "save":
+          saveFnRef.current?.();
+          break;
+      }
+    }
+    window.addEventListener("spi:workspace-command", onCommand);
+    return () => window.removeEventListener("spi:workspace-command", onCommand);
+  }, [critique]);
+
   const projectStatus =
     saveStatus === "saving"
       ? "Saving..."
