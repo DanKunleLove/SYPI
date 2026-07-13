@@ -11,6 +11,7 @@ export type ClientUsageEvent =
   | "share_invited"
   | "onboarding_done"
   | "checklist_step"
+  | "checklist_dismissed"
   | "palette_used"
   | "domain_selected";
 

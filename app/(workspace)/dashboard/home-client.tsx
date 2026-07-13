@@ -19,13 +19,17 @@ import {
 import type { ProjectCardData } from "@/components/dashboard/project-card";
 import { toast } from "sonner";
 import { dispatchCreateProject } from "@/hooks/use-create-project-event";
+import { GettingStarted } from "@/components/dashboard/getting-started";
+import type { ChecklistState } from "@/lib/onboarding";
 
 export function HomeClient({
   myProjects: initialMyProjects,
   sharedProjects: initialSharedProjects,
+  checklist,
 }: {
   myProjects: ProjectCardData[];
   sharedProjects: ProjectCardData[];
+  checklist: ChecklistState | null;
 }) {
   const router = useRouter();
   const { collapsed, toggle: toggleSidebar } = useSidebarState();
@@ -156,6 +160,8 @@ export function HomeClient({
           transition={{ duration: 0.2, ease: "easeOut" }}
           className="mx-auto max-w-5xl px-6 py-8"
         >
+          {checklist && <GettingStarted initial={checklist} />}
+
           {/* Header */}
           <div className="mb-6 flex items-center justify-between">
             <Tabs

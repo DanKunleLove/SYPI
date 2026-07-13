@@ -6,6 +6,59 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-07-13 (later) — Platform hardening + admin control + onboarding v4 (3 phases, one session)
+
+Dan approved the phased admin/guardrails plan. All four shipped, each its own commit.
+
+**Phase 1 — guardrails on every route (commit 9bbb048):**
+- `lib/ai/limits.ts` — THE choke point for AI usage. Per-kind burst (in-memory) +
+  durable daily caps counted via UsageEvent `ai:{kind}` (BYOK users get 5× caps;
+  quota is on the CALLING user, model resolution stays owner-keyed).
+  `checkAiQuota()` (string errors, for agent tools) + `enforceAiQuota()` (429s, for
+  routes). Caps: generate 100/500, kit 10/50, critique 30/150, refine 60/300,
+  spec 30/150, chat 300/1500, plan 100/500 per 24h (platform/BYOK).
+- Previously UNLIMITED routes now covered: critique, refine, spec, design (legacy).
+  Agent tools (generateArchitecture/runDesignReview/refineArchitecture) share the
+  same quota pools. generate/chat/plan/kit migrated off their inline limiters.
+- Storage guards: canvas PUT (1k nodes/2k edges/2MB + 30/min), thumbnail (4M chars
+  + 10/min), templates (500KB schema + 10/min), project name/description caps.
+- Decision: NO zod parseBody helper — existing hand-rolled validation is consistent
+  and adequate for these 2-4-field bodies; only missing caps were added.
+
+**Phase 2 — admin user management (commit 82a2e62):**
+- Migration `20260713070855`: `User.platformRole` ("user"|"admin"), `User.status`
+  ("active"|"suspended"), `User.dailyGenLimit Int?` (per-user generate override,
+  honored in checkAiQuota).
+- `lib/admin.ts` getAdminUser: DB-role based; ADMIN_EMAILS env is now the
+  bootstrap/superadmin list (auto-promotes those users' DB role on first touch).
+- Suspension enforced in `getDbUser` — suspended users fail auth on EVERY route.
+- `/admin/users` + `GET/PATCH /api/admin/users`: search, 30d AI-usage rollup
+  (from ai:* events), role select, suspend toggle, gen-limit input. Self-lockout
+  guard: can't change own role/status. Shared `AdminNav` tabs.
+
+**Phase 3 — AI ops + kill switches (commit 372f669):**
+- `PlatformFlag` model (migration `20260713072930`; missing row = enabled) +
+  `lib/flags.ts`. Flags: `ai_enabled` (master), `generation_enabled`, `kit_enabled`
+  (enforced inside checkAiQuota), `signups_enabled` (getDbUser auto-create +
+  Clerk webhook user.created both skip creation when paused).
+- `/admin/ai`: FlagsPanel toggles (`PATCH /api/admin/flags`), 24h AI calls by kind,
+  7d failure count, 50 recent generations (status/rating/prompt/owner, error on
+  hover via title).
+
+**Onboarding v4 — activation checklist (this commit):**
+- `lib/onboarding.ts` getChecklist: Generate → Review → Export/Kit steps derived
+  from REAL data (completed generations, critiques, export/kit events) — step 1 IS
+  the /admin activation metric. Dismissal is a `checklist_dismissed` UsageEvent
+  (per-user, not per-browser).
+- `components/dashboard/getting-started.tsx` rendered above the dashboard grid
+  until complete/dismissed; next step highlighted, "New project" CTA on step 1.
+  v3 modal tour unchanged (intro), checklist is the persistent follow-through.
+
+**Still open (deferred):** Phase 4 audit log (AdminAction model) + Sentry;
+Upstash rate limiting at monetization time (lib/rate-limit.ts is the drop-in
+seam); metrics.ts JS aggregation → SQL when user count grows; full
+/security-review pass before monetization.
+
 ### 2026-07-13 — Global command palette (Ctrl/⌘+K)
 
 Linear-style palette, mounted in `(workspace)/layout.tsx` so it works on dashboard, canvas,
