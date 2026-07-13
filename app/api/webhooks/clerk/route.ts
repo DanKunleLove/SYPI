@@ -1,6 +1,7 @@
 import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { isFlagEnabled } from "@/lib/flags";
 
 interface ClerkWebhookEvent {
   type: string;
@@ -50,6 +51,12 @@ export async function POST(request: Request) {
   if (type === "user.created" || type === "user.updated") {
     if (!email) {
       return new Response("No email on user", { status: 400 });
+    }
+
+    // Kill switch: don't create accounts while signups are paused (200 so
+    // Clerk doesn't retry; the user can be re-synced once re-enabled).
+    if (type === "user.created" && !(await isFlagEnabled("signups_enabled"))) {
+      return new Response("Signups paused", { status: 200 });
     }
 
     await prisma.user.upsert({

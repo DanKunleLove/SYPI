@@ -1,5 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { isFlagEnabled } from "@/lib/flags";
 import type { Project } from "@/app/generated/prisma/client";
 
 /** Resolve the internal User record from Clerk auth. Auto-creates if missing (dev convenience). */
@@ -12,6 +13,9 @@ export async function getDbUser() {
   if (existing) return existing.status === "suspended" ? null : existing;
 
   // User authenticated via Clerk but not in DB — auto-create (handles missing webhook in dev)
+  // Kill switch: pausing signups blocks new-account creation, existing users unaffected.
+  if (!(await isFlagEnabled("signups_enabled"))) return null;
+
   const clerkUser = await currentUser();
   if (!clerkUser) return null;
 

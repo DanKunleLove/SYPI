@@ -144,6 +144,16 @@ model UsageEvent {
   @@index([type, createdAt])
 }
 
+/**
+ * Platform kill switches, toggled from /admin/ai. A missing row means
+ * enabled — flags only exist once an admin flips one.
+ */
+model PlatformFlag {
+  id        String   @id // ai_enabled | generation_enabled | kit_enabled | signups_enabled
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
 model TaskRun {
   id        String   @id @default(cuid())
   runId     String   @unique

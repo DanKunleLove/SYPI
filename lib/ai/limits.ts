@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { getDisabledFlags, type PlatformFlagId } from "@/lib/flags";
 
 /**
  * Central AI usage limits: per-kind burst (in-memory, per warm instance) +
@@ -68,8 +69,15 @@ export async function checkAiQuota(
     };
   }
 
+  // Kill switches (admin, /admin/ai) — the master flag plus a per-feature
+  // flag for the expensive kinds.
+  const flagIds: PlatformFlagId[] = ["ai_enabled"];
+  if (kind === "generate") flagIds.push("generation_enabled");
+  if (kind === "kit") flagIds.push("kit_enabled");
+
   const dayAgo = new Date(Date.now() - DAY_MS);
-  const [used, byokKeys, user] = await Promise.all([
+  const [disabled, used, byokKeys, user] = await Promise.all([
+    getDisabledFlags(flagIds),
     prisma.usageEvent.count({
       where: { userId, type: `ai:${kind}`, createdAt: { gte: dayAgo } },
     }),
@@ -79,6 +87,15 @@ export async function checkAiQuota(
       ? prisma.user.findUnique({ where: { id: userId }, select: { dailyGenLimit: true } })
       : null,
   ]);
+
+  if (disabled.size > 0) {
+    return {
+      ok: false,
+      error:
+        "This AI feature is temporarily paused by the SYPI team — please try again later.",
+      retryAfter: 0,
+    };
+  }
 
   const cap = user?.dailyGenLimit ?? (byokKeys > 0 ? limits.byokDaily : limits.daily);
   if (used >= cap) {

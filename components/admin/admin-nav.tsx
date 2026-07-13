@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/ai", label: "AI ops" },
 ] as const;
 
 /** Tab nav shared by the admin pages. */
