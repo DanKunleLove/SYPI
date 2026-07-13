@@ -15,7 +15,7 @@ import {
   type ArchitectureOutput,
 } from "@/lib/ai/schemas";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
@@ -26,8 +26,6 @@ export const maxDuration = 120;
 
 const MAX_PROMPT_CHARS = 6_000;
 const MAX_CONTEXT_CHARS = 24_000;
-const BURST_LIMIT = 6; // per user per minute (per warm instance)
-const DAILY_LIMIT = 100; // per user per 24h, durable (counted in the DB)
 
 /** NDJSON line helper for the streamed response. */
 function line(obj: Record<string, unknown>): Uint8Array {
@@ -50,9 +48,6 @@ export async function POST(request: Request) {
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const burst = checkRateLimit(`gen:${user.id}`, BURST_LIMIT, 60_000);
-  if (!burst.ok) return rateLimitResponse(burst.retryAfter);
 
   let body: Record<string, unknown>;
   try {
@@ -88,17 +83,8 @@ export async function POST(request: Request) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
 
-  // Durable daily cap — survives cold starts, protects the platform AI quota.
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const dailyCount = await prisma.aIGeneration.count({
-    where: { project: { userId: user.id }, createdAt: { gte: dayAgo } },
-  });
-  if (dailyCount >= DAILY_LIMIT) {
-    return Response.json(
-      { error: `Daily generation limit reached (${DAILY_LIMIT}/24h). Try again later.` },
-      { status: 429 }
-    );
-  }
+  const limited = await enforceAiQuota(user.id, "generate");
+  if (limited) return limited;
 
   // A URL pasted into a normal prompt gets the same real research as URL mode —
   // users shouldn't have to know about a separate mode for links to work.

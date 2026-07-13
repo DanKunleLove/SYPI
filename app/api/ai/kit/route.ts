@@ -6,7 +6,7 @@ import {
   resolveModelForProject,
 } from "@/lib/ai/index";
 import { KIT_DOMAINS, getKitDomain, kitSystemPrompt } from "@/lib/ai/kit";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
 // Up to 7 sequential doc generations — give the kit room to finish.
@@ -25,10 +25,6 @@ export async function POST(request: Request) {
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  // Kits are expensive (6 LLM calls) — tight limit.
-  const burst = checkRateLimit(`kit:${user.id}`, 3, 10 * 60_000);
-  if (!burst.ok) return rateLimitResponse(burst.retryAfter);
 
   let body: {
     projectId?: unknown;
@@ -66,6 +62,10 @@ export async function POST(request: Request) {
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
+
+  // Kits are expensive (5-7 LLM calls each) — tight burst + low daily cap.
+  const limited = await enforceAiQuota(user.id, "kit");
+  if (limited) return limited;
 
   const [model, instructions] = await Promise.all([
     resolveModelForProject(projectId, "flash"),

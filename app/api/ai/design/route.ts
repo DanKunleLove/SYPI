@@ -1,5 +1,6 @@
 import { tasks } from "@trigger.dev/sdk";
 import { prisma } from "@/lib/prisma";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import type { designAgentTask } from "@/trigger/design-agent";
 
@@ -20,11 +21,20 @@ export async function POST(request: Request) {
   const prompt = body.prompt as string | undefined;
   const mode = (body.mode as string) || "generate";
   const url = body.url as string | undefined;
-  const canvasContext = body.canvasContext as string | undefined;
+  const canvasContext =
+    typeof body.canvasContext === "string"
+      ? body.canvasContext.slice(0, 24_000)
+      : undefined;
 
   if (!projectId || !prompt) {
     return Response.json(
       { error: "projectId and prompt are required" },
+      { status: 400 }
+    );
+  }
+  if (prompt.length > 6_000) {
+    return Response.json(
+      { error: "Prompt too long (max 6000 characters)" },
       { status: 400 }
     );
   }
@@ -34,6 +44,10 @@ export async function POST(request: Request) {
   if (!access.project) {
     return Response.json({ error: access.reason }, { status: 403 });
   }
+
+  // Legacy worker path spends the same platform quota as inline generation.
+  const limited = await enforceAiQuota(user.id, "generate");
+  if (limited) return limited;
 
   // Create AIGeneration record
   const generation = await prisma.aIGeneration.create({

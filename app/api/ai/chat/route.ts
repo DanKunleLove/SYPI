@@ -14,7 +14,7 @@ import {
 import { CHAT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { createAgentTools, type AgentContext } from "@/lib/ai/agent-tools";
 import { extractUrls, fetchSiteEvidence } from "@/lib/ai/url-research";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
 // Agent turns can chain research → generation → review; give them room.
@@ -36,9 +36,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const burst = checkRateLimit(`chat:${user.id}`, 20, 60_000);
-  if (!burst.ok) return rateLimitResponse(burst.retryAfter);
-
   let body: { messages?: unknown; canvasContext?: unknown; projectId?: unknown };
   try {
     body = await request.json();
@@ -59,6 +56,9 @@ export async function POST(request: Request) {
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
+
+  const limited = await enforceAiQuota(user.id, "chat");
+  if (limited) return limited;
 
   // Build system prompt with canvas context
   const context =

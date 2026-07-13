@@ -18,9 +18,8 @@ import {
   type ArchitectureOutput,
 } from "@/lib/ai/schemas";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
+import { checkAiQuota } from "@/lib/ai/limits";
 import { Prisma } from "@/app/generated/prisma/client";
-
-const DAILY_LIMIT = 100;
 
 /** Mutable per-request context shared by the agent's tools. `canvasContext`
  * is updated after a generation so later tool calls in the same turn see
@@ -62,14 +61,9 @@ export function createAgentTools(ctx: AgentContext) {
           .describe("A URL the user referenced, to ground the design in the real site"),
       }),
       execute: async ({ description, url }) => {
-        // Durable daily cap (same policy as the direct generate route).
-        const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const dailyCount = await prisma.aIGeneration.count({
-          where: { project: { userId: ctx.userId }, createdAt: { gte: dayAgo } },
-        });
-        if (dailyCount >= DAILY_LIMIT) {
-          return { error: `Daily generation limit reached (${DAILY_LIMIT}/24h). Try again later.` };
-        }
+        // Same quota pool as the direct generate route.
+        const quota = await checkAiQuota(ctx.userId, "generate");
+        if (!quota.ok) return { error: quota.error };
 
         const urls = url ? [url] : extractUrls(description, 1);
         let system = GENERATION_SYSTEM_PROMPT;
@@ -136,6 +130,8 @@ export function createAgentTools(ctx: AgentContext) {
         if (!ctx.canvasContext) {
           return { error: "The canvas is empty — there is nothing to review yet." };
         }
+        const quota = await checkAiQuota(ctx.userId, "critique");
+        if (!quota.ok) return { error: quota.error };
         const result = await generateObject({
           model: await resolveModelForProject(ctx.projectId, "flash"),
           schema: CritiqueOutputSchema,
@@ -162,6 +158,8 @@ export function createAgentTools(ctx: AgentContext) {
         if (!ctx.canvasContext) {
           return { error: "The canvas is empty — use generateArchitecture instead." };
         }
+        const quota = await checkAiQuota(ctx.userId, "refine");
+        if (!quota.ok) return { error: quota.error };
         try {
           const result = await generateObject({
             model: await resolveModelForProject(ctx.projectId, "pro"),

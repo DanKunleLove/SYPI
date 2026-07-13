@@ -7,7 +7,7 @@ import {
 } from "@/lib/ai/index";
 import { PLANNING_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { extractUrls, fetchSiteEvidence } from "@/lib/ai/url-research";
-import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser } from "@/lib/project-access";
 
 const MAX_TURNS = 40;
@@ -40,9 +40,6 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const burst = checkRateLimit(`plan:${user.id}`, 15, 60_000);
-  if (!burst.ok) return rateLimitResponse(burst.retryAfter);
-
   let body: { messages?: unknown; prompt?: unknown; canvasContext?: unknown };
   try {
     body = await request.json();
@@ -69,6 +66,9 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  const limited = await enforceAiQuota(user.id, "plan");
+  if (limited) return limited;
 
   const context =
     typeof body.canvasContext === "string"

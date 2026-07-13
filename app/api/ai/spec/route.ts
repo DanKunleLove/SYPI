@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { resolveModelForProject } from "@/lib/ai/index";
 import { SPEC_OVERVIEW_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
 /**
@@ -33,11 +34,14 @@ export async function POST(request: Request) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
 
+  const limited = await enforceAiQuota(user.id, "spec");
+  if (limited) return limited;
+
   try {
     const { text } = await generateText({
       model: await resolveModelForProject(projectId, "flash"),
       system: SPEC_OVERVIEW_SYSTEM_PROMPT,
-      prompt: `Write the overview for this architecture:\n\n${canvasContext}`,
+      prompt: `Write the overview for this architecture:\n\n${canvasContext.slice(0, 24_000)}`,
     });
     return Response.json({ overview: text.trim() });
   } catch (error) {

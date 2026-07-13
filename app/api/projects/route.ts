@@ -56,9 +56,13 @@ export async function POST(request: Request) {
   }
 
   const name =
-    typeof body.name === "string" ? body.name.trim() || "Untitled Project" : "Untitled Project";
+    typeof body.name === "string"
+      ? body.name.trim().slice(0, 120) || "Untitled Project"
+      : "Untitled Project";
   const description =
-    typeof body.description === "string" ? body.description.trim() || null : null;
+    typeof body.description === "string"
+      ? body.description.trim().slice(0, 500) || null
+      : null;
 
   const project = await prisma.project.create({
     data: {

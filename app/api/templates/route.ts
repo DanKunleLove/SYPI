@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getDbUser } from "@/lib/project-access";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
+
+// A template is a canvas snapshot — cap what one row may hold in the DB.
+const MAX_SCHEMA_BYTES = 500_000;
 
 /**
  * GET /api/templates
@@ -58,6 +62,12 @@ export async function POST(request: NextRequest) {
   if (!schema || typeof schema !== "object") {
     return Response.json({ error: "Canvas schema is required" }, { status: 400 });
   }
+  if (JSON.stringify(schema).length > MAX_SCHEMA_BYTES) {
+    return Response.json({ error: "Template too large to save" }, { status: 400 });
+  }
+
+  const burst = checkRateLimit(`tpl:${user.id}`, 10, 60_000);
+  if (!burst.ok) return rateLimitResponse(burst.retryAfter);
 
   const template = await prisma.canvasTemplate.create({
     data: {

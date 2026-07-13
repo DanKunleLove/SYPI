@@ -1,5 +1,6 @@
 import { tasks } from "@trigger.dev/sdk";
 import { prisma } from "@/lib/prisma";
+import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import type { critiqueArchitectureTask } from "@/trigger/critique-architecture";
 
@@ -17,7 +18,10 @@ export async function POST(request: Request) {
   }
 
   const projectId = body.projectId as string | undefined;
-  const canvasContext = body.canvasContext as string | undefined;
+  const canvasContext =
+    typeof body.canvasContext === "string"
+      ? body.canvasContext.slice(0, 24_000)
+      : undefined;
 
   if (!projectId || !canvasContext) {
     return Response.json(
@@ -30,6 +34,9 @@ export async function POST(request: Request) {
   if (!access.project) {
     return Response.json({ error: access.reason }, { status: 403 });
   }
+
+  const limited = await enforceAiQuota(user.id, "critique");
+  if (limited) return limited;
 
   const generation = await prisma.aIGeneration.create({
     data: {
