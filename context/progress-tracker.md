@@ -6,6 +6,55 @@ Update this file after every meaningful implementation change.
 
 **2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
 
+### 2026-09-11 — Unit 0: production sync + Next security upgrade (USS programme begins)
+
+Start of the **System Engineering Intelligence** programme (master plan: USS as the canonical
+semantic representation; canvas/Kit/spec/bundle become renderers). Unit 0 = reach a known-good,
+reversible baseline before building. Read-only audit first, mutation only after approval.
+
+**Audit findings (read-only):**
+- Local `main` was **5 commits ahead of `origin/main`** and unpushed since 2026-07-13 —
+  prod had been running `87290b1` with no AI quota enforcement and no kill switches.
+- **One shared database.** `DEPLOY.md:53` documents it: local `.env` points at production Neon.
+  Verified the real DDL (not just the `_prisma_migrations` ledger — the tracker records a past
+  "PgBouncer ate DDL" incident): `PlatformFlag` table and `User.platformRole/status/dailyGenLimit`
+  all present. **Both "pending" migrations were already applied to prod**, so the feared ordering
+  risk (deploying code that calls `getDisabledFlags` before the table exists) was already moot.
+- Ledger anomaly checked: `20260604200000_add_share_token` appears twice, the failed row has
+  `rolled_back_at` set → Prisma treats it as resolved, `migrate deploy` will work for future units.
+- `tsc --noEmit` clean; `next build` exit 0; working tree clean.
+- **`sypi-ai-dev.vercel.app` is dead** — `X-Vercel-Error: DEPLOYMENT_NOT_FOUND`, no deployment
+  assigned to that hostname. The Vercel project is `spi` under `dan-kunle-adelusis-projects`.
+  README, this tracker and (probably) `NEXT_PUBLIC_APP_URL` are stale — which would break email
+  deep links and OG images. **Needs a real production alias.**
+- Deployment Protection is ON: every path returns the same ~340KB Vercel interstitial with HTTP
+  200, so unauthenticated runtime smoke-testing is impossible. Build status is verifiable via the
+  GitHub deployments API; runtime is not.
+
+**Mutations (approved):**
+- Pushed `87290b1..e32ca29` (command palette, central AI quotas, admin user management,
+  admin AI ops + kill switches, onboarding checklist). Vercel deployment `state=success`.
+- **`next 16.2.6 → 16.3.5`** (commit `b8be548`, non-semver-major). Clears 11 advisories incl. two
+  critical unauthenticated RCEs and a **middleware/proxy bypass** — the important one, since all
+  route protection gates on `proxy.ts` and the advisory targets App Router + Turbopack + single
+  locale, which describes this app. Exposure was assessed per-advisory rather than by CVE count:
+  the Windows RCE is local-dev-only (prod is Linux) and the AVIF RCE is low (`next/image` unused,
+  no `remotePatterns`). `npm audit` critical **1 → 0**. Deployment `state=success`.
+- Remaining 21 highs are almost entirely **Trigger.dev's dependency tree** (socket.io, engine.io,
+  hono, mysql2, systeminformation, @opentelemetry/*) plus the Prisma CLI. Independent
+  reinforcement for retiring Trigger.dev (planned Unit 4) rather than extending it.
+
+**Open / blocking next steps:**
+1. **Neon dev branch** — approved but not done; no `neonctl` or Neon API key locally. Until it
+   exists, any `prisma migrate dev` hits production. **Blocks Unit 1's `SystemSpec` migration.**
+2. Runtime smoke tests on prod (`/admin/ai`, `/admin/users`, Ctrl+K, one generation, one Kit) —
+   need a logged-in session; blocked by Deployment Protection.
+3. Set a stable production alias and update `NEXT_PUBLIC_APP_URL`, README and this file.
+
+**Next:** Unit 0.5 — evaluation harness + baseline (10 canonical briefs, deterministic scorers),
+so Unit 1's delta is measurable rather than asserted. Unit 0.5 needs no database, so it proceeds
+while (1) is outstanding.
+
 ### 2026-07-13 (later) — Platform hardening + admin control + onboarding v4 (3 phases, one session)
 
 Dan approved the phased admin/guardrails plan. All four shipped, each its own commit.
