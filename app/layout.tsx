@@ -18,7 +18,7 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sypi-ai-dev.vercel.app";
+const rawUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://sypi-dev.vercel.app";
 const APP_URL = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
 
 export const metadata: Metadata = {

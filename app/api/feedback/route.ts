@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         user.name ?? user.email
       )} (${user.email})${path ? ` on <code>${escapeHtml(path)}</code>` : ""}:</p>
 <blockquote>${escapeHtml(message).replace(/\n/g, "<br/>")}</blockquote>
-<p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://sypi-ai-dev.vercel.app"}/admin">Open the admin board</a></p>`,
+<p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? "https://sypi-dev.vercel.app"}/admin">Open the admin board</a></p>`,
     }).catch(() => {});
   }
 

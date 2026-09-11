@@ -2,7 +2,7 @@
 
 **Design system architectures with your AI Twin.** Describe a system in plain English — or paste a live URL — and SYPI plans, generates, reviews, and places a production-grade architecture on a real-time collaborative canvas. Then export it as a spec, a Mermaid diagram, or an agent bundle your coding AI can implement directly.
 
-Live: **[sypi-ai-dev.vercel.app](https://sypi-ai-dev.vercel.app)**
+Live: **[sypi-dev.vercel.app](https://sypi-dev.vercel.app)**
 
 Built by [Adelusi Dan Kunle](https://github.com/DanKunleLove) — AI Engineer, LLM Specialist, Automation Architect (Lagos).
 

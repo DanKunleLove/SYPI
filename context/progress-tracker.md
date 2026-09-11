@@ -4,7 +4,7 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**2026-06-07: DEPLOYED — Live at https://spi-ai-dev.vercel.app**
+**2026-09-11: DEPLOYED — Live at https://sypi-dev.vercel.app** (Vercel project `spi`)
 
 ### 2026-09-11 — Unit 0: production sync + Next security upgrade (USS programme begins)
 
@@ -23,10 +23,12 @@ reversible baseline before building. Read-only audit first, mutation only after 
 - Ledger anomaly checked: `20260604200000_add_share_token` appears twice, the failed row has
   `rolled_back_at` set → Prisma treats it as resolved, `migrate deploy` will work for future units.
 - `tsc --noEmit` clean; `next build` exit 0; working tree clean.
-- **`sypi-ai-dev.vercel.app` is dead** — `X-Vercel-Error: DEPLOYMENT_NOT_FOUND`, no deployment
-  assigned to that hostname. The Vercel project is `spi` under `dan-kunle-adelusis-projects`.
-  README, this tracker and (probably) `NEXT_PUBLIC_APP_URL` are stale — which would break email
-  deep links and OG images. **Needs a real production alias.**
+- **The documented URL was wrong.** `sypi-ai-dev.vercel.app` returns `X-Vercel-Error:
+  DEPLOYMENT_NOT_FOUND`. The real host is **`sypi-dev.vercel.app`** (Vercel project `spi` under
+  `dan-kunle-adelusis-projects`), confirmed live. The dead URL was hardcoded as a fallback in
+  `app/layout.tsx` (OG `metadataBase`), `app/api/feedback/route.ts` (admin email link) and — worst —
+  `lib/ai/kit.ts`, which stamped it into **every generated System Kit**. All corrected.
+  `NEXT_PUBLIC_APP_URL` in Vercel still needs setting to `https://sypi-dev.vercel.app`.
 - Deployment Protection is ON: every path returns the same ~340KB Vercel interstitial with HTTP
   200, so unauthenticated runtime smoke-testing is impossible. Build status is verifiable via the
   GitHub deployments API; runtime is not.
@@ -44,16 +46,24 @@ reversible baseline before building. Read-only audit first, mutation only after 
   hono, mysql2, systeminformation, @opentelemetry/*) plus the Prisma CLI. Independent
   reinforcement for retiring Trigger.dev (planned Unit 4) rather than extending it.
 
-**Open / blocking next steps:**
-1. **Neon dev branch** — approved but not done; no `neonctl` or Neon API key locally. Until it
-   exists, any `prisma migrate dev` hits production. **Blocks Unit 1's `SystemSpec` migration.**
+**Neon dev branch — DONE.** Dan created branch `dev` (endpoint `ep-fancy-pine-apo96kjd`), verified
+as a genuine copy-on-write branch: different endpoint from prod (`ep-little-tooth-ap94gbun`),
+identical schema, identical row counts (6 users / 10 projects / 6 generations). Local `.env`
+`DATABASE_URL` now points at it; the production URL is preserved in the same file, commented as
+`PROD_DATABASE_URL`, for `prisma migrate deploy` to prod only. `prisma migrate status` confirms
+local resolves to the dev endpoint. **Migrations can no longer touch production by accident.**
+
+**Still open (need Dan):**
+1. Set `NEXT_PUBLIC_APP_URL=https://sypi-dev.vercel.app` in Vercel — currently unset, so OG images
+   and feedback-email links fall back to the (now corrected) hardcoded default.
 2. Runtime smoke tests on prod (`/admin/ai`, `/admin/users`, Ctrl+K, one generation, one Kit) —
-   need a logged-in session; blocked by Deployment Protection.
-3. Set a stable production alias and update `NEXT_PUBLIC_APP_URL`, README and this file.
+   need a logged-in session; Deployment Protection blocks unauthenticated checks. Note that all
+   non-public routes correctly return the Clerk sign-in page, so `proxy.ts` protection is working
+   (relevant given the middleware-bypass advisory just patched).
 
 **Next:** Unit 0.5 — evaluation harness + baseline (10 canonical briefs, deterministic scorers),
-so Unit 1's delta is measurable rather than asserted. Unit 0.5 needs no database, so it proceeds
-while (1) is outstanding.
+so Unit 1's delta is measurable rather than asserted.
+
 
 ### 2026-07-13 (later) — Platform hardening + admin control + onboarding v4 (3 phases, one session)
 
