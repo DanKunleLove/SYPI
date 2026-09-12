@@ -16,7 +16,14 @@ import {
 } from "@/lib/ai/schemas";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
 import { enforceAiQuota } from "@/lib/ai/limits";
-import { classifyComplexity, extractIntent, finalise } from "@/lib/ai/uss";
+import {
+  classifyComplexity,
+  extractCapabilities,
+  extractIntent,
+  extractRequirements,
+  finalise,
+} from "@/lib/ai/uss";
+import { applyImplications, deriveImplications, ruleCoverage } from "@/lib/uss/reasoning";
 import { commitSpec, getOrCreateSpec } from "@/lib/uss/store";
 import { renderUssForPrompt } from "@/lib/uss/render";
 import { materialOpenDecisions } from "@/lib/uss/views";
@@ -166,6 +173,20 @@ export async function POST(request: Request) {
 
           let doc = await extractIntent(current.doc, passCtx);
           doc = await classifyComplexity(doc, passCtx);
+
+          // ── The reasoning chain ────────────────────────────────────────────
+          // requirement → implication → capability → (architecture, next)
+          // The implication rulebook is deterministic and free, so it runs on
+          // every path. It is what stops a marketplace shipping without payment
+          // idempotency: a model can forget, a rule cannot.
+          doc = await extractRequirements(doc, passCtx);
+          doc = await extractCapabilities(doc, passCtx);
+          doc = applyImplications(
+            doc,
+            deriveImplications(doc).map((d) => ({ ...d, source: "rule" as const })),
+            passCtx.version
+          );
+
           doc = finalise(doc);
 
           const saved = await commitSpec({
@@ -178,10 +199,19 @@ export async function POST(request: Request) {
           });
 
           budgetBlock = renderUssForPrompt(saved.doc, {
-            sections: ["product", "actors", "constraints", "complexity"],
-            maxChars: 6_000,
+            sections: [
+              "product",
+              "actors",
+              "requirements",
+              "constraints",
+              "capabilities",
+              "implications",
+              "complexity",
+            ],
+            maxChars: 12_000,
           });
 
+          const coverage = ruleCoverage(saved.doc);
           controller.enqueue(
             line({
               type: "spec",
@@ -189,6 +219,10 @@ export async function POST(request: Request) {
               tier: saved.doc.complexity.tier,
               tierLabel: saved.doc.complexity.label,
               materialDecisions: materialOpenDecisions(saved.doc).length,
+              implications: coverage.total,
+              // Share derived by rule rather than by the model. If this drops,
+              // the rulebook has stopped carrying its weight.
+              ruleCoveragePct: coverage.pct,
             })
           );
         } catch (e) {

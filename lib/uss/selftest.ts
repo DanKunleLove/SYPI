@@ -179,5 +179,78 @@ const withDecisions = mutate(simple, (g) => {
 });
 check("only material decisions are surfaced", materialOpenDecisions(withDecisions).length === 1);
 
+// ─── Unit 2: the reasoning chain ─────────────────────────────────────────────
+
+import { applyImplications, deriveImplications, ruleCoverage } from "@/lib/uss/reasoning";
+import { UssGraph } from "@/lib/uss/graph";
+import { implications as implicationsView } from "@/lib/uss/views";
+
+console.log("");
+
+// The canonical case from the plan: "users upload 2GB videos" must imply
+// multipart, async processing, job state, progress and recovery — WITHOUT any
+// model being asked.
+const uploads = mutate(
+  { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 3, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) },
+  (g) => {
+    g.add("product", { ...prov, title: "Video platform", problem: "Users upload and share video.", valueProposition: "", inScope: [], outOfScope: [], successCriteria: ["a user can upload a 2GB video"] });
+    g.add("actor", { ...prov, title: "Creator", description: "", isHuman: true, goals: [], permissions: ["upload video"] });
+    g.add("actor", { ...prov, title: "Viewer", description: "", isHuman: true, goals: [], permissions: ["watch video"] });
+    g.add("requirement", { ...prov, title: "Upload large video", requirementKind: "functional", statement: "Users upload video files up to 2GB in size", acceptanceCriteria: ["a 2GB upload completes"], priority: "must" });
+    g.add("requirement", { ...prov, title: "Process uploaded video", requirementKind: "functional", statement: "Uploaded video is transcoded before playback", acceptanceCriteria: ["playback works"], priority: "must" });
+    g.add("capability", { ...prov, title: "OBJECT_STORAGE", capabilityClass: "OBJECT_STORAGE", why: "stores video" });
+  }
+);
+
+const drafts = deriveImplications(uploads);
+check("2GB upload derives implications with no model call", drafts.length >= 5, `${drafts.length} derived`);
+const statements = drafts.map((d) => d.statement.toLowerCase()).join(" | ");
+check("implies resumable/multipart upload", /multipart|resumable/.test(statements));
+check("implies async background processing", /background job|async/.test(statements));
+check("implies progress reporting", /progress/.test(statements));
+check("implies failure recovery", /resumable or cleanly discarded|recover/.test(statements));
+
+const withImplications = applyImplications(uploads, drafts.map((d) => ({ ...d, source: "rule" as const })), 2);
+const coverage = ruleCoverage(withImplications);
+check("rule coverage is at least 70%", coverage.pct >= 70, `${coverage.pct}% of ${coverage.total}`);
+
+// The chain must be TRAVERSABLE: implication → capability, and requirement → implication.
+const cg = new UssGraph(withImplications);
+const anyImplication = implicationsView(withImplications)[0];
+check("implication demands a capability", cg.neighbours(anyImplication.id, "requires").length > 0);
+const tracedFromRequirement = cg
+  .byKind("requirement")
+  .some((r) => cg.from(r.id, "implies").length > 0);
+check("requirement traces forward to an implication", tracedFromRequirement);
+
+// Capabilities the implications demanded but the spec lacked must be created,
+// so the gap surfaces rather than silently vanishing.
+const capClasses = cg.byKind("capability").map((c) => c.capabilityClass);
+check("missing demanded capability is created", capClasses.includes("QUEUE"), capClasses.join(","));
+
+// Payments: the baseline's worst miss. A rule must never forget idempotency.
+const marketplace = mutate(uploads, (g) => {
+  g.add("requirement", { ...prov, title: "Take payment", requirementKind: "functional", statement: "Customers pay for orders by card at checkout", acceptanceCriteria: ["payment succeeds"], priority: "must" });
+  g.add("capability", { ...prov, title: "PAYMENTS", capabilityClass: "PAYMENTS", why: "checkout" });
+});
+const payStatements = deriveImplications(marketplace).map((d) => d.statement.toLowerCase()).join(" | ");
+check("payments implies webhook idempotency", /idempotent/.test(payStatements));
+check("payments implies signature verification", /signature-verified|signature/.test(payStatements));
+check("payments implies an auditable record", /append-only|audit/.test(payStatements));
+check("order lifecycle implies a state machine", /named states|legal transitions/.test(payStatements));
+
+// Multiple human actors must imply per-request authorization.
+check("two actors imply authorization per request", /authorization is decided per request/.test(payStatements));
+
+// Rules must respect the budget: a tier-1 project must not acquire a CDN.
+const tiny = mutate(
+  { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 1, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) },
+  (g) => {
+    g.add("requirement", { ...prov, title: "Browse public catalog", requirementKind: "functional", statement: "Anyone can browse the public feed and catalog", acceptanceCriteria: ["page loads"], priority: "must" });
+  }
+);
+const tinyDemands = deriveImplications(tiny).flatMap((d) => d.demands);
+check("tier 1 does not acquire a CDN from the read-scaling rule", !tinyDemands.includes("CDN"), tinyDemands.join(","));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

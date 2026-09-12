@@ -87,6 +87,8 @@ export const entityKindEnum = z.enum([
   "decision",
   "openDecision",
   "term",
+  "implication",
+  "tradeoff",
 ]);
 export type EntityKind = z.infer<typeof entityKindEnum>;
 
@@ -286,6 +288,39 @@ export const TermEntity = z.object({
 });
 
 /**
+ * The missing link between "what the client asked for" and "what the system needs".
+ *
+ * "Users upload 2GB videos" does not imply S3. It implies: uploads exceed a single
+ * request, therefore resumable multipart upload; processing exceeds a request
+ * timeout, therefore async work with job state; users need to know it is working,
+ * therefore progress reporting; any of it can fail, therefore recovery. THOSE imply
+ * object storage and a queue. Technology is the last step, never the first.
+ */
+export const ImplicationEntity = z.object({
+  ...base,
+  kind: z.literal("implication"),
+  statement: z.string().max(500),
+  /** What in the requirements triggered it — shown in the "why" trace. */
+  trigger: z.string().max(300).default(""),
+  /**
+   * A rule-derived implication is reproducible and free; a model-derived one is
+   * neither. Tracking which is which is how we measure whether the rulebook is
+   * carrying its weight rather than the model quietly doing all the work.
+   */
+  source: z.enum(["rule", "model"]),
+  /** Capability classes this implication demands. Validated against the registry. */
+  demands: z.array(z.string().max(40)).max(6).default([]),
+});
+
+export const TradeoffEntity = z.object({
+  ...base,
+  kind: z.literal("tradeoff"),
+  statement: z.string().max(400),
+  gains: z.array(z.string().max(200)).max(5).default([]),
+  costs: z.array(z.string().max(200)).max(5).default([]),
+});
+
+/**
  * Adding a kind here is the ONLY change a future unit needs to introduce a new
  * concept. Envelope, storage, migration and existing views stay untouched.
  *   domain unit → domainEntity, invariant, workflow, state, transition, dataStore, api, event
@@ -307,6 +342,8 @@ export const EntitySchema = z.discriminatedUnion("kind", [
   DecisionEntity,
   OpenDecisionEntity,
   TermEntity,
+  ImplicationEntity,
+  TradeoffEntity,
 ]);
 export type Entity = z.infer<typeof EntitySchema>;
 
@@ -319,7 +356,7 @@ export type Entity = z.infer<typeof EntitySchema>;
  */
 export const relationTypeEnum = z.enum([
   "actsOn", // actor    → useCase
-  "requires", // requirement → capability
+  "requires", // requirement | implication → capability
   "satisfies", // component → requirement     ← absence of this is an orphan
   "realizes", // component → capability
   "dependsOn", // component → component       ← this is the canvas edge
@@ -328,6 +365,7 @@ export const relationTypeEnum = z.enum([
   "assumes", // decision  → assumption
   "blocks", // openDecision → any
   "constrains", // constraint → any
+  "implies", // requirement | constraint → implication
 ]);
 export type RelationType = z.infer<typeof relationTypeEnum>;
 

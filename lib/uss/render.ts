@@ -12,6 +12,8 @@ import {
   product,
   requirements,
   sectionIsEmpty,
+  implications,
+  tradeoffs,
   unknowns,
   useCases,
   type UssSection,
@@ -50,6 +52,7 @@ export interface RenderOptions {
 
 /** Sections dropped first when the render exceeds maxChars. */
 const DROP_ORDER: UssSection[] = [
+  "tradeoffs",
   "glossary",
   "assumptions",
   "unknowns",
@@ -138,6 +141,20 @@ function renderSection(doc: Uss, section: UssSection): string | null {
     case "glossary":
       return `GLOSSARY:\n${glossary(doc)
         .map((t) => `- ${t.title}: ${t.definition}`)
+        .join("\n")}`;
+    case "implications":
+      // Rendered as REQUIREMENTS OF THE DESIGN rather than as suggestions. These
+      // are the things the baseline showed a model will otherwise omit — payment
+      // idempotency, order lifecycles, tenant scoping — so they are stated as
+      // obligations the architecture must satisfy, not as advice it may take.
+      return `WHAT THE REQUIREMENTS IMPLY — the design MUST account for each of these:\n${implications(
+        doc
+      )
+        .map((i) => `- ${i.statement}${i.trigger ? ` (because: ${i.trigger})` : ""}`)
+        .join("\n")}`;
+    case "tradeoffs":
+      return `TRADEOFFS:\n${tradeoffs(doc)
+        .map((t) => `- ${t.statement}${t.costs.length ? ` — costs: ${t.costs.join(", ")}` : ""}`)
         .join("\n")}`;
   }
 }

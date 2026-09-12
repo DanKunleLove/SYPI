@@ -251,6 +251,7 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
               open={rightPanel.type === "inspector"}
               nodeId={rightPanel.type === "inspector" ? rightPanel.nodeId : null}
               onClose={handleCloseRightPanel}
+              projectId={project.id}
             />
           </div>
 

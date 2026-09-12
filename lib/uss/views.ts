@@ -20,7 +20,9 @@ export type UssSection =
   | "capabilities"
   | "architecture"
   | "glossary"
-  | "complexity";
+  | "complexity"
+  | "implications"
+  | "tradeoffs";
 
 export const ALL_SECTIONS: UssSection[] = [
   "product",
@@ -37,6 +39,8 @@ export const ALL_SECTIONS: UssSection[] = [
   "architecture",
   "glossary",
   "complexity",
+  "implications",
+  "tradeoffs",
 ];
 
 type Of<K extends Entity["kind"]> = Extract<Entity, { kind: K }>;
@@ -91,6 +95,14 @@ export function components(doc: Uss): Of<"component">[] {
 
 export function glossary(doc: Uss): Of<"term">[] {
   return new UssGraph(doc).byKind("term");
+}
+
+export function implications(doc: Uss): Of<"implication">[] {
+  return new UssGraph(doc).byKind("implication");
+}
+
+export function tradeoffs(doc: Uss): Of<"tradeoff">[] {
+  return new UssGraph(doc).byKind("tradeoff");
 }
 
 export function openDecisions(doc: Uss): Of<"openDecision">[] {
@@ -163,5 +175,9 @@ export function sectionIsEmpty(doc: Uss, section: UssSection): boolean {
       return components(doc).length === 0;
     case "glossary":
       return glossary(doc).length === 0;
+    case "implications":
+      return implications(doc).length === 0;
+    case "tradeoffs":
+      return tradeoffs(doc).length === 0;
   }
 }

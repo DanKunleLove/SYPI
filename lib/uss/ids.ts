@@ -23,6 +23,8 @@ const PREFIX: Record<EntityKind, string> = {
   decision: "DEC",
   openDecision: "OPN",
   term: "TRM",
+  implication: "IMP",
+  tradeoff: "TRD",
 };
 
 export function prefixFor(kind: EntityKind): string {

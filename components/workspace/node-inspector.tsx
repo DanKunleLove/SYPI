@@ -20,14 +20,17 @@ import {
   CATEGORY_CONFIG_FIELDS,
 } from "@/lib/canvas-utils";
 import type { CanvasNodeData, NodeCategory } from "@/types/canvas";
+import { WhyPanel } from "@/components/workspace/why-panel";
 
 interface NodeInspectorProps {
   open: boolean;
   nodeId: string | null;
   onClose: () => void;
+  /** Optional: when present, the inspector can trace why this component exists. */
+  projectId?: string;
 }
 
-export function NodeInspector({ open, nodeId, onClose }: NodeInspectorProps) {
+export function NodeInspector({ open, nodeId, onClose, projectId }: NodeInspectorProps) {
   const reactFlow = useReactFlow();
 
   const node = nodeId ? reactFlow.getNode(nodeId) : null;
@@ -272,6 +275,13 @@ export function NodeInspector({ open, nodeId, onClose }: NodeInspectorProps) {
                     })}
                   </div>
                 </Section>
+              )}
+
+              {/* Why this exists — the reasoning chain, read backwards */}
+              {projectId && typeof nodeData.label === "string" && (
+                <div className="border-t border-[var(--border-default)] pt-4">
+                  <WhyPanel projectId={projectId} label={nodeData.label} />
+                </div>
               )}
 
               {/* Notes Section */}
