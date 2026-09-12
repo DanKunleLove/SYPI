@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "eval": "tsx evals/run.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
