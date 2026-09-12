@@ -186,6 +186,26 @@ export const IMPLICATION_RULES: ImplicationRule[] = [
     ],
   },
 
+  // ── Any non-public system needs to know who is asking ──────────────────────
+  // Added after the benchmark caught a real regression: a single-actor internal
+  // tool produced a read replica and NO authentication, because the multi-actor
+  // rule below needs two actor types to fire. One kind of user still needs a
+  // login; "internal" is not an access control.
+  {
+    id: "authentication",
+    when: (d, ctx) =>
+      actors(d).some((a) => a.isHuman) &&
+      !mentions(ctx, "public", "anonymous", "no login", "no sign-in", "open to anyone"),
+    derive: () => [
+      {
+        statement: "The system must establish who is making each request; being internal or unlisted is not access control",
+        trigger: "People sign in to use this",
+        demands: ["AUTH"],
+        weight: 10,
+      },
+    ],
+  },
+
   // ── Several kinds of user ──────────────────────────────────────────────────
   {
     id: "multi-actor-authz",

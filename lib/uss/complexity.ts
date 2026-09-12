@@ -137,6 +137,13 @@ export function renderBudgetForPrompt(complexity: Complexity): string {
     `COMPLEXITY BUDGET — tier ${tier} (${label}): ${def.description}`,
     def.guidance,
     `Hard limit: at most ${budget.maxComponents} components.`,
+    // The benchmark caught a design meeting its budget by dropping authentication
+    // and spending the slot on a read replica. The limit must bind OPTIONAL
+    // infrastructure; it must never be satisfied by omitting something required.
+    `The limit applies to OPTIONAL infrastructure — replicas, caches, extra services, ` +
+      `nice-to-haves. NEVER meet this limit by omitting a component that a stated ` +
+      `requirement or implication demands. If you cannot fit everything required, ` +
+      `include what is required and drop the optional extras instead.`,
     bans.length
       ? `DO NOT include ${bans.join("; ")}. These are not justified at this tier, however standard they may seem.`
       : "All architectural patterns are available if a requirement justifies them.",

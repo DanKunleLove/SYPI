@@ -133,10 +133,21 @@ function isQuotaError(e: unknown): boolean {
   return msg.includes("quota") || msg.includes("rate limit") || msg.includes("429");
 }
 
-/** True when an error is a transient connectivity failure rather than a rejection. */
+/**
+ * Transient failures worth retrying — connectivity, and structured-output parse
+ * failures.
+ *
+ * The parse case is not a network problem but behaves like one: Nemotron
+ * occasionally returns malformed JSON for a schema it handles correctly on the
+ * next attempt. Losing a 10-minute brief to one bad sample is not a real signal
+ * about the design, so it is retried rather than recorded as a failure.
+ */
 function isNetworkError(e: unknown): boolean {
   const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
   return (
+    msg.includes("could not parse the response") ||
+    msg.includes("no object generated") ||
+    msg.includes("response did not match schema") ||
     msg.includes("enotfound") ||
     msg.includes("econnreset") ||
     msg.includes("etimedout") ||
@@ -188,7 +199,11 @@ async function withNetworkRetry<T>(
     } catch (e) {
       lastError = e;
       if (!isNetworkError(e) || i === attempts - 1) throw e;
-      const waitMs = 30_000 * (i + 1);
+      // A parse failure needs no cooldown - retry promptly; a network outage does.
+      const parseFailure = /parse the response|no object generated|match schema/i.test(
+        e instanceof Error ? e.message : String(e)
+      );
+      const waitMs = parseFailure ? 3_000 : 30_000 * (i + 1);
       process.stdout.write(
         `    network error during ${label} — retrying in ${waitMs / 1000}s (attempt ${i + 2}/${attempts})\n`
       );

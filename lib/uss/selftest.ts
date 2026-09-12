@@ -496,6 +496,35 @@ const frugalCtx = readBindingConstraints(frugal);
 check("a budget constraint is detected", frugalCtx.costSensitive);
 check("the constraint is quoted in the audit trail", frugalCtx.sources.some((s) => /bootstrapping/i.test(s)));
 
+// ─── Regressions caught by the benchmark ─────────────────────────────────────
+
+console.log("");
+
+// A single-actor internal tool must still demand authentication. The benchmark
+// caught a design that met its component budget by dropping auth and spending the
+// slot on a read replica — "internal" is not an access control.
+const soloActorDemands = derImp(simple).flatMap((d) => d.demands);
+check(
+  "a single-actor internal tool still demands AUTH",
+  soloActorDemands.includes("AUTH"),
+  soloActorDemands.join(",") || "none"
+);
+
+// A system explicitly described as public should not be forced into a login.
+const publicSite = mutate(simple, (g) => {
+  g.add("requirement", { ...prov, title: "Public catalogue", requirementKind: "functional", statement: "Anyone can browse the public catalogue anonymously with no login", acceptanceCriteria: ["page loads"], priority: "must" });
+});
+check(
+  "an explicitly public system is not forced into authentication",
+  !derImp(publicSite).some((d) => d.statement.includes("who is making each request"))
+);
+
+// The budget must bind optional infrastructure, not required capability.
+check(
+  "the budget prompt forbids meeting the limit by dropping required components",
+  renderBudgetForPrompt(simple.complexity).includes("NEVER meet this limit by omitting")
+);
+
 // ─── Unit 7: execution targets ───────────────────────────────────────────────
 
 import { EXECUTION_TARGETS, getTarget, isTargetId, targetSystemPrompt } from "@/lib/uss/targets";
