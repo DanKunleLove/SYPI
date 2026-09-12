@@ -13,6 +13,7 @@ import { UssGraph } from "@/lib/uss/graph";
 import { detectGaps, checkIntegrity, computeCompleteness } from "@/lib/uss/gaps";
 import { IdAllocator } from "@/lib/uss/ids";
 import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
+import { applyBindings } from "@/lib/uss/binding";
 import { scenarioFindings } from "@/lib/uss/scenarios";
 import type { Uss } from "@/lib/uss/schema";
 
@@ -462,7 +463,11 @@ export function finalise(doc: Uss): Uss {
     seedInvariants(doc),
     doc.complexity.firstSeenVersion
   );
-  const withGaps = mergeGaps(withInvariants);
+  // Bind providers once capabilities and constraints are known. Deterministic:
+  // selection from a catalogue against stated constraints is reproducible, and
+  // cannot hallucinate a product that does not exist.
+  const withBindings = applyBindings(withInvariants, withInvariants.complexity.firstSeenVersion);
+  const withGaps = mergeGaps(withBindings);
   return {
     ...withGaps,
     integrity: [

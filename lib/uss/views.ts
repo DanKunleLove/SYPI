@@ -24,7 +24,8 @@ export type UssSection =
   | "implications"
   | "tradeoffs"
   | "domain"
-  | "invariants";
+  | "invariants"
+  | "providers";
 
 export const ALL_SECTIONS: UssSection[] = [
   "product",
@@ -45,6 +46,7 @@ export const ALL_SECTIONS: UssSection[] = [
   "tradeoffs",
   "domain",
   "invariants",
+  "providers",
 ];
 
 type Of<K extends Entity["kind"]> = Extract<Entity, { kind: K }>;
@@ -103,6 +105,10 @@ export function glossary(doc: Uss): Of<"term">[] {
 
 export function domainEntities(doc: Uss): Of<"domainEntity">[] {
   return new UssGraph(doc).byKind("domainEntity");
+}
+
+export function providerBindings(doc: Uss): Of<"providerBinding">[] {
+  return new UssGraph(doc).byKind("providerBinding");
 }
 
 export function findings(doc: Uss): Of<"finding">[] {
@@ -203,5 +209,7 @@ export function sectionIsEmpty(doc: Uss, section: UssSection): boolean {
       return domainEntities(doc).length === 0;
     case "invariants":
       return invariants(doc).length === 0;
+    case "providers":
+      return providerBindings(doc).length === 0;
   }
 }

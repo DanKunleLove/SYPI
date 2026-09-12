@@ -209,6 +209,7 @@ export async function POST(request: Request) {
               "requirements",
               "constraints",
               "capabilities",
+              "providers",
               "domain",
               "invariants",
               "implications",

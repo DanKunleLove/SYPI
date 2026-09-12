@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const SECTIONS_BY_FILE: Record<string, UssSection[]> = {
     "project-overview.md": ["product", "actors", "useCases", "requirements", "constraints"],
     "business-overview.md": ["product", "actors", "requirements", "constraints"],
-    "architecture.md": ["architecture", "decisions", "constraints", "complexity", "capabilities", "domain", "invariants"],
+    "architecture.md": ["architecture", "decisions", "constraints", "complexity", "capabilities", "providers", "domain", "invariants"],
     "content-architecture.md": ["product", "architecture", "requirements"],
     "campaign-architecture.md": ["product", "actors", "requirements", "constraints"],
     "workflow-architecture.md": ["architecture", "capabilities", "constraints", "complexity"],
@@ -106,8 +106,8 @@ export async function POST(request: Request) {
     "asset-library.md": ["architecture", "constraints"],
     "sops-and-standards.md": ["actors", "useCases", "constraints"],
     "progress-tracker.md": ["requirements", "openDecisions", "decisions", "assumptions"],
-    "tool-setup.md": ["architecture", "capabilities", "constraints"],
-    "env.example": ["architecture", "capabilities", "constraints"],
+    "tool-setup.md": ["architecture", "capabilities", "providers", "constraints"],
+    "env.example": ["architecture", "capabilities", "providers", "constraints"],
   };
 
   /**

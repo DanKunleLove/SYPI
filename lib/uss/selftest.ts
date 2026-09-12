@@ -255,7 +255,7 @@ check("tier 1 does not acquire a CDN from the read-scaling rule", !tinyDemands.i
 // ─── Unit 3: domain model and invariants ─────────────────────────────────────
 
 import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
-import { invariants as invariantsView, domainEntities } from "@/lib/uss/views";
+import { invariants as invariantsView, domainEntities, decisions as decisionsView } from "@/lib/uss/views";
 
 console.log("");
 
@@ -417,6 +417,84 @@ check(
   authScenario?.outcome === "pass",
   authScenario ? authScenario.reasoning : "scenario did not apply"
 );
+
+// ─── Unit 6: provider binding ────────────────────────────────────────────────
+
+import { applyBindings, chooseProvider, readBindingConstraints } from "@/lib/uss/binding";
+import { providerBindings } from "@/lib/uss/views";
+
+console.log("");
+
+// The case that motivates the whole unit: a Nigerian marketplace must not be
+// handed Stripe, which is not available to businesses there.
+const nigerian = mutate(
+  { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 4, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) },
+  (g) => {
+    g.add("product", { ...prov, title: "Marketplace", problem: "Nigerian users buy from local merchants.", valueProposition: "", inScope: [], outOfScope: [], successCriteria: ["an order completes"] });
+    g.add("requirement", { ...prov, title: "Take payment", requirementKind: "functional", statement: "Customers in Nigeria pay by card", acceptanceCriteria: ["payment taken"], priority: "must" });
+    g.add("capability", { ...prov, title: "PAYMENTS", capabilityClass: "PAYMENTS", why: "checkout" });
+    g.add("capability", { ...prov, title: "RELATIONAL_STORE", capabilityClass: "RELATIONAL_STORE", why: "orders" });
+  }
+);
+
+const ngCtx = readBindingConstraints(nigerian);
+check("market is read from the spec", ngCtx.markets.includes("nigeria"), ngCtx.markets.join(","));
+
+const payChoice = chooseProvider("PAYMENTS", ngCtx);
+check("a payment provider is chosen", Boolean(payChoice));
+check(
+  "a Nigerian marketplace is NOT given Stripe",
+  payChoice?.chosen.id !== "stripe",
+  payChoice?.chosen.label
+);
+check(
+  "the chosen provider serves the stated market",
+  Boolean(payChoice?.chosen.strongIn?.includes("nigeria")),
+  payChoice?.chosen.label
+);
+check("rejected alternatives are recorded with reasons", (payChoice?.rejected.length ?? 0) > 0);
+check(
+  "Stripe's rejection names the market",
+  Boolean(payChoice?.rejected.some((r) => r.option.id === "stripe" && /market/i.test(r.because))),
+  payChoice?.rejected.find((r) => r.option.id === "stripe")?.because
+);
+
+// Bindings become entities, and every real choice produces a decision with
+// rejected alternatives — the schema refuses a decision without one.
+const bound = applyBindings(nigerian, 2);
+check("bindings are written as entities", providerBindings(bound).length >= 2);
+const payDecision = decisionsView(bound).find((d) => /PAYMENTS/.test(d.title));
+check("a decision records the technology choice", Boolean(payDecision));
+check(
+  "that decision names what was rejected and why",
+  (payDecision?.alternatives.length ?? 0) > 0 &&
+    payDecision!.alternatives.every((a) => a.rejectedBecause.length > 0)
+);
+check("payment choice is marked costly to reverse", payDecision?.reversibility === "costly");
+
+// Re-running must not duplicate or silently re-decide.
+const boundTwice = applyBindings(bound, 3);
+check(
+  "binding is idempotent",
+  providerBindings(boundTwice).length === providerBindings(bound).length
+);
+
+// A tier-1 project must not be handed infrastructure it cannot operate.
+const tinyCtx = readBindingConstraints(simple);
+const queueForTiny = chooseProvider("QUEUE", tinyCtx);
+check(
+  "tier 1 is not given a managed queue service",
+  queueForTiny === null || queueForTiny.chosen.tierFloor <= 1 || queueForTiny.chosen.id === "db-queue",
+  queueForTiny?.chosen.label ?? "none"
+);
+
+// Cost sensitivity actually changes the answer.
+const frugal = mutate(nigerian, (g) => {
+  g.add("constraint", { ...prov, title: "Budget", category: "budget", statement: "We are bootstrapping with almost no budget" });
+});
+const frugalCtx = readBindingConstraints(frugal);
+check("a budget constraint is detected", frugalCtx.costSensitive);
+check("the constraint is quoted in the audit trail", frugalCtx.sources.some((s) => /bootstrapping/i.test(s)));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

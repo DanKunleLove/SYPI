@@ -15,6 +15,7 @@ import {
   implications,
   domainEntities,
   invariants,
+  providerBindings,
   transitions,
   tradeoffs,
   unknowns,
@@ -181,6 +182,17 @@ function renderSection(doc: Uss, section: UssSection): string | null {
       });
       return `DOMAIN MODEL — the things this business tracks. Transitions not listed are ILLEGAL and the system must reject them:\n${lines.join("\n")}`;
     }
+    case "providers":
+      // Rendered with the rejected alternatives, so the design carries its own
+      // justification rather than reading as a list of preferences.
+      return `TECHNOLOGY CHOICES — each was selected against the project's constraints:\n${providerBindings(
+        doc
+      )
+        .map(
+          (b) =>
+            `- ${b.capabilityClass}: ${b.providerLabel}${b.rationale ? ` — ${b.rationale}` : ""}${b.drivenBy.length ? ` [driven by: ${b.drivenBy.join("; ")}]` : ""}`
+        )
+        .join("\n")}`;
     case "invariants":
       // Stated as laws, because that is what they are. The architecture must
       // show how each is enforced, not merely avoid contradicting it.

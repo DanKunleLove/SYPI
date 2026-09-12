@@ -95,6 +95,7 @@ export const entityKindEnum = z.enum([
   "transition",
   "workflow",
   "finding",
+  "providerBinding",
 ]);
 export type EntityKind = z.infer<typeof entityKindEnum>;
 
@@ -414,6 +415,28 @@ export const WorkflowEntity = z.object({
  * traced to what it is about, dismissed with memory, and re-checked next review
  * instead of being raised again from scratch every time.
  */
+/**
+ * A capability bound to a concrete product.
+ *
+ * Deliberately a thin reference into the static catalogue rather than a copy of
+ * it: providers churn, and a spec that embedded their characteristics would go
+ * stale silently. The binding records WHAT WAS CHOSEN and WHY; the catalogue owns
+ * what the option actually is.
+ */
+export const ProviderBindingEntity = z.object({
+  ...base,
+  kind: z.literal("providerBinding"),
+  capabilityClass: z.enum(CAPABILITY_CLASSES),
+  /** Id in lib/capabilities/providers.ts. */
+  providerId: z.string().max(80),
+  providerLabel: z.string().max(120),
+  rationale: z.string().max(500).default(""),
+  /** Constraints that drove it — quoted so the choice is auditable. */
+  drivenBy: z.array(z.string().max(200)).max(5).default([]),
+  /** True when the architecture keeps an adapter seam so this can be swapped. */
+  swappable: z.boolean().default(true),
+});
+
 export const FindingEntity = z.object({
   ...base,
   kind: z.literal("finding"),
@@ -458,6 +481,7 @@ export const EntitySchema = z.discriminatedUnion("kind", [
   TransitionEntity,
   WorkflowEntity,
   FindingEntity,
+  ProviderBindingEntity,
 ]);
 export type Entity = z.infer<typeof EntitySchema>;
 
@@ -485,6 +509,7 @@ export const relationTypeEnum = z.enum([
   "transitions", // transition → state
   "partOf", // state | transition → domainEntity
   "flags", // finding → any
+  "boundTo", // providerBinding → capability
 ]);
 export type RelationType = z.infer<typeof relationTypeEnum>;
 
