@@ -12,6 +12,7 @@ import { normaliseComplexity } from "@/lib/uss/complexity";
 import { UssGraph } from "@/lib/uss/graph";
 import { detectGaps, checkIntegrity, computeCompleteness } from "@/lib/uss/gaps";
 import { IdAllocator } from "@/lib/uss/ids";
+import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
 import type { Uss } from "@/lib/uss/schema";
 
 /**
@@ -314,6 +315,121 @@ export async function extractCapabilities(doc: Uss, ctx: PassContext): Promise<U
   return g.snapshot();
 }
 
+// ─── Unit 3: the domain model ────────────────────────────────────────────────
+
+const DomainDraft = z.object({
+  entities: z.array(
+    z.object({
+      name: z.string().describe("Singular noun the business would use, e.g. Order"),
+      description: z.string(),
+      keyAttributes: z.array(z.string()).describe("Only what matters to the business"),
+      tenantScoped: z.boolean().describe("Does this belong to one customer organisation?"),
+      financial: z.boolean().describe("Does it record money moving?"),
+      /** Empty when the entity has no meaningful lifecycle. */
+      states: z.array(z.string()).describe("Named states, in order. Empty if it has none."),
+      transitions: z.array(
+        z.object({
+          from: z.string(),
+          to: z.string(),
+          trigger: z.string(),
+          guard: z.string().describe("What must be true. Empty string if nothing."),
+        })
+      ).describe("ONLY legal moves. Omitting an illegal move is how it is forbidden."),
+    })
+  ),
+});
+
+export const DOMAIN_SYSTEM_PROMPT = `
+You model the BUSINESS behind a system: the things it keeps track of, and how they
+change over time. Not the software components — the real-world things a person at
+this business would name.
+
+For a marketplace that is Order, Product, Inventory, Payment, Shipment. Not
+"Order Service". The service manages the Order; the Order is what matters here.
+
+For each entity:
+- Only attributes the business cares about. Not database columns.
+- tenantScoped: true if it belongs to one specific customer organisation.
+- financial: true if it records money moving.
+- States: only where the thing genuinely moves through stages. A Product usually
+  does not. An Order does.
+- Transitions: list ONLY the legal ones. A move you do not list is forbidden, which
+  is exactly how "a cancelled order cannot ship" gets enforced. Give a guard where
+  something must be true first — especially before money moves or value is granted.
+
+Stay inside what the requirements support. Do not invent entities for features
+nobody asked for.
+`.trim();
+
+/** Extract the domain model: entities, their lifecycles, and legal transitions. */
+export async function extractDomain(doc: Uss, ctx: PassContext): Promise<Uss> {
+  const g0 = new UssGraph(doc);
+  const reqs = g0.byKind("requirement");
+  if (reqs.length === 0) return doc;
+
+  const { object } = await generateObject({
+    model: ctx.model,
+    schema: DomainDraft,
+    system: applyUserInstructions(DOMAIN_SYSTEM_PROMPT, ctx.userInstructions),
+    prompt: `${ctx.brief}\n\nREQUIREMENTS:\n${reqs
+      .map((r) => `- ${r.title}: ${r.statement}`)
+      .join("\n")}`,
+  });
+
+  const g = new UssGraph(doc);
+
+  for (const e of object.entities) {
+    const entity = g.addUnique("domainEntity", {
+      ...prov("INFERRED", ctx.version),
+      title: e.name,
+      description: e.description,
+      keyAttributes: e.keyAttributes.slice(0, 12),
+      tenantScoped: e.tenantScoped,
+      financial: e.financial,
+    });
+
+    // A single state is not a lifecycle; ignore it rather than record noise.
+    if (e.states.length < 2) continue;
+
+    for (const [i, name] of e.states.entries()) {
+      const state = g.addUnique("state", {
+        ...prov("INFERRED", ctx.version),
+        title: `${e.name}: ${name}`,
+        entityTitle: e.name,
+        isInitial: i === 0,
+        // Terminal = nothing legal leaves it.
+        isTerminal: !e.transitions.some((t) => t.from === name),
+      });
+      g.link("partOf", state.id, entity.id, {
+        status: "INFERRED",
+        confidence: 0.8,
+        evidence: [{ kind: "inference" }],
+        firstSeenVersion: ctx.version,
+      });
+    }
+
+    for (const t of e.transitions) {
+      const transition = g.addUnique("transition", {
+        ...prov("INFERRED", ctx.version),
+        title: `${e.name}: ${t.from} → ${t.to}`,
+        entityTitle: e.name,
+        from: t.from,
+        to: t.to,
+        trigger: t.trigger,
+        guard: t.guard,
+      });
+      g.link("partOf", transition.id, entity.id, {
+        status: "INFERRED",
+        confidence: 0.8,
+        evidence: [{ kind: "inference" }],
+        firstSeenVersion: ctx.version,
+      });
+    }
+  }
+
+  return g.snapshot();
+}
+
 /**
  * Merge rule-detected gaps into the spec as openDecisions, skipping any question
  * already present or already answered. Deterministic — no model involved.
@@ -338,10 +454,17 @@ export function mergeGaps(doc: Uss): Uss {
  * benchmark both read them as current truth.
  */
 export function finalise(doc: Uss): Uss {
-  const withGaps = mergeGaps(doc);
+  // Seed the invariant catalogue before checking integrity, so a rule the system
+  // must never violate is present to be checked rather than absent and unnoticed.
+  const withInvariants = applyInvariants(
+    doc,
+    seedInvariants(doc),
+    doc.complexity.firstSeenVersion
+  );
+  const withGaps = mergeGaps(withInvariants);
   return {
     ...withGaps,
-    integrity: checkIntegrity(withGaps),
+    integrity: [...checkIntegrity(withGaps), ...checkDomainIntegrity(withGaps)],
     meta: {
       ...withGaps.meta,
       completeness: computeCompleteness(withGaps),

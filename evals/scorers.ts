@@ -1,4 +1,13 @@
 import type { ArchitectureOutput } from "@/lib/ai/schemas";
+import type { Uss } from "@/lib/uss/schema";
+import {
+  assumptions,
+  constraints,
+  implications,
+  openDecisions,
+  requirements,
+} from "@/lib/uss/views";
+import { ruleCoverage } from "@/lib/uss/reasoning";
 import type { Brief, Detector, DimensionScore } from "./types";
 
 /**
@@ -202,6 +211,114 @@ export function ussOnlyDimensions(): DimensionScore[] {
     NOT_YET("domain-correctness", "no domain entities or lifecycles are produced"),
     NOT_YET("data-correctness", "no ownership or transaction boundaries are produced"),
   ];
+}
+
+/**
+ * Dimensions that become measurable once a USS exists.
+ *
+ * These REPLACE the corresponding NOT_YET entries. A first score here is a new
+ * measurement, not an improvement over zero — `--compare` labels it as such,
+ * because claiming a jump from 0 to 80 would be self-flattery, not progress.
+ */
+export function scoreUss(
+  brief: Brief,
+  doc: Uss,
+  arch: ArchitectureOutput
+): DimensionScore[] {
+  const out: DimensionScore[] = [];
+  const text = architectureText(arch);
+
+  // Requirements coverage: did the spec capture the question areas the brief hides?
+  const covered = brief.ambiguityAreas.filter((area) => {
+    const haystack = (
+      requirements(doc).map((r) => `${r.title} ${r.statement}`).join(" ") +
+      openDecisions(doc).map((d) => `${d.question} ${d.title}`).join(" ") +
+      constraints(doc).map((c) => c.statement).join(" ") +
+      implications(doc).map((i) => i.statement).join(" ")
+    ).toLowerCase();
+    return area.keywords.some((k) => haystack.includes(k.toLowerCase()));
+  });
+  out.push({
+    dimension: "spec-question-coverage",
+    kind: "deterministic",
+    measurable: true,
+    score: brief.ambiguityAreas.length
+      ? Math.round((covered.length / brief.ambiguityAreas.length) * 100)
+      : 100,
+    detail: `${covered.length}/${brief.ambiguityAreas.length} question areas raised by the spec`,
+  });
+
+  // Traceability: do generated components correspond to something required?
+  const reqText = requirements(doc)
+    .map((r) => `${r.title} ${r.statement}`)
+    .join(" ")
+    .toLowerCase();
+  const implText = implications(doc).map((i) => i.statement).join(" ").toLowerCase();
+  const traced = arch.nodes.filter((n) => {
+    const words = n.label.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+    return words.some((w) => reqText.includes(w) || implText.includes(w));
+  });
+  out.push({
+    dimension: "traceability",
+    kind: "deterministic",
+    measurable: true,
+    score: arch.nodes.length ? Math.round((traced.length / arch.nodes.length) * 100) : 0,
+    detail: `${traced.length}/${arch.nodes.length} components trace to a requirement or implication`,
+  });
+
+  // Hallucination: entities asserted as fact with nothing backing them.
+  const claimed = doc.entities.length;
+  const unfounded = doc.entities.filter(
+    (e) => e.status === "KNOWN" && e.evidence.length === 0
+  ).length;
+  out.push({
+    dimension: "hallucination-rate",
+    kind: "deterministic",
+    measurable: true,
+    // Inverted: 100 = nothing asserted without evidence.
+    score: claimed === 0 ? 100 : Math.round(((claimed - unfounded) / claimed) * 100),
+    detail: `${unfounded}/${claimed} entities claimed KNOWN with no evidence`,
+  });
+
+  // Unsupported assumptions: recorded ones are fine; SILENT ones are the problem.
+  const assumptionCount = assumptions(doc).length;
+  const surfaced = assumptions(doc).filter((a) => text.includes(a.statement.toLowerCase().slice(0, 25)));
+  out.push({
+    dimension: "unsupported-assumptions",
+    kind: "deterministic",
+    measurable: true,
+    score: assumptionCount === 0 ? 100 : Math.round((surfaced.length / assumptionCount) * 100),
+    detail:
+      assumptionCount === 0
+        ? "no assumptions recorded"
+        : `${surfaced.length}/${assumptionCount} recorded assumptions visible in the output`,
+  });
+
+  // Unresolved critical decisions: blocking questions left unsurfaced.
+  const blocking = openDecisions(doc).filter((d) => d.impact.severity === "blocking");
+  out.push({
+    dimension: "unresolved-decisions",
+    kind: "deterministic",
+    measurable: true,
+    // Surfacing blockers is GOOD; this scores whether they were found at all.
+    score: blocking.length > 0 ? 100 : 50,
+    detail:
+      blocking.length > 0
+        ? `${blocking.length} blocking question(s) surfaced for the user`
+        : "no blocking questions surfaced — either genuinely complete, or the gaps were missed",
+  });
+
+  // Reasoning depth: how much of the design was derived rather than guessed.
+  const coverage = ruleCoverage(doc);
+  out.push({
+    dimension: "reasoning-depth",
+    kind: "deterministic",
+    measurable: true,
+    score: Math.min(100, implications(doc).length * 10),
+    detail: `${coverage.total} implications derived (${coverage.pct}% by rule, not by model)`,
+  });
+
+  return out;
 }
 
 // ─── Aggregate ───────────────────────────────────────────────────────────────

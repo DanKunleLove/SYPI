@@ -13,6 +13,9 @@ import {
   requirements,
   sectionIsEmpty,
   implications,
+  domainEntities,
+  invariants,
+  transitions,
   tradeoffs,
   unknowns,
   useCases,
@@ -53,6 +56,7 @@ export interface RenderOptions {
 /** Sections dropped first when the render exceeds maxChars. */
 const DROP_ORDER: UssSection[] = [
   "tradeoffs",
+  "domain",
   "glossary",
   "assumptions",
   "unknowns",
@@ -155,6 +159,38 @@ function renderSection(doc: Uss, section: UssSection): string | null {
     case "tradeoffs":
       return `TRADEOFFS:\n${tradeoffs(doc)
         .map((t) => `- ${t.statement}${t.costs.length ? ` — costs: ${t.costs.join(", ")}` : ""}`)
+        .join("\n")}`;
+    case "domain": {
+      const entities = domainEntities(doc);
+      const trans = transitions(doc);
+      const lines = entities.map((e) => {
+        const own = trans.filter((t) => t.entityTitle === e.title);
+        const flags = [
+          e.tenantScoped ? "belongs to one customer" : "",
+          e.financial ? "records money" : "",
+        ].filter(Boolean);
+        return (
+          `- ${e.title}${flags.length ? ` [${flags.join("; ")}]` : ""}` +
+          `${e.keyAttributes.length ? `: ${e.keyAttributes.join(", ")}` : ""}` +
+          (own.length
+            ? `\n    legal transitions: ${own
+                .map((t) => `${t.from}→${t.to}${t.guard ? ` (only if ${t.guard})` : ""}`)
+                .join(", ")}`
+            : "")
+        );
+      });
+      return `DOMAIN MODEL — the things this business tracks. Transitions not listed are ILLEGAL and the system must reject them:\n${lines.join("\n")}`;
+    }
+    case "invariants":
+      // Stated as laws, because that is what they are. The architecture must
+      // show how each is enforced, not merely avoid contradicting it.
+      return `INVARIANTS — rules this system must NEVER violate. For each one, the design must make clear what enforces it:\n${invariants(
+        doc
+      )
+        .map(
+          (i) =>
+            `- ${i.statement}${i.violationConsequence ? ` (if violated: ${i.violationConsequence})` : ""}${i.enforcement ? ` [enforced by: ${i.enforcement}]` : " [NOTHING ENFORCES THIS YET]"}`
+        )
         .join("\n")}`;
   }
 }

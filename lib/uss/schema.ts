@@ -89,6 +89,11 @@ export const entityKindEnum = z.enum([
   "term",
   "implication",
   "tradeoff",
+  "domainEntity",
+  "invariant",
+  "state",
+  "transition",
+  "workflow",
 ]);
 export type EntityKind = z.infer<typeof entityKindEnum>;
 
@@ -320,6 +325,89 @@ export const TradeoffEntity = z.object({
   costs: z.array(z.string().max(200)).max(5).default([]),
 });
 
+// ─── Unit 3: the business ────────────────────────────────────────────────────
+
+/**
+ * A thing the business actually has: an Order, a Tenant, a Lease, a Shot.
+ *
+ * Distinct from a component. "Order Service" is a component; "Order" is the thing
+ * it manages. Conflating them is why generated designs can look complete while
+ * implementing nothing the client recognises.
+ */
+export const DomainEntityEntity = z.object({
+  ...base,
+  kind: z.literal("domainEntity"),
+  description: z.string().max(500).default(""),
+  /** Attributes that matter to the business, not a full column list. */
+  keyAttributes: z.array(z.string().max(120)).max(12).default([]),
+  /** True when this entity is scoped to a tenant/organisation. */
+  tenantScoped: z.boolean().default(false),
+  /** True when it records money movement — triggers stricter checks. */
+  financial: z.boolean().default(false),
+});
+
+/**
+ * A rule the system must never violate.
+ *
+ * "An order cannot be paid twice." "Inventory cannot go negative." "A user cannot
+ * read another tenant's data." These are laws, not preferences — the architecture,
+ * the implementation and the tests all derive from them, and Unit 5 tests scenarios
+ * against them.
+ */
+export const InvariantEntity = z.object({
+  ...base,
+  kind: z.literal("invariant"),
+  statement: z.string().max(400),
+  category: z.enum([
+    "uniqueness",
+    "conservation", // a quantity must not go negative or be created from nothing
+    "authorization",
+    "lifecycle",
+    "consistency",
+    "privacy",
+    "financial",
+  ]),
+  /** How it is enforced. Absence of an answer is itself the finding. */
+  enforcement: z.string().max(300).default(""),
+  /** What goes wrong when it is violated — makes severity concrete. */
+  violationConsequence: z.string().max(300).default(""),
+  severity: z.enum(["critical", "important"]).default("critical"),
+});
+
+/** A named state in an entity's lifecycle. */
+export const StateEntity = z.object({
+  ...base,
+  kind: z.literal("state"),
+  /** Which domain entity this state belongs to. */
+  entityTitle: z.string().max(120),
+  isInitial: z.boolean().default(false),
+  isTerminal: z.boolean().default(false),
+});
+
+/**
+ * A LEGAL transition. Transitions not listed are illegal by construction, which
+ * is the point: "cancelled → shipped" should be absent, not merely discouraged.
+ */
+export const TransitionEntity = z.object({
+  ...base,
+  kind: z.literal("transition"),
+  entityTitle: z.string().max(120),
+  from: z.string().max(80),
+  to: z.string().max(80),
+  trigger: z.string().max(200).default(""),
+  /** Conditions that must hold. An unguarded money transition is a finding. */
+  guard: z.string().max(200).default(""),
+});
+
+export const WorkflowEntity = z.object({
+  ...base,
+  kind: z.literal("workflow"),
+  description: z.string().max(400).default(""),
+  steps: z.array(z.string().max(200)).max(15).default([]),
+  /** What happens when a step fails. Silence here is how automations rot. */
+  failureHandling: z.string().max(300).default(""),
+});
+
 /**
  * Adding a kind here is the ONLY change a future unit needs to introduce a new
  * concept. Envelope, storage, migration and existing views stay untouched.
@@ -344,6 +432,11 @@ export const EntitySchema = z.discriminatedUnion("kind", [
   TermEntity,
   ImplicationEntity,
   TradeoffEntity,
+  DomainEntityEntity,
+  InvariantEntity,
+  StateEntity,
+  TransitionEntity,
+  WorkflowEntity,
 ]);
 export type Entity = z.infer<typeof EntitySchema>;
 
@@ -366,6 +459,10 @@ export const relationTypeEnum = z.enum([
   "blocks", // openDecision → any
   "constrains", // constraint → any
   "implies", // requirement | constraint → implication
+  "governs", // invariant → domainEntity | workflow | component
+  "manages", // component → domainEntity
+  "transitions", // transition → state
+  "partOf", // state | transition → domainEntity
 ]);
 export type RelationType = z.infer<typeof relationTypeEnum>;
 

@@ -7,8 +7,19 @@ import { getModel } from "@/lib/ai/index";
 import { PROVIDERS, isProviderId } from "@/lib/ai/providers";
 import { GENERATION_SYSTEM_PROMPT, CRITIQUE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { ArchitectureOutputSchema, CritiqueOutputSchema, type ArchitectureOutput } from "@/lib/ai/schemas";
-import { BRIEFS, getBrief } from "./briefs/index";
-import { scoreArchitecture } from "./scorers";
+import { BRIEFS } from "./briefs/index";
+import { createEmptySpec } from "@/lib/uss/empty";
+import {
+  classifyComplexity,
+  extractCapabilities,
+  extractIntent,
+  extractRequirements,
+  finalise,
+} from "@/lib/ai/uss";
+import { applyImplications, deriveImplications, ruleCoverage } from "@/lib/uss/reasoning";
+import { renderUssForPrompt } from "@/lib/uss/render";
+import type { Uss } from "@/lib/uss/schema";
+import { scoreArchitecture, scoreUss } from "./scorers";
 import { judge } from "./judge";
 import type { BriefResult, DimensionScore, EvalReport } from "./types";
 
@@ -37,6 +48,8 @@ interface Args {
   compare: string | null;
   /** Pause between provider calls. Free tiers rate-limit aggressively. */
   delayMs: number;
+  /** Run the USS understanding chain, as the live route does. */
+  uss: boolean;
 }
 
 function parseArgs(): Args {
@@ -55,6 +68,7 @@ function parseArgs(): Args {
     compare: get("compare"),
     // Default 4s: the Gemini free tier rejected a back-to-back run after 20 calls.
     delayMs: Number(get("delay") ?? 4000),
+    uss: !argv.includes("--no-uss"),
   };
 }
 
@@ -165,6 +179,48 @@ function gitCommit(): string {
   } catch {
     return "unknown";
   }
+}
+
+/**
+ * Build the USS in memory, exactly as /api/ai/generate does, minus persistence.
+ *
+ * The extraction passes are pure functions over a document, so no database is
+ * involved. Without this the harness would measure the OLD pipeline and report
+ * that Units 1 and 2 changed nothing — it calls the generation functions
+ * directly, not the route.
+ */
+async function buildSpec(
+  flash: LanguageModel,
+  brief: string
+): Promise<{ doc: Uss; contextBlock: string }> {
+  const empty = createEmptySpec({ specId: "eval", projectId: "eval" });
+  const ctx = { model: flash, brief, userInstructions: null, version: 1 };
+
+  let doc = await extractIntent(empty, ctx);
+  doc = await classifyComplexity(doc, ctx);
+  doc = await extractRequirements(doc, ctx);
+  doc = await extractCapabilities(doc, ctx);
+  doc = applyImplications(
+    doc,
+    deriveImplications(doc).map((d) => ({ ...d, source: "rule" as const })),
+    1
+  );
+  doc = finalise(doc);
+
+  const contextBlock = renderUssForPrompt(doc, {
+    sections: [
+      "product",
+      "actors",
+      "requirements",
+      "constraints",
+      "capabilities",
+      "implications",
+      "complexity",
+    ],
+    maxChars: 12_000,
+  });
+
+  return { doc, contextBlock };
 }
 
 /** Mirrors app/api/ai/generate/route.ts: generate, self-critique, repair criticals once. */
@@ -278,14 +334,44 @@ async function main() {
       try {
         if (results.length > 0 || run > 0) await sleep(args.delayMs);
         const t0 = Date.now();
+
+        // The understanding pass, as the route runs it.
+        let doc: Uss | undefined;
+        let designPrompt = brief.brief;
+        if (args.uss) {
+          const built = await withNetworkRetry(
+            () => buildSpec(judgeModel, brief.brief),
+            `${brief.id} understanding`
+          );
+          doc = built.doc;
+          if (built.contextBlock) designPrompt = `${brief.brief}\n\n${built.contextBlock}`;
+          const cov = ruleCoverage(doc);
+          process.stdout.write(
+            `    spec: ${doc.meta.completeness}% complete, tier ${doc.complexity.tier}, ` +
+              `${cov.total} implications (${cov.pct}% by rule)\n`
+          );
+        }
+
         const { arch, repaired } = await withNetworkRetry(
-          () => generateWithPipeline(model, brief.brief, args.critique),
+          () => generateWithPipeline(model, designPrompt, args.critique),
           `${brief.id} generation`
         );
         latency = Date.now() - t0;
         lastArch = arch;
 
-        const scores = scoreArchitecture(brief, arch);
+        let scores = scoreArchitecture(brief, arch);
+        if (doc) {
+          // With a spec present these stop being unmeasurable, so drop the
+          // placeholder entries rather than reporting both.
+          const nowMeasurable = new Set([
+            "traceability",
+            "hallucination-rate",
+            "unsupported-assumptions",
+            "unresolved-decisions",
+          ]);
+          scores = scores.filter((s) => !(nowMeasurable.has(s.dimension) && !s.measurable));
+          scores.push(...scoreUss(brief, doc, arch));
+        }
         if (args.judge) {
           await sleep(args.delayMs);
           scores.push(

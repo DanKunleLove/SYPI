@@ -252,5 +252,76 @@ const tiny = mutate(
 const tinyDemands = deriveImplications(tiny).flatMap((d) => d.demands);
 check("tier 1 does not acquire a CDN from the read-scaling rule", !tinyDemands.includes("CDN"), tinyDemands.join(","));
 
+// ─── Unit 3: domain model and invariants ─────────────────────────────────────
+
+import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
+import { invariants as invariantsView, domainEntities } from "@/lib/uss/views";
+
+console.log("");
+
+// The marketplace case from the plan: User/Seller/Product/Inventory/Order/Payment,
+// an Order lifecycle where cancelled→shipped is ABSENT, and invariants traced to
+// what enforces them.
+const market = mutate(
+  { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 4, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) },
+  (g) => {
+    g.add("requirement", { ...prov, title: "Buy from merchants", requirementKind: "functional", statement: "Customers place an order and pay for it; merchants hold inventory and we pay them out", acceptanceCriteria: ["an order completes"], priority: "must" });
+    g.add("capability", { ...prov, title: "PAYMENTS", capabilityClass: "PAYMENTS", why: "checkout" });
+    g.add("capability", { ...prov, title: "AUTHZ", capabilityClass: "AUTHZ", why: "merchants see only their own" });
+    for (const name of ["Order", "Payment", "Inventory", "Product"]) {
+      g.add("domainEntity", {
+        ...prov, title: name, description: "", keyAttributes: [],
+        tenantScoped: name === "Order" || name === "Inventory",
+        financial: name === "Payment",
+      });
+    }
+    // A deliberately incomplete lifecycle: no terminal state, unguarded ship.
+    for (const [from, to, guard] of [["pending", "paid", "payment confirmed"], ["paid", "shipped", ""]]) {
+      g.add("transition", { ...prov, title: `Order: ${from} → ${to}`, entityTitle: "Order", from, to, trigger: "", guard });
+    }
+    for (const s of ["pending", "paid", "shipped"]) {
+      g.add("state", { ...prov, title: `Order: ${s}`, entityTitle: "Order", isInitial: s === "pending", isTerminal: false });
+    }
+  }
+);
+
+const seeds = seedInvariants(market);
+const seedText = seeds.map((s) => s.statement.toLowerCase()).join(" | ");
+check("marketplace seeds invariants with no model call", seeds.length >= 4, `${seeds.length} seeded`);
+check("seeds: a payment cannot be recorded twice", /at most once/.test(seedText));
+check("seeds: inventory cannot go negative", /never go below zero/.test(seedText));
+check("seeds: no cross-tenant reads", /own organisation/.test(seedText));
+check("seeds: only legal state transitions", /defined transition/.test(seedText));
+check("seeds: money has an append-only history", /append-only/.test(seedText));
+
+const withInvariants = applyInvariants(market, seeds, 2);
+check("invariants are written and linked", invariantsView(withInvariants).length >= 4);
+check("domain entities survive", domainEntities(withInvariants).length === 4);
+
+const domainFindings = checkDomainIntegrity(withInvariants);
+const findingRules = domainFindings.map((f) => f.rule);
+check("detects an unguarded money/value transition", findingRules.includes("unguarded-transition"), findingRules.join(","));
+check("detects a lifecycle that never ends", findingRules.includes("lifecycle-never-ends"));
+check("detects domain entities no component owns", findingRules.includes("unmanaged-domain-entity"));
+
+// Money present, but no financial invariant → must be flagged.
+const moneyNoAudit = mutate(market, (g) => {
+  for (const inv of g.byKind("invariant")) g.remove(inv.id);
+});
+check(
+  "money without an auditable history is blocking",
+  checkDomainIntegrity(moneyNoAudit).some((f) => f.rule === "money-without-audit")
+);
+
+// Tenant-scoped data with no isolation rule → must be flagged.
+check(
+  "tenant data without an isolation rule is blocking",
+  checkDomainIntegrity(moneyNoAudit).some((f) => f.rule === "missing-tenant-isolation")
+);
+
+// A simple project must NOT acquire payment invariants it has no use for.
+const simpleSeeds = seedInvariants(simple);
+check("a simple tool seeds no payment invariants", !simpleSeeds.some((s) => s.category === "financial"), `${simpleSeeds.length} seeded`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

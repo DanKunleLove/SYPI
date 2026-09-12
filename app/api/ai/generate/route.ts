@@ -19,6 +19,7 @@ import { enforceAiQuota } from "@/lib/ai/limits";
 import {
   classifyComplexity,
   extractCapabilities,
+  extractDomain,
   extractIntent,
   extractRequirements,
   finalise,
@@ -181,6 +182,9 @@ export async function POST(request: Request) {
           // idempotency: a model can forget, a rule cannot.
           doc = await extractRequirements(doc, passCtx);
           doc = await extractCapabilities(doc, passCtx);
+          // The business itself: what things exist, how they change, and what must
+          // never be true of them. finalise() then seeds the invariant catalogue.
+          doc = await extractDomain(doc, passCtx);
           doc = applyImplications(
             doc,
             deriveImplications(doc).map((d) => ({ ...d, source: "rule" as const })),
@@ -205,6 +209,8 @@ export async function POST(request: Request) {
               "requirements",
               "constraints",
               "capabilities",
+              "domain",
+              "invariants",
               "implications",
               "complexity",
             ],

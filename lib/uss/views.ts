@@ -22,7 +22,9 @@ export type UssSection =
   | "glossary"
   | "complexity"
   | "implications"
-  | "tradeoffs";
+  | "tradeoffs"
+  | "domain"
+  | "invariants";
 
 export const ALL_SECTIONS: UssSection[] = [
   "product",
@@ -41,6 +43,8 @@ export const ALL_SECTIONS: UssSection[] = [
   "complexity",
   "implications",
   "tradeoffs",
+  "domain",
+  "invariants",
 ];
 
 type Of<K extends Entity["kind"]> = Extract<Entity, { kind: K }>;
@@ -95,6 +99,18 @@ export function components(doc: Uss): Of<"component">[] {
 
 export function glossary(doc: Uss): Of<"term">[] {
   return new UssGraph(doc).byKind("term");
+}
+
+export function domainEntities(doc: Uss): Of<"domainEntity">[] {
+  return new UssGraph(doc).byKind("domainEntity");
+}
+
+export function invariants(doc: Uss): Of<"invariant">[] {
+  return new UssGraph(doc).byKind("invariant");
+}
+
+export function transitions(doc: Uss): Of<"transition">[] {
+  return new UssGraph(doc).byKind("transition");
 }
 
 export function implications(doc: Uss): Of<"implication">[] {
@@ -179,5 +195,9 @@ export function sectionIsEmpty(doc: Uss, section: UssSection): boolean {
       return implications(doc).length === 0;
     case "tradeoffs":
       return tradeoffs(doc).length === 0;
+    case "domain":
+      return domainEntities(doc).length === 0;
+    case "invariants":
+      return invariants(doc).length === 0;
   }
 }
