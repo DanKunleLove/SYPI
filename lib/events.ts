@@ -8,6 +8,7 @@ export type ClientUsageEvent =
   | "png_exported"
   | "mermaid_exported"
   | "bundle_exported"
+  | "handoff_generated"
   | "share_invited"
   | "onboarding_done"
   | "checklist_step"

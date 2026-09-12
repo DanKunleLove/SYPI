@@ -47,6 +47,7 @@ import { recordEvent } from "@/lib/events";
 import type { CanvasNode, CanvasEdge } from "@/types/canvas";
 import { ExportRow } from "./export-row";
 import { ScenarioMatrix } from "./scenario-matrix";
+import { HandoffCard } from "./handoff-card";
 
 export function SpecTab({
   projectId,
@@ -394,6 +395,9 @@ export function SpecTab({
         <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
           <ScenarioMatrix projectId={projectId} />
         </div>
+
+        {/* Hand-off — the same spec, rendered for whoever builds it */}
+        <HandoffCard projectId={projectId} projectName={projectName} />
 
         {/* System Kit — the hero export */}
         <div className="rounded-lg border border-[var(--accent-ai)]/25 bg-[var(--accent-ai)]/5 p-3">

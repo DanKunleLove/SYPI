@@ -496,5 +496,64 @@ const frugalCtx = readBindingConstraints(frugal);
 check("a budget constraint is detected", frugalCtx.costSensitive);
 check("the constraint is quoted in the audit trail", frugalCtx.sources.some((s) => /bootstrapping/i.test(s)));
 
+// ─── Unit 7: execution targets ───────────────────────────────────────────────
+
+import { EXECUTION_TARGETS, getTarget, isTargetId, targetSystemPrompt } from "@/lib/uss/targets";
+import { ALL_SECTIONS as SECTIONS } from "@/lib/uss/views";
+
+console.log("");
+
+check("five execution targets are defined", EXECUTION_TARGETS.length === 5);
+check("an unknown target falls back rather than throwing", getTarget("nonsense").id === "claude-code");
+check("target ids are validated", isTargetId("n8n") && !isTargetId("n9n"));
+
+// Every file must declare real sections — a typo here would silently render nothing.
+const badSections = EXECUTION_TARGETS.flatMap((t) =>
+  t.files.flatMap((f) => f.sections.filter((s) => !SECTIONS.includes(s)).map((s) => `${t.id}/${f.path}:${s}`))
+);
+check("every target file references real spec sections", badSections.length === 0, badSections.join(", "));
+
+check(
+  "every target file has guidance",
+  EXECUTION_TARGETS.every((t) => t.files.every((f) => f.guidance.trim().length > 40))
+);
+check(
+  "no two files in a target share a path",
+  EXECUTION_TARGETS.every((t) => new Set(t.files.map((f) => f.path)).size === t.files.length)
+);
+
+// The core neutrality property: no target's vocabulary in the specification.
+const specVocabulary = SECTIONS.join(" ").toLowerCase();
+check(
+  "no execution target's name leaks into the spec sections",
+  !["claude", "codex", "lovable", "n8n", "cursor", "bolt"].some((v) => specVocabulary.includes(v))
+);
+
+// Each target must be genuinely different, not the same bundle relabelled.
+const claudePaths = getTarget("claude-code").files.map((f) => f.path).join(",");
+const n8nPaths = getTarget("n8n").files.map((f) => f.path).join(",");
+const humanPaths = getTarget("human-team").files.map((f) => f.path).join(",");
+check("targets render genuinely different bundles", claudePaths !== n8nPaths && n8nPaths !== humanPaths);
+
+// n8n is the one where failure paths are non-negotiable.
+check(
+  "the automation target demands failure paths",
+  getTarget("n8n").files.some((f) => /failure/i.test(f.path))
+);
+// A human team gets the artefacts a team actually reviews.
+check(
+  "the human team target includes ADRs and a threat model",
+  humanPaths.includes("DECISIONS.md") && humanPaths.includes("THREAT-MODEL.md")
+);
+
+// The epistemic clause must survive into every target's prompt.
+check(
+  "every target prompt carries the epistemic discipline",
+  EXECUTION_TARGETS.every((t) => {
+    const p = targetSystemPrompt(t);
+    return p.includes("confirm before building") && p.includes("do NOT resolve it");
+  })
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
