@@ -363,5 +363,60 @@ check("call count is estimable up front", estimateCouncilCalls(simple) === 3);
 const pre = preReviewFindings(withInvariants);
 check("deterministic findings are handed to reviewers", pre.length > 0, `${pre.length} passed through`);
 
+// ─── Unit 5: validation by scenario ──────────────────────────────────────────
+
+import { runScenarios, summariseScenarios } from "@/lib/uss/scenarios";
+import { applyImplications as applyImp, deriveImplications as derImp } from "@/lib/uss/reasoning";
+
+console.log("");
+
+// A payments design with no idempotency stated must FAIL the webhook-replay
+// scenario. This is the baseline's worst miss, now caught deterministically.
+const rawPayments = mutate(
+  { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 4, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) },
+  (g) => {
+    g.add("requirement", { ...prov, title: "Checkout", requirementKind: "functional", statement: "Customers pay by card", acceptanceCriteria: ["payment taken"], priority: "must" });
+    g.add("capability", { ...prov, title: "PAYMENTS", capabilityClass: "PAYMENTS", why: "checkout" });
+    g.add("component", { ...prov, title: "Payment Service", category: "service", responsibility: "takes payments", orphaned: false });
+  }
+);
+const rawResults = runScenarios(rawPayments);
+const replay = rawResults.find((r) => r.id === "webhook-replay");
+check("webhook-replay scenario applies to a payments system", Boolean(replay));
+check("a design with no idempotency FAILS webhook replay", replay?.outcome === "gap", replay?.outcome);
+check("that failure is blocking", replay?.severity === "blocking");
+
+// Once the implication rulebook has run, the same design PASSES — proving the
+// scenario reads the spec rather than guessing.
+const reasonedPayments = applyImp(
+  rawPayments,
+  derImp(rawPayments).map((d) => ({ ...d, source: "rule" as const })),
+  2
+);
+const replayAfter = runScenarios(reasonedPayments).find((r) => r.id === "webhook-replay");
+check("after reasoning, webhook replay PASSES", replayAfter?.outcome === "pass", replayAfter?.reasoning);
+
+// Unknown is a distinct, honest outcome — never counted as a failure.
+const summary = summariseScenarios(rawResults);
+check("summary separates gaps from unknowns", summary.unknown + summary.gaps + summary.passed === summary.total);
+check("score excludes unknowns", summary.score === null || summary.score === Math.round((summary.passed / (summary.passed + summary.gaps)) * 100));
+
+// Scenarios must not fire for systems they do not apply to.
+const simpleScenarios = runScenarios(simple);
+check("a simple tool gets no payment scenarios", !simpleScenarios.some((r) => r.id.startsWith("webhook")), simpleScenarios.map((r) => r.id).join(","));
+
+// An unguarded money transition is caught by the lifecycle scenario.
+const illegal = runScenarios(withInvariants).find((r) => r.id === "illegal-transition");
+check("unguarded paid→shipped is caught as a scenario gap", illegal?.outcome === "gap", illegal?.reasoning);
+
+// Actors WITH permissions pass the authorization scenario; the uploads fixture
+// gives both its actors explicit permissions, so this must be a pass.
+const authScenario = runScenarios(withImplications).find((r) => r.id === "no-actor-permissions");
+check(
+  "actors with stated permissions pass the authorization scenario",
+  authScenario?.outcome === "pass",
+  authScenario ? authScenario.reasoning : "scenario did not apply"
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -46,6 +46,7 @@ import {
 import { recordEvent } from "@/lib/events";
 import type { CanvasNode, CanvasEdge } from "@/types/canvas";
 import { ExportRow } from "./export-row";
+import { ScenarioMatrix } from "./scenario-matrix";
 
 export function SpecTab({
   projectId,
@@ -387,6 +388,11 @@ export function SpecTab({
               <Download className="h-3.5 w-3.5" />
             </Button>
           </div>
+        </div>
+
+        {/* Failure scenarios — deterministic, no model call */}
+        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
+          <ScenarioMatrix projectId={projectId} />
         </div>
 
         {/* System Kit — the hero export */}

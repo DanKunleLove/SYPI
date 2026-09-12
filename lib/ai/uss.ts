@@ -13,6 +13,7 @@ import { UssGraph } from "@/lib/uss/graph";
 import { detectGaps, checkIntegrity, computeCompleteness } from "@/lib/uss/gaps";
 import { IdAllocator } from "@/lib/uss/ids";
 import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
+import { scenarioFindings } from "@/lib/uss/scenarios";
 import type { Uss } from "@/lib/uss/schema";
 
 /**
@@ -464,7 +465,13 @@ export function finalise(doc: Uss): Uss {
   const withGaps = mergeGaps(withInvariants);
   return {
     ...withGaps,
-    integrity: [...checkIntegrity(withGaps), ...checkDomainIntegrity(withGaps)],
+    integrity: [
+      ...checkIntegrity(withGaps),
+      ...checkDomainIntegrity(withGaps),
+      // Scenario gaps are findings like any other, so they reach the health bar,
+      // the council and the Kit without a separate surface.
+      ...scenarioFindings(withGaps),
+    ],
     meta: {
       ...withGaps.meta,
       completeness: computeCompleteness(withGaps),
