@@ -154,6 +154,17 @@ model PlatformFlag {
   updatedAt DateTime @updatedAt
 }
 
+/**
+ * Platform-wide key/value settings an admin can change at runtime (currently the
+ * platform AI model). A missing row means "use the code default", mirroring how
+ * PlatformFlag treats a missing row as enabled.
+ */
+model PlatformSetting {
+  id        String   @id // e.g. "platform_model"
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model TaskRun {
   id        String   @id @default(cuid())
   runId     String   @unique

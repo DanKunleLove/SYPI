@@ -4,7 +4,10 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 
 /** Providers users can bring their own key for. */
-export type ProviderId = "anthropic" | "openai" | "google";
+export type ProviderId = "anthropic" | "openai" | "google" | "nvidia";
+
+/** NVIDIA NIM is OpenAI-compatible; it is reached through the OpenAI provider. */
+export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 export interface ModelOption {
   id: string;
@@ -61,13 +64,40 @@ export const PROVIDERS: Record<ProviderId, ProviderDef> = {
     defaults: { flash: "gemini-2.5-flash", pro: "gemini-2.5-pro" },
     create: (apiKey, modelId) => createGoogleGenerativeAI({ apiKey })(modelId),
   },
+  nvidia: {
+    id: "nvidia",
+    label: "NVIDIA NIM",
+    consoleUrl: "https://build.nvidia.com/settings/api-keys",
+    keyPrefix: "nvapi-",
+    // Only models VERIFIED to work with generateObject against this endpoint are
+    // listed. The catalogue advertises ~82, but many return "Not Found" when
+    // actually called, and structured output is what our whole pipeline needs.
+    models: [
+      { id: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra 550B" },
+      { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super 120B" },
+    ],
+    defaults: {
+      flash: "nvidia/nemotron-3-super-120b-a12b",
+      pro: "nvidia/nemotron-3-ultra-550b-a55b",
+    },
+    // Verified: generateObject works against this endpoint with the provider's
+    // default settings. Responses are slow (30-100s for a full architecture), so
+    // callers should budget for it.
+    create: (apiKey, modelId) =>
+      createOpenAI({ apiKey, baseURL: NVIDIA_BASE_URL, name: "nvidia" })(modelId),
+  },
 };
 
 /** Display order — strongest-bar provider first. */
-export const PROVIDER_ORDER: ProviderId[] = ["anthropic", "openai", "google"];
+export const PROVIDER_ORDER: ProviderId[] = ["anthropic", "openai", "google", "nvidia"];
 
 export function isProviderId(value: string): value is ProviderId {
-  return value === "anthropic" || value === "openai" || value === "google";
+  return (
+    value === "anthropic" ||
+    value === "openai" ||
+    value === "google" ||
+    value === "nvidia"
+  );
 }
 
 /** A model reference is stored as "provider:modelId" (e.g. "anthropic:claude-opus-4-8"). */

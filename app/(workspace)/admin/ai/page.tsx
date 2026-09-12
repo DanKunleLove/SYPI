@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { PLATFORM_FLAGS } from "@/lib/flags";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { FlagsPanel, type FlagState } from "@/components/admin/flags-panel";
+import { ModelPanel } from "@/components/admin/model-panel";
+import { getPlatformModelRef, platformProviders } from "@/lib/ai/platform-model";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +26,7 @@ export default async function AdminAiPage() {
   const dayAgo = new Date(Date.now() - DAY_MS);
   const weekAgo = new Date(Date.now() - 7 * DAY_MS);
 
-  const [flagRows, usage24h, failures7d, recent] = await Promise.all([
+  const [flagRows, usage24h, failures7d, recent, platformModel] = await Promise.all([
     prisma.platformFlag.findMany(),
     prisma.usageEvent.groupBy({
       by: ["type"],
@@ -48,6 +50,7 @@ export default async function AdminAiPage() {
         project: { select: { name: true, user: { select: { email: true } } } },
       },
     }),
+    getPlatformModelRef(),
   ]);
 
   const flagsById = new Map(flagRows.map((r) => [r.id, r.enabled]));
@@ -70,6 +73,8 @@ export default async function AdminAiPage() {
         <AdminNav active="/admin/ai" />
 
         <div className="mt-6 space-y-8">
+          <ModelPanel initialCurrent={platformModel} providers={platformProviders()} />
+
           <FlagsPanel initial={flags} />
 
           <section>

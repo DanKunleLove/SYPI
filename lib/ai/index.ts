@@ -94,5 +94,8 @@ export async function resolveModelForProject(
     const model = await resolveModelForUser(project.userId, tier);
     if (model) return model;
   }
-  return getModel(tier);
+  // No BYOK key — fall back to whatever the admin has selected as the platform
+  // model (/admin/ai), or the code default when nothing is selected.
+  const { getPlatformModel } = await import("@/lib/ai/platform-model");
+  return getPlatformModel(tier);
 }

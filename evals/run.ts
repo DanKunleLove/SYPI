@@ -67,6 +67,7 @@ const KEY_ENV = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   google: "GOOGLE_AI_API_KEY",
+  nvidia: "NVIDIA_API_KEY",
 } as const;
 
 /**
