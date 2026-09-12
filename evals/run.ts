@@ -115,6 +115,50 @@ function isQuotaError(e: unknown): boolean {
   return msg.includes("quota") || msg.includes("rate limit") || msg.includes("429");
 }
 
+/** True when an error is a transient connectivity failure rather than a rejection. */
+function isNetworkError(e: unknown): boolean {
+  const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
+  return (
+    msg.includes("enotfound") ||
+    msg.includes("econnreset") ||
+    msg.includes("etimedout") ||
+    msg.includes("econnrefused") ||
+    msg.includes("fetch failed") ||
+    msg.includes("cannot connect to api") ||
+    msg.includes("socket hang up")
+  );
+}
+
+/**
+ * Retry transient network failures with a long backoff.
+ *
+ * A full run takes ~30 minutes of continuous API calls, and a single DNS blip
+ * should not destroy it — that happened: six briefs died consecutively on
+ * ENOTFOUND while the provider itself was perfectly healthy. The SDK's own retry
+ * is immediate and too fast to outlast a resolver outage, so we wait properly.
+ */
+async function withNetworkRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  attempts = 3
+): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastError = e;
+      if (!isNetworkError(e) || i === attempts - 1) throw e;
+      const waitMs = 30_000 * (i + 1);
+      process.stdout.write(
+        `    network error during ${label} — retrying in ${waitMs / 1000}s (attempt ${i + 2}/${attempts})\n`
+      );
+      await sleep(waitMs);
+    }
+  }
+  throw lastError;
+}
+
 function gitCommit(): string {
   try {
     return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
@@ -234,14 +278,22 @@ async function main() {
       try {
         if (results.length > 0 || run > 0) await sleep(args.delayMs);
         const t0 = Date.now();
-        const { arch, repaired } = await generateWithPipeline(model, brief.brief, args.critique);
+        const { arch, repaired } = await withNetworkRetry(
+          () => generateWithPipeline(model, brief.brief, args.critique),
+          `${brief.id} generation`
+        );
         latency = Date.now() - t0;
         lastArch = arch;
 
         const scores = scoreArchitecture(brief, arch);
         if (args.judge) {
           await sleep(args.delayMs);
-          scores.push(...(await judge(judgeModel, brief, arch)));
+          scores.push(
+            ...(await withNetworkRetry(
+              () => judge(judgeModel, brief, arch),
+              `${brief.id} judging`
+            ))
+          );
         }
         perRun.push(scores);
         consecutiveQuotaFailures = 0;

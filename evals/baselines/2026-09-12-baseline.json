@@ -1,0 +1,3327 @@
+{
+  "runAt": "2026-09-12T13:57:52.931Z",
+  "mode": "architecture",
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "judgeModel": "nvidia/nemotron-3-super-120b-a12b",
+  "runs": 1,
+  "gitCommit": "6db4a60",
+  "results": [
+    {
+      "briefId": "01-crud-internal-tool",
+      "title": "Internal equipment tracker",
+      "ok": true,
+      "latencyMs": 186180,
+      "componentCount": 4,
+      "edgeCount": 3,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 0,
+          "detail": "0/5 question areas addressed — silent on: concurrent-checkout, roles, retention, offline, reporting"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 82,
+          "detail": "missing: assignment-history"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "4 components, within budget 2-6"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "3/3 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 75,
+          "detail": "The architecture provides a web UI, staff authentication via OAuth2, durable PostgreSQL storage, and the ability to log equipment in/out. It satisfies the core brief but does not explicitly address concurrency safety or guarantee that check‑out/check‑in events are stored as immutable historical records (only implied). These are minor gaps that could affect correctness if left to interpretation. | missed: Explicit historical‑record schema (e.g., assignments table with timestamps and transaction type); Concurrency control for simultaneous check‑outs; Clear authorization model (though uniform permissions are acceptable)"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 58,
+          "detail": "While the stack (React, Caddy/Nginx, Node.js, PostgreSQL) is named, the design lacks concrete contracts: API endpoint definitions, database schema, OAuth2 integration details (provider config, token validation), and transaction handling. An AI coding agent would need to invent these details, reducing implementability. | agent must guess: Exact OAuth2 flow (client ID/secret, redirect URI, token verification); API service framework and version (Express, Fastify, etc.); Database tables and columns for equipment, assignments, audit logs; How concurrent check‑outs are prevented (transactions, locking, optimistic concurrency); Rate‑limit enforcement specifics and error handling"
+        }
+      ],
+      "raw": {
+        "reasoning": "The original draft had only two nodes and was missing the database node referenced in connections. Critical issues: (1) No authentication/authorization on the API service — need OAuth2/OIDC integration with Google Workspace/Microsoft 365 for the 8 office staff. (2) No TLS encryption — need a reverse proxy/gateway to terminate TLS and enforce HTTPS. Solution: Add an API Gateway/Reverse Proxy node (Caddy or NGINX) that handles TLS termination and OAuth2 authentication, then proxies authenticated requests to the Equipment API Service. Also explicitly add the Equipment Database node (PostgreSQL) since it was referenced but not defined. Keep the web app as a React client. All communication from client to gateway is HTTPS/REST; gateway to API service is internal HTTP/REST; API service to database is reads/writes.",
+        "nodes": [
+          {
+            "label": "Equipment Tracker Web App",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "API Gateway / Reverse Proxy",
+            "category": "gateway",
+            "configAuthMethod": "OAuth2",
+            "configRateLimit": "100/min",
+            "configTimeout": "30s",
+            "configStorageType": "none"
+          },
+          {
+            "label": "Equipment API Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": ", "
+          },
+          {
+            "label": "Equipment Database",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configTtl": "none"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Equipment Tracker Web App",
+            "targetLabel": "API Gateway / Reverse Proxy",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "API Gateway / Reverse Proxy",
+            "targetLabel": "Equipment API Service",
+            "label": "HTTP/REST (internal)"
+          },
+          {
+            "sourceLabel": "Equipment API Service",
+            "targetLabel": "Equipment Database",
+            "label": "reads/writes"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "02-multi-tenant-saas",
+      "title": "Multi-tenant HR onboarding SaaS",
+      "ok": true,
+      "latencyMs": 341991,
+      "componentCount": 16,
+      "edgeCount": 25,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 50,
+          "detail": "3/6 question areas addressed — silent on: offboarding, esign, file-limits"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 63,
+          "detail": "missing: !authz, !pii"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 52,
+          "detail": "16 components vs budget 5-12 — OVER by 4"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "25/25 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 58,
+          "detail": "The architecture covers the core SaaS onboarding flow: multi‑tenant isolation via RLS‑enabled PostgreSQL, invitation flow, checklist/task progress, file upload to S3, and dashboard analytics. However, it omits several business‑critical details that would affect correctness and compliance: explicit tenant column/RLS policies are not described, encryption and access controls for sensitive ID/contract data in S3 are unspecified, there is no plan for data deletion or retention on customer cancellation, no mention of legally binding e‑signature integration, SSO/SAML for enterprise buyers, data residency constraints, or file‑size/format limits. These gaps could lead to data leakage, legal exposure, or a product that does not meet the client’s stated needs. | missed: Explicit tenant identifier column and RLS policy definitions; Encryption at rest and strict bucket policies for PII in S3; Data deletion/archival process on tenant churn; Legally binding e‑signature service integration; SSO/SAML support for enterprise customers; Data residency / geographic storage constraints; File upload limits and accepted formats; Backup and disaster‑recovery strategy"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 42,
+          "detail": "While the diagram lists concrete technologies (Node.js services, PostgreSQL cluster, Redis, RabbitMQ, AWS S3) and ports, it leaves many implementation decisions undefined: the exact shape of JWT claims and how tenant context is propagated, the RLS policy SQL, invitation email/template mechanics, document processor logic (PDF generation, e‑signature calls), API contracts between services, notification templates, and operational concerns like autoscaling thresholds, backup procedures, and monitoring. A competent AI coding agent would need to invent or assume these details, which introduces risk and violates the implementability criterion. | agent must guess: JWT structure and tenant ID propagation; RLS policy SQL for each table; Invitation flow details (email vs in‑app, template, expiry); Document Processor responsibilities (PDF generation, e‑signature calls); Exact API request/response schemas for each service; Signed URL generation and S3 access control logic; Notification channel selection (email, SMS, in‑app); Dashboard query aggregation and caching strategy; Backup, point‑in‑time recovery, and failover testing procedures; SSO/SAML configuration steps"
+        }
+      ],
+      "raw": {
+        "reasoning": "The architecture has been corrected for two critical issues: (1) PostgreSQL is now configured as a Cluster with streaming replication and automatic failover (configReplication: 'Cluster'), and row-level security (RLS) is enabled for multi-tenancy isolation. (2) The Dashboard Service remains read-heavy but connects to the same cluster endpoint; the cluster handles read/write splitting internally. All other components and connections remain unchanged. Configurations are filled with realistic values for a production SaaS onboarding platform.",
+        "nodes": [
+          {
+            "label": "HR Dashboard",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "New Hire Portal",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "1000/min",
+            "configPlatform": "REST"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3001",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Company Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3002",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "User Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3003",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Checklist Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3004",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Task Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3005",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "File Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3006",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Notification Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3007",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Dashboard Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "3008",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "PostgreSQL Cluster (RLS enabled)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Cluster",
+            "configPlatform": "5432"
+          },
+          {
+            "label": "Redis",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          },
+          {
+            "label": "RabbitMQ",
+            "category": "queue",
+            "configQueueType": "RabbitMQ",
+            "configPlatform": "AMQP"
+          },
+          {
+            "label": "AWS S3",
+            "category": "storage",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Document Processor",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "256MB",
+            "configTimeout": "60s"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "HR Dashboard",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "New Hire Portal",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Auth Service",
+            "label": "validates JWT"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Company Service",
+            "label": "routes /companies"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "User Service",
+            "label": "routes /users, /invitations"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Checklist Service",
+            "label": "routes /checklists"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Task Service",
+            "label": "routes /tasks"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "File Service",
+            "label": "routes /files"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Notification Service",
+            "label": "routes /notifications"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Dashboard Service",
+            "label": "routes /dashboard"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "reads/writes users, tokens"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Redis",
+            "label": "caches sessions, revocation list"
+          },
+          {
+            "sourceLabel": "Company Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "reads/writes tenants, settings"
+          },
+          {
+            "sourceLabel": "User Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "reads/writes HR users, new hires"
+          },
+          {
+            "sourceLabel": "User Service",
+            "targetLabel": "RabbitMQ",
+            "label": "publishes invitation.created"
+          },
+          {
+            "sourceLabel": "Checklist Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "reads/writes templates, assignments"
+          },
+          {
+            "sourceLabel": "Task Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "reads/writes tasks, progress"
+          },
+          {
+            "sourceLabel": "Task Service",
+            "targetLabel": "RabbitMQ",
+            "label": "publishes task.completed, task.blocked"
+          },
+          {
+            "sourceLabel": "File Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "stores file metadata"
+          },
+          {
+            "sourceLabel": "File Service",
+            "targetLabel": "AWS S3",
+            "label": "uploads ID, contracts, generates signed URLs"
+          },
+          {
+            "sourceLabel": "File Service",
+            "targetLabel": "Document Processor",
+            "label": "triggers PDF generation, contract signing"
+          },
+          {
+            "sourceLabel": "Notification Service",
+            "targetLabel": "RabbitMQ",
+            "label": "consumes invitation.created, task.completed"
+          },
+          {
+            "sourceLabel": "Notification Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "stores notification records"
+          },
+          {
+            "sourceLabel": "Dashboard Service",
+            "targetLabel": "PostgreSQL Cluster (RLS enabled)",
+            "label": "reads aggregated progress data"
+          },
+          {
+            "sourceLabel": "Dashboard Service",
+            "targetLabel": "Redis",
+            "label": "caches dashboard queries"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "03-marketplace",
+      "title": "Nigerian goods marketplace",
+      "ok": true,
+      "latencyMs": 543538,
+      "componentCount": 26,
+      "edgeCount": 30,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 13,
+          "detail": "1/8 question areas addressed — silent on: refunds, payment-failure, cancellation, currency-tax, fraud, reconciliation, delivery-failure"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 86,
+          "detail": "missing: !payment-idempotency"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 4,
+          "detail": "26 components vs budget 8-18 — OVER by 8"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "30/30 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 38,
+          "detail": "The architecture fails several critical business requirements: stock can go negative due to lack of atomic reservation/decrement, there is no explicit order state machine defined, and merchant data isolation is not enforced. While it includes a real payment gateway and separates payout logic, it does not address refunds, payment‑success‑but‑stock‑out scenarios, cancellations, multi‑merchant orders, VAT/tax, fraud controls, payout reconciliation, or delivery‑failure handling—all of which a senior engineer would expect to be considered for a Nigerian marketplace. Consequently, building exactly as described would likely produce incorrect business outcomes. | missed: Stock cannot go negative (no atomic decrement/reservation); Explicit order state machine not defined; Merchant‑only order visibility/access control missing; Refund and partial‑refund handling absent; Payment‑success‑but‑stock‑out mitigation missing; Cancellation policies and timing not specified; Multi‑merchant order support not addressed; Currency, VAT, and merchant tax considerations omitted; Fraud and abuse controls not described; Payout reconciliation against payments not detailed; Delivery‑failure handling and retry logic absent"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 52,
+          "detail": "The design names specific technologies (Node.js, Go, Python, PostgreSQL, Kafka, Debezium, AWS ALB, Kong, Paystack/Flutterwave, etc.) and shows many connections, which reduces ambiguity. However, key contracts are left undefined: the exact stock‑validation/reservation protocol between Order and Product Services, idempotency handling for payment webhooks, the order state machine transitions and storage, merchant‑scoping enforcement in APIs, and the schema for payout reconciliation. An implementer would need to invent these details, introducing significant guesswork and risk of inconsistency. | agent must guess: How Order Service reserves stock (check‑then‑act vs. atomic decrement); Idempotency key or duplicate‑webhook detection logic in Payment Service; Definition of order states and allowed transitions; Mechanism by which Merchant Dashboard is restricted to own orders (auth checks, RBAC); Schema and process for weekly payout calculation and reconciliation; Error handling and retry logic for third‑party delivery failures; Refund workflow and interaction with inventory; Tax/VAT calculation and reporting"
+        }
+      ],
+      "raw": {
+        "reasoning": "The original architecture had two critical flaws: (1) a single shared Primary Database creating a systemic SPOF, tight coupling, and write contention across all services, and (2) no load balancer in front of the API Gateway causing a single point of failure and no TLS termination/WAF at the edge. The corrected architecture splits the monolithic database into per-service databases with dedicated credentials, adds a read replica for the read-heavy Product Service, introduces a CDC pipeline (Debezium) for async cross-service data synchronization, and places a managed Load Balancer (AWS ALB) in front of horizontally scaled API Gateway instances with TLS termination, WAF, and health checks. All other components and relationships remain intact.",
+        "nodes": [
+          {
+            "label": "Customer Web App",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "Merchant Dashboard",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "Load Balancer (AWS ALB)",
+            "category": "gateway",
+            "configAuthMethod": "None",
+            "configRateLimit": "1000/min",
+            "configTimeout": "30s",
+            "configStorageType": "AWS ALB"
+          },
+          {
+            "label": "API Gateway (Kong)",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "500/min",
+            "configTimeout": "30s",
+            "configStorageType": "Kong"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Product Service",
+            "category": "service",
+            "configTechnology": "Go",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Order Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Payment Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Payout Service",
+            "category": "service",
+            "configTechnology": "Go",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Delivery Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Notification Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Auth Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Product Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Product Read Replica (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Replica",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Order Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Payment Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Payout Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Delivery Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Notification Database (PostgreSQL)",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "RDS"
+          },
+          {
+            "label": "Cache Layer (Redis)",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          },
+          {
+            "label": "Message Queue (Kafka)",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "MSK"
+          },
+          {
+            "label": "Image Storage (S3)",
+            "category": "storage",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Payout Scheduler",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "256MB",
+            "configTimeout": "300s",
+            "configStorageType": "Lambda"
+          },
+          {
+            "label": "Paystack/Flutterwave",
+            "category": "custom",
+            "configTechnology": "Paystack/Flutterwave API"
+          },
+          {
+            "label": "Third-party Riders (Gokada/Kwik)",
+            "category": "custom",
+            "configTechnology": "Gokada/Kwik API"
+          },
+          {
+            "label": "CDC Pipeline (Debezium)",
+            "category": "custom",
+            "configTechnology": "Debezium + Kafka Connect"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Customer Web App",
+            "targetLabel": "Load Balancer (AWS ALB)",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "Merchant Dashboard",
+            "targetLabel": "Load Balancer (AWS ALB)",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "Load Balancer (AWS ALB)",
+            "targetLabel": "API Gateway (Kong)",
+            "label": "Routes to gateway instances (HTTP/REST)"
+          },
+          {
+            "sourceLabel": "API Gateway (Kong)",
+            "targetLabel": "Auth Service",
+            "label": "Routes auth requests (gRPC)"
+          },
+          {
+            "sourceLabel": "API Gateway (Kong)",
+            "targetLabel": "Product Service",
+            "label": "Routes product requests (gRPC)"
+          },
+          {
+            "sourceLabel": "API Gateway (Kong)",
+            "targetLabel": "Order Service",
+            "label": "Routes order requests (gRPC)"
+          },
+          {
+            "sourceLabel": "API Gateway (Kong)",
+            "targetLabel": "Payment Service",
+            "label": "Routes payment requests (gRPC)"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Auth Database (PostgreSQL)",
+            "label": "Reads/writes users, roles"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Cache Layer (Redis)",
+            "label": "Caches sessions, tokens"
+          },
+          {
+            "sourceLabel": "Product Service",
+            "targetLabel": "Product Database (PostgreSQL)",
+            "label": "Reads/writes products, categories"
+          },
+          {
+            "sourceLabel": "Product Service",
+            "targetLabel": "Product Read Replica (PostgreSQL)",
+            "label": "Reads product listings (read-heavy)"
+          },
+          {
+            "sourceLabel": "Product Service",
+            "targetLabel": "Cache Layer (Redis)",
+            "label": "Caches product listings"
+          },
+          {
+            "sourceLabel": "Product Service",
+            "targetLabel": "Image Storage (S3)",
+            "label": "Uploads/retrieves product images"
+          },
+          {
+            "sourceLabel": "Order Service",
+            "targetLabel": "Order Database (PostgreSQL)",
+            "label": "Reads/writes orders, items"
+          },
+          {
+            "sourceLabel": "Order Service",
+            "targetLabel": "Message Queue (Kafka)",
+            "label": "Publishes order.created events"
+          },
+          {
+            "sourceLabel": "Order Service",
+            "targetLabel": "Product Service",
+            "label": "Validates stock, reserves inventory (gRPC)"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "Payment Database (PostgreSQL)",
+            "label": "Reads/writes transactions, payments"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "Paystack/Flutterwave",
+            "label": "Initiates payment, verifies webhooks"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "Message Queue (Kafka)",
+            "label": "Publishes payment.completed events"
+          },
+          {
+            "sourceLabel": "Payout Service",
+            "targetLabel": "Payout Database (PostgreSQL)",
+            "label": "Reads merchant balances, writes payouts"
+          },
+          {
+            "sourceLabel": "Payout Service",
+            "targetLabel": "Paystack/Flutterwave",
+            "label": "Executes bank transfers to merchants"
+          },
+          {
+            "sourceLabel": "Payout Service",
+            "targetLabel": "Message Queue (Kafka)",
+            "label": "Publishes payout.completed events"
+          },
+          {
+            "sourceLabel": "Delivery Service",
+            "targetLabel": "Delivery Database (PostgreSQL)",
+            "label": "Reads/writes delivery records"
+          },
+          {
+            "sourceLabel": "Delivery Service",
+            "targetLabel": "Third-party Riders (Gokada/Kwik)",
+            "label": "Creates delivery requests, tracks status"
+          },
+          {
+            "sourceLabel": "Delivery Service",
+            "targetLabel": "Message Queue (Kafka)",
+            "label": "Consumes order.ready_for_delivery, publishes delivery updates"
+          },
+          {
+            "sourceLabel": "Notification Service",
+            "targetLabel": "Message Queue (Kafka)",
+            "label": "Consumes events (order, payment, delivery, payout)"
+          },
+          {
+            "sourceLabel": "Notification Service",
+            "targetLabel": "Notification Database (PostgreSQL)",
+            "label": "Stores notification preferences, history"
+          },
+          {
+            "sourceLabel": "Payout Scheduler",
+            "targetLabel": "Payout Service",
+            "label": "Triggers weekly payout job (cron)"
+          },
+          {
+            "sourceLabel": "Payout Scheduler",
+            "targetLabel": "Payout Database (PostgreSQL)",
+            "label": "Reads merchants due for payout"
+          },
+          {
+            "sourceLabel": "CDC Pipeline (Debezium)",
+            "targetLabel": "Message Queue (Kafka)",
+            "label": "Publishes database change events (Debezium connectors on each DB)"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "04-payment-system",
+      "title": "Subscription billing",
+      "ok": true,
+      "latencyMs": 241480,
+      "componentCount": 18,
+      "edgeCount": 29,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 29,
+          "detail": "2/7 question areas addressed — silent on: tax, refund-policy, grace-length, currency, trial-abuse"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 55,
+          "detail": "missing: !webhook-verification, !pci-scope, proration, entitlement"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 52,
+          "detail": "18 components vs budget 6-14 — OVER by 4"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "29/29 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 55,
+          "detail": "The architecture addresses several critical requirements: webhook idempotency via Stripe event IDs, separation of financial records, PCI scope minimisation, and a dunning/retry mechanism for failed payments. However, it omits or leaves unspecified several critical items: webhook signature verification is not mentioned, the explicit subscription lifecycle states (trialing, active, past due, cancelled) are not clearly modelled, proration logic for mid‑cycle plan changes is absent, access control derived from billing state is not defined, and there is no handling of VAT, refund/cancellation policy, trial abuse prevention, or monthly recognition of annual revenue. These gaps mean the system as described would not reliably produce correct business outcomes without further design work. | missed: Webhook signature verification; Explicit subscription state machine (trialing, active, past due, cancelled); Proration algorithm for upgrades/downgrades; Access control derived from billing state; VAT/tax handling and merchant‑of‑record considerations; Refund and cancellation policy enforcement; Trial abuse mitigation (e.g., limits, verification); Monthly revenue recognition for annual subscriptions; Defined grace period length before access revocation"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 72,
+          "detail": "The design names concrete technologies (AWS ALB, Kong, Go/Node.js/Python services, PostgreSQL with Patroni, Redis, MSK Kafka, Lambda, Stripe) and shows clear data flows, which gives an AI coding agent a solid starting point. Missing details—such as the exact webhook signature verification middleware, protobuf contracts for gRPC, proration calculation formulas, revenue recognition amortisation logic, and VAT handling—would require the agent to make assumptions or invent decisions. Nonetheless, the overall structure is specific enough that a competent agent could fill in the gaps with standard patterns, resulting in a workable implementation after some clarification. | agent must guess: Webhook signature verification method; Exact gRPC message schemas (protobufs); Proration calculation for mid‑cycle plan changes; Revenue recognition amortisation schedule for annual plans; VAT/tax calculation and remittance flow; Trial abuse detection thresholds; Grace period duration before access revocation"
+        }
+      ],
+      "raw": {
+        "reasoning": "Fixed three critical issues: (1) Added Load Balancer in front of API Gateway with horizontal scaling enabled, (2) Configured Primary DB as multi-AZ cluster with automatic failover to Read Replica, (3) Made Webhook Handler horizontally scalable with idempotency via Stripe event IDs and added Dead Letter Queue for failed event processing. All other components and connections preserved.",
+        "nodes": [
+          {
+            "label": "Customer Portal",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "Finance Dashboard",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "Load Balancer",
+            "category": "gateway",
+            "configAuthMethod": "None",
+            "configRateLimit": "1000/min",
+            "configPlatform": "AWS ALB",
+            "configFramework": "REST"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "100/min",
+            "configPlatform": "Kong",
+            "configFramework": "REST",
+            "configStorageType": "PostgreSQL"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Go",
+            "configPort": "../../../8081",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Billing Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "../../../8082",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Payment Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "../../../8083",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Webhook Handler",
+            "category": "service",
+            "configTechnology": "Go",
+            "configPort": "../../../8084",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Notification Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "../../../8085",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Revenue Recognition Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "../../../8086",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Primary DB",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Cluster",
+            "configPlatform": "AWS RDS Multi-AZ",
+            "configFramework": "Patroni"
+          },
+          {
+            "label": "Read Replica",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Replica",
+            "configPlatform": "AWS RDS Multi-AZ",
+            "configFramework": "Patroni"
+          },
+          {
+            "label": "Redis Cache",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h",
+            "configPlatform": "AWS ElastiCache",
+            "configFramework": "Cluster Mode"
+          },
+          {
+            "label": "Event Bus",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configPlatform": "Amazon MSK",
+            "configFramework": "AMQP"
+          },
+          {
+            "label": "Dead Letter Queue",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configPlatform": "Amazon MSK",
+            "configFramework": "AMQP"
+          },
+          {
+            "label": "Dunning Worker",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "256MB",
+            "configTimeout": "60s",
+            "configPlatform": "AWS Lambda"
+          },
+          {
+            "label": "Revenue Report Worker",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "512MB",
+            "configTimeout": "300s",
+            "configPlatform": "AWS Lambda"
+          },
+          {
+            "label": "Stripe Gateway",
+            "category": "custom",
+            "configTechnology": "Stripe API"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Customer Portal",
+            "targetLabel": "Load Balancer",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "Finance Dashboard",
+            "targetLabel": "Load Balancer",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "Load Balancer",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Auth Service",
+            "label": "gRPC (validate JWT)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Billing Service",
+            "label": "gRPC (subscription CRUD)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Payment Service",
+            "label": "REST (payment methods, checkout)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Revenue Recognition Service",
+            "label": "REST (finance reports)"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Primary DB",
+            "label": "reads/writes users"
+          },
+          {
+            "sourceLabel": "Billing Service",
+            "targetLabel": "Primary DB",
+            "label": "reads/writes subscriptions, plans, invoices"
+          },
+          {
+            "sourceLabel": "Billing Service",
+            "targetLabel": "Redis Cache",
+            "label": "reads/writes plan details, subscription status"
+          },
+          {
+            "sourceLabel": "Billing Service",
+            "targetLabel": "Event Bus",
+            "label": "publishes subscription_changed, trial_started"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "Primary DB",
+            "label": "reads/writes payment methods, invoices"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "Stripe Gateway",
+            "label": "HTTPS/REST (create payment intent, subscription)"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "Event Bus",
+            "label": "publishes payment_succeeded, payment_failed"
+          },
+          {
+            "sourceLabel": "Webhook Handler",
+            "targetLabel": "Stripe Gateway",
+            "label": "receives webhooks (invoice.payment_failed, customer.subscription.updated)"
+          },
+          {
+            "sourceLabel": "Webhook Handler",
+            "targetLabel": "Event Bus",
+            "label": "publishes stripe_event"
+          },
+          {
+            "sourceLabel": "Webhook Handler",
+            "targetLabel": "Primary DB",
+            "label": "updates invoice/payment status (idempotent via Stripe event ID)"
+          },
+          {
+            "sourceLabel": "Event Bus",
+            "targetLabel": "Notification Service",
+            "label": "consumes payment_failed, trial_ending, subscription_changed"
+          },
+          {
+            "sourceLabel": "Event Bus",
+            "targetLabel": "Dunning Worker",
+            "label": "consumes payment_failed"
+          },
+          {
+            "sourceLabel": "Event Bus",
+            "targetLabel": "Revenue Recognition Service",
+            "label": "consumes payment_succeeded, subscription_changed"
+          },
+          {
+            "sourceLabel": "Event Bus",
+            "targetLabel": "Revenue Report Worker",
+            "label": "scheduled monthly trigger"
+          },
+          {
+            "sourceLabel": "Event Bus",
+            "targetLabel": "Dead Letter Queue",
+            "label": "failed events after max retries"
+          },
+          {
+            "sourceLabel": "Dunning Worker",
+            "targetLabel": "Payment Service",
+            "label": "retry payment (POST /retry)"
+          },
+          {
+            "sourceLabel": "Dunning Worker",
+            "targetLabel": "Notification Service",
+            "label": "send dunning emails"
+          },
+          {
+            "sourceLabel": "Notification Service",
+            "targetLabel": "Primary DB",
+            "label": "logs notifications"
+          },
+          {
+            "sourceLabel": "Revenue Recognition Service",
+            "targetLabel": "Primary DB",
+            "label": "reads invoices, writes recognized_revenue"
+          },
+          {
+            "sourceLabel": "Revenue Recognition Service",
+            "targetLabel": "Read Replica",
+            "label": "reads for reports"
+          },
+          {
+            "sourceLabel": "Revenue Report Worker",
+            "targetLabel": "Read Replica",
+            "label": "reads recognized_revenue, subscriptions"
+          },
+          {
+            "sourceLabel": "Revenue Report Worker",
+            "targetLabel": "Finance Dashboard",
+            "label": "provides data via API Gateway"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "05-ai-saas",
+      "title": "AI contract review for lawyers",
+      "ok": true,
+      "latencyMs": 5533577,
+      "componentCount": 12,
+      "edgeCount": 21,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 29,
+          "detail": "2/7 question areas addressed — silent on: accuracy, retention, cost, provider-outage, conflicts"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 73,
+          "detail": "missing: !no-training, !llm-capability"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "12 components, within budget 6-14"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "21/21 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 52,
+          "detail": "The design addresses confidentiality with encryption at rest and transit, access controls, and audit logging, but it fails to guarantee that uploaded contracts are not used for model training or leaked to the AI provider, lacks explicit job‑state tracking for the asynchronous analysis, does not show how flags are tied to specific clause text, and omits conflict‑of‑interest isolation and data‑retention policies—critical gaps for a lawyer‑focused contract review tool. | missed: Technical guarantee that the LLM does not retain or train on client data; Explicit job status / progress tracking for long‑running analysis; Mechanism to ensure AI output is presented as advisory only; Clear linkage of each flag to the source clause text; Multi‑tenant / conflict‑of‑interest isolation between firms; Defined data retention and deletion policy; Handling of AI provider downtime, rate limits, and cost monitoring"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 48,
+          "detail": "While the architecture lists many components, it leaves numerous implementation details undefined: Auth Service specifics, message schemas between services, error‑handling/retry patterns for the LLM, how large PDFs are chunked for token limits, encryption key rotation, and exact API contracts. These gaps would force an implementer to make significant guesses, reducing implementability. | agent must guess: Auth Service implementation (framework, MFA flow, token issuance); Exact request/response format for Document Processor ↔ AI Analysis Engine; Retry, circuit‑breaker, and fallback strategy when the LLM is unavailable or rate‑limited; How extracted text is stored/passed (raw text vs. references) and size limits; Schema for audit log entries linking user actions to specific documents; Details of report generation (template, markup format, storage of marked‑up PDFs); Encryption key management flow (who requests keys, how they are cached); Rate‑limiting and quota enforcement beyond the API gateway; Conflict‑of‑interest isolation strategy (separate storage, logical partitioning); Retention/archive and deletion procedures for uploaded contracts"
+        }
+      ],
+      "raw": {
+        "reasoning": "The user is a lawyer building an AI contract review tool where confidentiality is paramount. This requires a production-grade architecture with strong security: end-to-end encryption, audit trails, zero-trust networking, and strict access controls. Key components include a secure frontend for lawyers, API gateway with mTLS/JWT, auth service with MFA, encrypted document storage, async document processing pipeline, AI analysis service, PostgreSQL for relational data + audit logs, Redis for caching, Kafka for event-driven processing, and a report generation service. All data at rest encrypted with customer-managed keys (KMS), all transit TLS 1.3. Approximately 12 nodes.",
+        "nodes": [
+          {
+            "label": "Lawyer Portal",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "Next.js"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "mTLS",
+            "configRateLimit": "60/min",
+            "configTimeout": "30s",
+            "configFramework": "REST"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": ", "
+          },
+          {
+            "label": "Document Storage",
+            "category": "storage",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Document Processor",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "512MB",
+            "configTimeout": "120s"
+          },
+          {
+            "label": "AI Analysis Engine",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "2GB",
+            "configTimeout": "300s"
+          },
+          {
+            "label": "Contract Database",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configPlatform": "5432"
+          },
+          {
+            "label": "Audit Log DB",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Replica",
+            "configPlatform": "5433"
+          },
+          {
+            "label": "Message Queue",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configPlatform": "AMQP"
+          },
+          {
+            "label": "Cache Layer",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          },
+          {
+            "label": "Report Generator",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "256MB",
+            "configTimeout": "60s"
+          },
+          {
+            "label": "Key Management",
+            "category": "custom",
+            "configTechnology": "AWS KMS / HashiCorp Vault"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Lawyer Portal",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/mTLS"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Auth Service",
+            "label": "Validate JWT / mTLS"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Document Storage",
+            "label": "Presigned PUT (SSE-KMS)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Contract Database",
+            "label": "REST (CRUD contracts)"
+          },
+          {
+            "sourceLabel": "Document Storage",
+            "targetLabel": "Message Queue",
+            "label": "S3 Event → Kafka"
+          },
+          {
+            "sourceLabel": "Message Queue",
+            "targetLabel": "Document Processor",
+            "label": "Consume: extract text"
+          },
+          {
+            "sourceLabel": "Document Processor",
+            "targetLabel": "Contract Database",
+            "label": "Write extracted text/metadata"
+          },
+          {
+            "sourceLabel": "Document Processor",
+            "targetLabel": "Message Queue",
+            "label": "Produce: ready-for-AI"
+          },
+          {
+            "sourceLabel": "Message Queue",
+            "targetLabel": "AI Analysis Engine",
+            "label": "Consume: analyze clauses"
+          },
+          {
+            "sourceLabel": "AI Analysis Engine",
+            "targetLabel": "Contract Database",
+            "label": "Write flags/risk scores"
+          },
+          {
+            "sourceLabel": "AI Analysis Engine",
+            "targetLabel": "Audit Log DB",
+            "label": "Write analysis audit trail"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Cache Layer",
+            "label": "Cache contract list/flags"
+          },
+          {
+            "sourceLabel": "Lawyer Portal",
+            "targetLabel": "API Gateway",
+            "label": "GET flagged clauses (cached)"
+          },
+          {
+            "sourceLabel": "Lawyer Portal",
+            "targetLabel": "Report Generator",
+            "label": "POST export request"
+          },
+          {
+            "sourceLabel": "Report Generator",
+            "targetLabel": "Contract Database",
+            "label": "Read contract + flags"
+          },
+          {
+            "sourceLabel": "Report Generator",
+            "targetLabel": "Document Storage",
+            "label": "Fetch original PDF"
+          },
+          {
+            "sourceLabel": "Report Generator",
+            "targetLabel": "Document Storage",
+            "label": "Store marked-up PDF (SSE-KMS)"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Key Management",
+            "label": "Fetch encryption keys"
+          },
+          {
+            "sourceLabel": "Document Storage",
+            "targetLabel": "Key Management",
+            "label": "Envelope encryption"
+          },
+          {
+            "sourceLabel": "Contract Database",
+            "targetLabel": "Key Management",
+            "label": "Column-level encryption"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Audit Log DB",
+            "label": "Log all access (immutable)"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "06-rag-app",
+      "title": "Internal knowledge assistant",
+      "ok": true,
+      "latencyMs": 226266,
+      "componentCount": 11,
+      "edgeCount": 13,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 17,
+          "detail": "1/6 question areas addressed — silent on: permissions, hallucination, freshness-sla, pii-in-corpus, cost"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 67,
+          "detail": "missing: !permission-aware, freshness, eval"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "11 components, within budget 6-13"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "13/13 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 35,
+          "detail": "The design omits critical access‑control mechanisms, does not specify how answers are linked to source documents, provides no fallback when the corpus lacks an answer, and lacks any method to assess answer correctness. These gaps mean the system would likely return unauthorized information, fail to cite sources reliably, and could give misleading answers without the user knowing. | missed: Per‑document ACLs / user‑based filtering; Explicit chunking strategy in the ingestion pipeline; Mechanism to embed source links or document IDs in the LLM answer; Handling of queries with no matching documents; Feedback or confidence scoring to gauge answer correctness"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 55,
+          "detail": "The architecture names concrete technologies (Python services, gRPC/REST, Kafka, Redis, S3, a vector DB) and shows horizontal scaling, which gives a clear starting point. However, many contracts are left undefined: chunk size/overlap, embedding model, how ACL metadata is stored and used, the exact format of citations, and what the system returns when no answer is found. An implementer would need to invent these details, introducing guesswork and potential rework. | agent must guess: Chunking logic and parameters; Vector DB schema for storing ACL tags or document IDs; How the RAG Orchestrator combines retrieved chunks with source identifiers for citation; Fallback response when similarity search yields low scores; Method for measuring or surfacing answer correctness"
+        }
+      ],
+      "raw": {
+        "reasoning": "Fixed critical issues: 1) Added horizontal scaling (configScaling: 'Horizontal') to all services (API Gateway, RAG Orchestrator, Embedding Service, LLM Service, Slack Connector) and compute (Ingestion Worker via multiple instances). 2) Configured Vector Database with configReplication: 'Cluster' for redundancy. 3) Corrected vector database protocol from SQL to gRPC for both similarity search and upsert operations, matching typical vector DB protocols (Weaviate, Pinecone, Milvus). All other components and connections remain unchanged.",
+        "nodes": [
+          {
+            "label": "Web Portal",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "100/min",
+            "configStorageType": "REST"
+          },
+          {
+            "label": "RAG Orchestrator",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "8000",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Embedding Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "8001",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "LLM Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "8002",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Vector Database",
+            "category": "database",
+            "configDbType": "Other",
+            "configReplication": "Cluster",
+            "configStorageType": "8080"
+          },
+          {
+            "label": "Document Store",
+            "category": "storage",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Ingestion Queue",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "Custom"
+          },
+          {
+            "label": "Ingestion Worker",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "512MB",
+            "configTimeout": "300s"
+          },
+          {
+            "label": "Slack Connector",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "8003",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Response Cache",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Web Portal",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "RAG Orchestrator",
+            "label": "HTTP/REST"
+          },
+          {
+            "sourceLabel": "RAG Orchestrator",
+            "targetLabel": "Response Cache",
+            "label": "check cache"
+          },
+          {
+            "sourceLabel": "RAG Orchestrator",
+            "targetLabel": "Embedding Service",
+            "label": "embed query (gRPC)"
+          },
+          {
+            "sourceLabel": "RAG Orchestrator",
+            "targetLabel": "Vector Database",
+            "label": "similarity search (gRPC)"
+          },
+          {
+            "sourceLabel": "RAG Orchestrator",
+            "targetLabel": "LLM Service",
+            "label": "generate answer (gRPC)"
+          },
+          {
+            "sourceLabel": "RAG Orchestrator",
+            "targetLabel": "Document Store",
+            "label": "fetch source docs"
+          },
+          {
+            "sourceLabel": "Ingestion Worker",
+            "targetLabel": "Embedding Service",
+            "label": "embed chunks (gRPC)"
+          },
+          {
+            "sourceLabel": "Ingestion Worker",
+            "targetLabel": "Vector Database",
+            "label": "upsert vectors (gRPC)"
+          },
+          {
+            "sourceLabel": "Ingestion Worker",
+            "targetLabel": "Document Store",
+            "label": "store raw docs"
+          },
+          {
+            "sourceLabel": "Ingestion Queue",
+            "targetLabel": "Ingestion Worker",
+            "label": "consume jobs"
+          },
+          {
+            "sourceLabel": "Slack Connector",
+            "targetLabel": "Ingestion Queue",
+            "label": "publish Slack messages"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Ingestion Queue",
+            "label": "manual doc upload"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "07-ai-video-pipeline",
+      "title": "AI video generation pipeline",
+      "ok": true,
+      "latencyMs": 332803,
+      "componentCount": 16,
+      "edgeCount": 25,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 13,
+          "detail": "1/8 question areas addressed — silent on: duration, providers, cancel, ownership, retention, upload-limits, concurrency"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 33,
+          "detail": "missing: !large-upload, !provider-failure, !cost-control, !render-step, delivery, moderation"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "16 components, within budget 8-18"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "25/25 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 38,
+          "detail": "The architecture misses several critical requirements: external provider failure/rate‑limit handling, per‑user quota/cost control, explicit moderation, efficient video delivery (CDN/signed URLs), and a robust large‑file upload path. While it provides async job state, object storage, and a render stage, the gaps would lead to incorrect business outcomes (uncontrolled costs, undelivered videos, unmoderated content, poor user experience). | missed: External generation provider integration with retry, timeout, rate‑limit handling; Per‑user quota enforcement / billing checks before job creation; Content moderation pipeline for generated and uploaded media; Efficient video delivery (CDN or signed URLs) for finished videos; Large‑file upload via presigned URLs or direct-to‑S3 rather than through a service; Explicit progress reporting and cancellation mechanism; Details on video length/resolution limits, accepted clip formats, storage retention, concurrency limits, and TikTok OAuth/API limits"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 52,
+          "detail": "The diagram gives concrete component choices, protocols, and scaling hints, which reduces guesswork. However, major pieces are left undefined: which external AI APIs are used, how failures/retries are handled, where quota checks live, how moderation is performed, how signed URLs/CDN are configured, and how large uploads are streamed. An AI coding agent would need to invent these decisions, making the design only partially implementable without further clarification. | agent must guess: External generation providers (names, SDKs, error handling); Quota/cost enforcement mechanism and storage of user balances; Moderation service or integration point; CDN configuration or signed‑URL generation for video delivery; Presigned URL or multipart upload flow for large user clips; Progress update and job cancellation design; TikTok OAuth flow and API rate‑limit handling"
+        }
+      ],
+      "raw": {
+        "reasoning": "The architecture needs two critical fixes: (1) Video Orchestrator must be horizontally scalable and stateless, using Redis for distributed job state — achieved by setting configScaling=Horizontal and retaining the Redis connection for job status caching. (2) RabbitMQ must be highly available — represented by renaming the node to 'RabbitMQ Cluster' and setting configQueueType=RabbitMQ with configProtocol=AMQP, implying a clustered, mirrored-queue deployment across AZs with publisher confirms, consumer acks, and dead-letter exchanges configured operationally. All other components and connections remain valid and production-ready.",
+        "nodes": [
+          {
+            "label": "Web App",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "100/min",
+            "configPlatform": "REST"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "{{PORT}}",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Video Orchestrator",
+            "category": "service",
+            "configTechnology": "Go",
+            "configPort": "{{PORT}}",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Script Generation",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "{{PORT}}",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Visual Generation",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "{{PORT}}",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Voiceover Generation",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "{{PORT}}",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Music Generation",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "{{PORT}}",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Video Editor",
+            "category": "service",
+            "configTechnology": "Go",
+            "configPort": "{{PORT}}",
+            "configProtocol": "gRPC",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Upload Handler",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "{{PORT}}",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "TikTok Publisher",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "{{PORT}}",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Notification Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "{{PORT}}",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "PostgreSQL",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configPlatform": "{{PORT}}"
+          },
+          {
+            "label": "Redis",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          },
+          {
+            "label": "RabbitMQ Cluster",
+            "category": "queue",
+            "configQueueType": "RabbitMQ",
+            "configPlatform": "AMQP"
+          },
+          {
+            "label": "S3 Storage",
+            "category": "storage",
+            "configStorageType": "AWS S3"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Web App",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Auth Service",
+            "label": "HTTP/REST (auth)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Video Orchestrator",
+            "label": "HTTP/REST (create job)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Upload Handler",
+            "label": "HTTP/REST (upload clips)"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "TikTok Publisher",
+            "label": "HTTP/REST (publish)"
+          },
+          {
+            "sourceLabel": "Video Orchestrator",
+            "targetLabel": "RabbitMQ Cluster",
+            "label": "publishes job events"
+          },
+          {
+            "sourceLabel": "RabbitMQ Cluster",
+            "targetLabel": "Script Generation",
+            "label": "consumes script task"
+          },
+          {
+            "sourceLabel": "RabbitMQ Cluster",
+            "targetLabel": "Visual Generation",
+            "label": "consumes visual task"
+          },
+          {
+            "sourceLabel": "RabbitMQ Cluster",
+            "targetLabel": "Voiceover Generation",
+            "label": "consumes voiceover task"
+          },
+          {
+            "sourceLabel": "RabbitMQ Cluster",
+            "targetLabel": "Music Generation",
+            "label": "consumes music task"
+          },
+          {
+            "sourceLabel": "RabbitMQ Cluster",
+            "targetLabel": "Video Editor",
+            "label": "consumes edit task"
+          },
+          {
+            "sourceLabel": "RabbitMQ Cluster",
+            "targetLabel": "Notification Service",
+            "label": "consumes notification event"
+          },
+          {
+            "sourceLabel": "Script Generation",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes script"
+          },
+          {
+            "sourceLabel": "Visual Generation",
+            "targetLabel": "S3 Storage",
+            "label": "writes generated visuals"
+          },
+          {
+            "sourceLabel": "Voiceover Generation",
+            "targetLabel": "S3 Storage",
+            "label": "writes voiceover audio"
+          },
+          {
+            "sourceLabel": "Music Generation",
+            "targetLabel": "S3 Storage",
+            "label": "writes background music"
+          },
+          {
+            "sourceLabel": "Video Editor",
+            "targetLabel": "S3 Storage",
+            "label": "reads assets, writes final video"
+          },
+          {
+            "sourceLabel": "Video Editor",
+            "targetLabel": "PostgreSQL",
+            "label": "updates job status"
+          },
+          {
+            "sourceLabel": "Upload Handler",
+            "targetLabel": "S3 Storage",
+            "label": "writes user clips"
+          },
+          {
+            "sourceLabel": "Upload Handler",
+            "targetLabel": "PostgreSQL",
+            "label": "records upload metadata"
+          },
+          {
+            "sourceLabel": "TikTok Publisher",
+            "targetLabel": "S3 Storage",
+            "label": "reads final video"
+          },
+          {
+            "sourceLabel": "TikTok Publisher",
+            "targetLabel": "PostgreSQL",
+            "label": "records publish status"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes users"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Redis",
+            "label": "caches sessions"
+          },
+          {
+            "sourceLabel": "Video Orchestrator",
+            "targetLabel": "Redis",
+            "label": "caches job status"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "08-automation-workflow",
+      "title": "Lead-handling automation",
+      "ok": true,
+      "latencyMs": 253311,
+      "componentCount": 19,
+      "edgeCount": 21,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 50,
+          "detail": "3/6 question areas addressed — silent on: enrichment-fail, routing, consent"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "all properties present"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 0,
+          "detail": "19 components vs budget 4-10 — OVER by 9"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "21/21 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 55,
+          "detail": "The design includes an explicit webhook trigger, attempts to prevent duplicates via an idempotency cache and a CRM lookup, and separates the four external dependencies. However, it leaves several business‑rule questions unanswered: what constitutes a duplicate lead (email, domain, phone?), how the right salesperson is chosen, what determines the lead score, how consent/GDPR is handled for email sequences, and what happens when enrichment returns nothing or fails. Error handling is only explicitly shown for the webhook DLQ; other external calls rely on unspecified retry/circuit‑breaker logic without a clear path to visibility or dead‑letter handling. Credential/secret management is not mentioned. Consequently, while the high‑level flow matches the brief, critical gaps in duplicate definition, error visibility, and business logic mean the architecture would not reliably produce correct business outcomes without further clarification. | missed: Duplicate‑lead identification rule not defined; Salesperson selection logic unspecified; Lead scoring algorithm unspecified; GDPR/consent handling for email sequences missing; Error handling and visibility for enrichment, scoring, Slack, and email steps not explicit; Secret/credential management not described"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 35,
+          "detail": "The proposal introduces many moving parts (API Gateway, n8n in queue mode, Redis, Kafka topics, multiple workers and services) but leaves numerous implementation decisions undefined: the exact idempotency key and its storage, the webhook‑callback correlation mechanism, message schemas for Kafka topics, authentication and secrets for each external service, retry/backoff/circuit‑breaker configurations, monitoring/alerting for failed runs, and the business rules for duplicate detection, salesperson assignment, and scoring. A competent AI coding agent would need to invent or assume these details, which violates the implementability criterion. The design is therefore only loosely specified and would require significant additional work to become buildable. | agent must guess: Idempotency key definition and TTL; How n8n resumes via webhook callbacks (correlation IDs, endpoints); Kafka message schemas for each task; Secret management for services; Exact retry/backoff/circuit‑breaker parameters; Monitoring/alerting for failed enrichment, scoring, Slack, email steps; Business rules for duplicate detection, salesperson selection, lead scoring, and GDPR consent"
+        }
+      ],
+      "raw": {
+        "reasoning": "The original architecture has two critical issues: (1) n8n runs in single-instance mode with no HA or queue persistence, and (2) all external calls are synchronous HTTP with no resilience. To fix: deploy n8n in queue mode with a dedicated Redis queue broker, add a dead-letter queue (Kafka) for failed webhooks, and decouple enrichment, scoring, Slack, and email into async message-driven workers. The n8n workflow becomes a thin orchestrator that publishes tasks to Kafka topics and resumes via webhook callbacks. Each external service gets a dedicated worker consumer with retry/backoff/circuit-breaker logic. The idempotency Redis cache remains separate.",
+        "nodes": [
+          {
+            "label": "Contact Form",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "API Key",
+            "configRateLimit": "100/min",
+            "configTimeout": "30s",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "n8n Workflow Engine",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "512MB",
+            "configTimeout": "300s",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "n8n Queue Redis",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "24h"
+          },
+          {
+            "label": "Dead Letter Queue (Kafka)",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Enrichment Topic (Kafka)",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Scoring Topic (Kafka)",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Slack Notify Topic (Kafka)",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Email Sequence Topic (Kafka)",
+            "category": "queue",
+            "configQueueType": "Kafka",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Enrichment Worker",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "256MB",
+            "configTimeout": "60s"
+          },
+          {
+            "label": "Scoring Worker",
+            "category": "compute",
+            "configRuntime": "Python",
+            "configMemory": "256MB",
+            "configTimeout": "30s"
+          },
+          {
+            "label": "Slack Notify Worker",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "128MB",
+            "configTimeout": "15s"
+          },
+          {
+            "label": "Email Sequence Worker",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "128MB",
+            "configTimeout": "15s"
+          },
+          {
+            "label": "CRM Database",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Enrichment Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Lead Scoring Service",
+            "category": "service",
+            "configTechnology": "Python",
+            "configPort": "",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Slack Notification Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Email Sequence Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Redis Cache (Idempotency)",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Contact Form",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/POST"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "n8n Workflow Engine",
+            "label": "Webhook/HTTP"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "n8n Queue Redis",
+            "label": "queue mode (Redis-backed)"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "Dead Letter Queue (Kafka)",
+            "label": "failed webhook events (DLQ)"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "CRM Database",
+            "label": "SQL/SELECT (check existing lead)"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "Enrichment Topic (Kafka)",
+            "label": "publish enrichment task"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "Scoring Topic (Kafka)",
+            "label": "publish scoring task"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "Slack Notify Topic (Kafka)",
+            "label": "publish Slack notify task"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "Email Sequence Topic (Kafka)",
+            "label": "publish email sequence task"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "Redis Cache (Idempotency)",
+            "label": "reads/writes idempotency keys"
+          },
+          {
+            "sourceLabel": "Enrichment Topic (Kafka)",
+            "targetLabel": "Enrichment Worker",
+            "label": "consumes"
+          },
+          {
+            "sourceLabel": "Enrichment Worker",
+            "targetLabel": "Enrichment Service",
+            "label": "HTTP/REST (company enrichment)"
+          },
+          {
+            "sourceLabel": "Enrichment Worker",
+            "targetLabel": "n8n Workflow Engine",
+            "label": "webhook callback (enrichment done)"
+          },
+          {
+            "sourceLabel": "Scoring Topic (Kafka)",
+            "targetLabel": "Scoring Worker",
+            "label": "consumes"
+          },
+          {
+            "sourceLabel": "Scoring Worker",
+            "targetLabel": "Lead Scoring Service",
+            "label": "HTTP/REST (score lead)"
+          },
+          {
+            "sourceLabel": "Scoring Worker",
+            "targetLabel": "n8n Workflow Engine",
+            "label": "webhook callback (scoring done)"
+          },
+          {
+            "sourceLabel": "Slack Notify Topic (Kafka)",
+            "targetLabel": "Slack Notify Worker",
+            "label": "consumes"
+          },
+          {
+            "sourceLabel": "Slack Notify Worker",
+            "targetLabel": "Slack Notification Service",
+            "label": "HTTP/REST (notify salesperson)"
+          },
+          {
+            "sourceLabel": "Email Sequence Topic (Kafka)",
+            "targetLabel": "Email Sequence Worker",
+            "label": "consumes"
+          },
+          {
+            "sourceLabel": "Email Sequence Worker",
+            "targetLabel": "Email Sequence Service",
+            "label": "HTTP/REST (add to sequence)"
+          },
+          {
+            "sourceLabel": "n8n Workflow Engine",
+            "targetLabel": "CRM Database",
+            "label": "SQL/UPSERT (enriched data + score)"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "09-content-platform",
+      "title": "Creator publishing platform",
+      "ok": true,
+      "latencyMs": 208694,
+      "componentCount": 3,
+      "edgeCount": 22,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 17,
+          "detail": "1/6 question areas addressed — silent on: tax-forms, refunds, content-ownership, email-volume, free-preview"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 78,
+          "detail": "missing: moderation, media"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 50,
+          "detail": "3 components vs budget 8-16 — under by 5"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns present"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 0,
+          "detail": "every component connected | 33 edge endpoint(s) reference a non-existent component"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "22/22 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 28,
+          "detail": "The architecture omits several critical business requirements: paid content is not shown to be enforced server‑side (no middleware or service checks subscription status before serving paid posts), recurring subscription billing is missing (no service that charges readers for subscriptions or paid posts), writer payouts are only calculated from subscription.created events but there is no separate reader‑payment flow, bulk email delivery lacks explicit rate‑limiting or batching, public reads are not served from an edge/CDN, comment moderation and abuse handling are absent, and media/object storage for post images is not included. These gaps mean the system as described would not satisfy the client's brief and would produce incorrect business outcomes (e.g., unpaid writers, uncontrolled access to paid content). | missed: Server‑side paid‑content enforcement; Recurring reader payment processing; Separate writer payout modeling; Rate‑aware bulk email pipeline; Edge caching/CDN for public reads; Comment moderation/abuse handling; Object storage for post images/media"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 32,
+          "detail": "While the diagram shows many services and event flows, it leaves numerous implementation decisions unspecified: technology choices for Post, Subscription, Payment, Comment, Feed, and Email services are undefined; API contracts (REST/gRPC schemas) are missing; the mechanism for checking subscription status before serving paid content is not described; the payment gateway for reader charges is absent; email rate‑limiting strategy is not detailed; object‑storage integration and CDN configuration are omitted; moderation workflow and tooling are not defined. A competent AI coding agent would need to invent these significant decisions, lowering implementability. | agent must guess: Choice of payment processor for reader subscriptions; How paid‑content gating is implemented (middleware, service call, etc.); Email service rate‑limiting/batching mechanism; Object storage provider and bucket schema; CDN/provider for edge caching of public feed; Comment moderation tools and abuse‑detection logic; Exact APIs (request/response shapes) between gateway and each service"
+        }
+      ],
+      "raw": {
+        "reasoning": "Designing a complete publishing platform architecture with all core domain services, databases, message queue, and proper connections. The draft had only 3 nodes; adding 9 more nodes (6 services, 2 databases, 1 queue) and all necessary edges for a production-ready system.",
+        "nodes": [
+          {
+            "label": "Web Client",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "React"
+          },
+          {
+            "label": "API Gateway",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "1000/min",
+            "configPlatform": "REST"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "}, {"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Web Client",
+            "targetLabel": "API Gateway",
+            "label": "HTTPS/REST"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Auth Service",
+            "label": "gRPC"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Post Service",
+            "label": "gRPC"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Subscription Service",
+            "label": "gRPC"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Payment Service",
+            "label": "gRPC"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Comment Service",
+            "label": "gRPC"
+          },
+          {
+            "sourceLabel": "API Gateway",
+            "targetLabel": "Feed Service",
+            "label": "gRPC"
+          },
+          {
+            "sourceLabel": "Post Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes"
+          },
+          {
+            "sourceLabel": "Subscription Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes"
+          },
+          {
+            "sourceLabel": "Comment Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes"
+          },
+          {
+            "sourceLabel": "Feed Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads"
+          },
+          {
+            "sourceLabel": "Feed Service",
+            "targetLabel": "Redis",
+            "label": "reads/writes cache"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "PostgreSQL",
+            "label": "reads/writes users"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Redis",
+            "label": "session cache"
+          },
+          {
+            "sourceLabel": "Post Service",
+            "targetLabel": "RabbitMQ",
+            "label": "publishes post.created"
+          },
+          {
+            "sourceLabel": "Subscription Service",
+            "targetLabel": "RabbitMQ",
+            "label": "publishes subscription.created"
+          },
+          {
+            "sourceLabel": "RabbitMQ",
+            "targetLabel": "Email Service",
+            "label": "consumes post.created → email delivery"
+          },
+          {
+            "sourceLabel": "RabbitMQ",
+            "targetLabel": "Payment Service",
+            "label": "consumes subscription.created → payout calc"
+          },
+          {
+            "sourceLabel": "RabbitMQ",
+            "targetLabel": "Feed Service",
+            "label": "consumes post.created → feed fan-out"
+          },
+          {
+            "sourceLabel": "Email Service",
+            "targetLabel": "RabbitMQ",
+            "label": "acks email delivery"
+          },
+          {
+            "sourceLabel": "Payment Service",
+            "targetLabel": "RabbitMQ",
+            "label": "acks payment processing"
+          }
+        ]
+      }
+    },
+    {
+      "briefId": "10-reverse-engineer",
+      "title": "Reverse-engineer an existing product",
+      "ok": true,
+      "latencyMs": 324350,
+      "componentCount": 18,
+      "edgeCount": 30,
+      "scores": [
+        {
+          "dimension": "requirements-completeness",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 40,
+          "detail": "2/5 question areas addressed — silent on: evidence-vs-guess, conflict-resolution, differences"
+        },
+        {
+          "dimension": "expected-properties",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 82,
+          "detail": "missing: !auth-teams"
+        },
+        {
+          "dimension": "simplicity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "18 components, within budget 8-18"
+        },
+        {
+          "dimension": "over-engineering",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "no forbidden patterns defined for this brief"
+        },
+        {
+          "dimension": "connectivity",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "every component connected"
+        },
+        {
+          "dimension": "edge-labelling",
+          "kind": "deterministic",
+          "measurable": true,
+          "score": 100,
+          "detail": "30/30 connections describe what actually flows"
+        },
+        {
+          "dimension": "traceability",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no requirement→component relations exist"
+        },
+        {
+          "dimension": "hallucination-rate",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no evidence/status fields to check claims against"
+        },
+        {
+          "dimension": "unsupported-assumptions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — assumptions are not represented"
+        },
+        {
+          "dimension": "unresolved-decisions",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — open decisions are not surfaced at all"
+        },
+        {
+          "dimension": "domain-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no domain entities or lifecycles are produced"
+        },
+        {
+          "dimension": "data-correctness",
+          "kind": "deterministic",
+          "measurable": false,
+          "score": null,
+          "detail": "not measurable in architecture mode — no ownership or transaction boundaries are produced"
+        },
+        {
+          "dimension": "business-correctness",
+          "kind": "judge",
+          "measurable": true,
+          "score": 55,
+          "detail": "The architecture captures many Linear‑like concerns: real‑time WebSocket sync via Redis pub/sub, a durable PostgreSQL primary, search (Meilisearch), third‑party integration workers, and email notifications. However, it omits the important local‑first/optimistic‑update pattern, does not show how workspace/team scoping is enforced in the API or data layer, and only provides email notifications (missing in‑app/push/Slack‑style alerts). These gaps mean the system would not fully satisfy the client brief for a product like Linear. | missed: Local‑first optimistic update mechanism (client‑side cache, conflict resolution, CRDT/OT); Workspace/team‑scoped authorization checks in services and database schema; Rich notification delivery (in‑app, push, Slack/webhook) beyond email"
+        },
+        {
+          "dimension": "implementability",
+          "kind": "judge",
+          "measurable": true,
+          "score": 50,
+          "detail": "While the diagram names concrete technologies (Node.js, Next.js, PostgreSQL, Redis, Meilisearch, S3, etc.) and shows many connections, it leaves critical implementation details unspecified: how the Real‑time Service receives updates (missing publish from Core API), how clients perform optimistic updates and reconcile conflicts, how workspace context is extracted and validated, and how integration workers are triggered by external webhooks. An AI coding agent would need to invent significant decisions around conflict‑resolution algorithms, presence handling, and auth scoping, reducing implementability. | agent must guess: Real‑time Service update propagation path (Core API → Redis pub/sub not shown); Client‑side optimistic update and conflict‑resolution strategy; Workspace‑scoped authorization middleware and data‑model partitioning; Trigger mechanism for Integration Workers (webhook handling, retry policies); Notification channels beyond email (WebSocket, push, Slack)"
+        }
+      ],
+      "raw": {
+        "reasoning": "Fixing two critical issues: (1) Real-time Service needs horizontal scaling behind a WebSocket-capable load balancer with Redis pub/sub fan-out. (2) Database access needs least-privilege boundaries — splitting the monolithic PostgreSQL Primary into separate databases per bounded context (Auth DB, Core DB) with dedicated connections per service, while keeping a read replica for analytics. All other components and relationships preserved.",
+        "nodes": [
+          {
+            "label": "Web App (Next.js)",
+            "category": "client",
+            "configPlatform": "Web",
+            "configFramework": "Next.js"
+          },
+          {
+            "label": "iOS App",
+            "category": "client",
+            "configPlatform": "iOS",
+            "configFramework": "Swift"
+          },
+          {
+            "label": "Desktop App (Electron)",
+            "category": "client",
+            "configPlatform": "Desktop",
+            "configFramework": "Electron"
+          },
+          {
+            "label": "CDN / Edge",
+            "category": "gateway",
+            "configAuthMethod": "None",
+            "configRateLimit": "1000/min",
+            "configPlatform": "Cloudflare"
+          },
+          {
+            "label": "API Gateway (GraphQL)",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "500/min",
+            "configPlatform": "GraphQL"
+          },
+          {
+            "label": "Auth Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "4001",
+            "configProtocol": "GraphQL",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Core API (GraphQL Resolvers)",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "4000",
+            "configProtocol": "GraphQL",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Real-time Load Balancer",
+            "category": "gateway",
+            "configAuthMethod": "JWT",
+            "configRateLimit": "10000/min",
+            "configPlatform": "WebSocket"
+          },
+          {
+            "label": "Real-time Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "4002",
+            "configProtocol": "WebSocket",
+            "configScaling": "Horizontal"
+          },
+          {
+            "label": "Background Workers",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "512MB",
+            "configTimeout": "300s"
+          },
+          {
+            "label": "Integration Workers",
+            "category": "compute",
+            "configRuntime": "Node.js",
+            "configMemory": "512MB",
+            "configTimeout": "300s"
+          },
+          {
+            "label": "Auth Database",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configPlatform": "Auth DB"
+          },
+          {
+            "label": "Core Database",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Primary",
+            "configPlatform": "Core DB"
+          },
+          {
+            "label": "Analytics Database",
+            "category": "database",
+            "configDbType": "PostgreSQL",
+            "configReplication": "Replica",
+            "configPlatform": "Analytics/Read Replica"
+          },
+          {
+            "label": "Redis Cluster",
+            "category": "cache",
+            "configCacheType": "Redis",
+            "configTtl": "1h"
+          },
+          {
+            "label": "Search Index",
+            "category": "database",
+            "configDbType": "Meilisearch",
+            "configReplication": "Cluster"
+          },
+          {
+            "label": "Object Storage (S3)",
+            "category": "storage",
+            "configStorageType": "AWS S3"
+          },
+          {
+            "label": "Email Service",
+            "category": "service",
+            "configTechnology": "Node.js",
+            "configPort": "4003",
+            "configProtocol": "REST",
+            "configScaling": "Horizontal"
+          }
+        ],
+        "edges": [
+          {
+            "sourceLabel": "Web App (Next.js)",
+            "targetLabel": "CDN / Edge",
+            "label": "HTTPS / static assets"
+          },
+          {
+            "sourceLabel": "iOS App",
+            "targetLabel": "CDN / Edge",
+            "label": "HTTPS / API calls"
+          },
+          {
+            "sourceLabel": "Desktop App (Electron)",
+            "targetLabel": "CDN / Edge",
+            "label": "HTTPS / API calls"
+          },
+          {
+            "sourceLabel": "Web App (Next.js)",
+            "targetLabel": "API Gateway (GraphQL)",
+            "label": "GraphQL over HTTPS"
+          },
+          {
+            "sourceLabel": "iOS App",
+            "targetLabel": "API Gateway (GraphQL)",
+            "label": "GraphQL over HTTPS"
+          },
+          {
+            "sourceLabel": "Desktop App (Electron)",
+            "targetLabel": "API Gateway (GraphQL)",
+            "label": "GraphQL over HTTPS"
+          },
+          {
+            "sourceLabel": "Web App (Next.js)",
+            "targetLabel": "Real-time Load Balancer",
+            "label": "WebSocket (live sync)"
+          },
+          {
+            "sourceLabel": "iOS App",
+            "targetLabel": "Real-time Load Balancer",
+            "label": "WebSocket (live sync)"
+          },
+          {
+            "sourceLabel": "Desktop App (Electron)",
+            "targetLabel": "Real-time Load Balancer",
+            "label": "WebSocket (live sync)"
+          },
+          {
+            "sourceLabel": "Real-time Load Balancer",
+            "targetLabel": "Real-time Service",
+            "label": "WebSocket (sticky sessions / consistent hashing)"
+          },
+          {
+            "sourceLabel": "API Gateway (GraphQL)",
+            "targetLabel": "Auth Service",
+            "label": "validate JWT / introspect"
+          },
+          {
+            "sourceLabel": "API Gateway (GraphQL)",
+            "targetLabel": "Core API (GraphQL Resolvers)",
+            "label": "forward GraphQL request"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Core Database",
+            "label": "reads/writes (Prisma/TypeORM)"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Analytics Database",
+            "label": "read-only queries (analytics)"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Redis Cluster",
+            "label": "cache / pubsub / rate limit"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Search Index",
+            "label": "search queries / index writes"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Object Storage (S3)",
+            "label": "presigned URLs for uploads"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Background Workers",
+            "label": "enqueue jobs (BullMQ)"
+          },
+          {
+            "sourceLabel": "Core API (GraphQL Resolvers)",
+            "targetLabel": "Integration Workers",
+            "label": "enqueue integration sync jobs"
+          },
+          {
+            "sourceLabel": "Real-time Service",
+            "targetLabel": "Redis Cluster",
+            "label": "pub/sub for live events (fan-out across replicas)"
+          },
+          {
+            "sourceLabel": "Real-time Service",
+            "targetLabel": "Core Database",
+            "label": "read-only (presence, issue state)"
+          },
+          {
+            "sourceLabel": "Background Workers",
+            "targetLabel": "Redis Cluster",
+            "label": "consume job queues"
+          },
+          {
+            "sourceLabel": "Background Workers",
+            "targetLabel": "Core Database",
+            "label": "read/write for async tasks"
+          },
+          {
+            "sourceLabel": "Background Workers",
+            "targetLabel": "Email Service",
+            "label": "send notification emails"
+          },
+          {
+            "sourceLabel": "Background Workers",
+            "targetLabel": "Object Storage (S3)",
+            "label": "generate exports / process uploads"
+          },
+          {
+            "sourceLabel": "Integration Workers",
+            "targetLabel": "Redis Cluster",
+            "label": "consume integration queues"
+          },
+          {
+            "sourceLabel": "Integration Workers",
+            "targetLabel": "Core Database",
+            "label": "sync external data (GitHub, etc.)"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Auth Database",
+            "label": "users, sessions, OAuth tokens, MFA"
+          },
+          {
+            "sourceLabel": "Auth Service",
+            "targetLabel": "Redis Cluster",
+            "label": "session cache / rate limit"
+          },
+          {
+            "sourceLabel": "Search Index",
+            "targetLabel": "Core Database",
+            "label": "CDC / logical replication for indexing"
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "requirements-completeness": {
+      "mean": 26,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "expected-properties": {
+      "mean": 72,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "simplicity": {
+      "mean": 66,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "over-engineering": {
+      "mean": 100,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "connectivity": {
+      "mean": 90,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "edge-labelling": {
+      "mean": 100,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "traceability": {
+      "mean": null,
+      "measuredIn": 0,
+      "of": 10
+    },
+    "hallucination-rate": {
+      "mean": null,
+      "measuredIn": 0,
+      "of": 10
+    },
+    "unsupported-assumptions": {
+      "mean": null,
+      "measuredIn": 0,
+      "of": 10
+    },
+    "unresolved-decisions": {
+      "mean": null,
+      "measuredIn": 0,
+      "of": 10
+    },
+    "domain-correctness": {
+      "mean": null,
+      "measuredIn": 0,
+      "of": 10
+    },
+    "data-correctness": {
+      "mean": null,
+      "measuredIn": 0,
+      "of": 10
+    },
+    "business-correctness": {
+      "mean": 49,
+      "measuredIn": 10,
+      "of": 10
+    },
+    "implementability": {
+      "mean": 50,
+      "measuredIn": 10,
+      "of": 10
+    }
+  }
+}
