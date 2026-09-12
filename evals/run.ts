@@ -13,6 +13,7 @@ import {
   classifyComplexity,
   extractCapabilities,
   extractIntent,
+  extractDomain,
   extractRequirements,
   finalise,
 } from "@/lib/ai/uss";
@@ -123,6 +124,9 @@ function resolveEvalModel(tier: "flash" | "pro"): LanguageModel {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Generous but finite: Nemotron Ultra takes 200-600s for a full architecture. */
+const CALL_TIMEOUT_MS = 15 * 60_000;
+
 /** True when an error is a provider rate-limit/quota rejection. */
 function isQuotaError(e: unknown): boolean {
   const msg = (e instanceof Error ? e.message : String(e)).toLowerCase();
@@ -151,6 +155,27 @@ function isNetworkError(e: unknown): boolean {
  * ENOTFOUND while the provider itself was perfectly healthy. The SDK's own retry
  * is immediate and too fast to outlast a resolver outage, so we wait properly.
  */
+/**
+ * Hard timeout per call.
+ *
+ * The AI SDK has no default timeout, so a stalled connection blocks forever — a
+ * full run once sat for fourteen hours producing nothing. A timeout converts that
+ * into a retryable failure, which the network retry below can then handle.
+ */
+async function withTimeout<T>(fn: () => Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      fn(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`ETIMEDOUT: ${label} exceeded ${ms / 1000}s`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function withNetworkRetry<T>(
   fn: () => Promise<T>,
   label: string,
@@ -159,7 +184,7 @@ async function withNetworkRetry<T>(
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
-      return await fn();
+      return await withTimeout(fn, CALL_TIMEOUT_MS, label);
     } catch (e) {
       lastError = e;
       if (!isNetworkError(e) || i === attempts - 1) throw e;
@@ -200,6 +225,7 @@ async function buildSpec(
   doc = await classifyComplexity(doc, ctx);
   doc = await extractRequirements(doc, ctx);
   doc = await extractCapabilities(doc, ctx);
+  doc = await extractDomain(doc, ctx);
   doc = applyImplications(
     doc,
     deriveImplications(doc).map((d) => ({ ...d, source: "rule" as const })),
@@ -214,6 +240,8 @@ async function buildSpec(
       "requirements",
       "constraints",
       "capabilities",
+      "domain",
+      "invariants",
       "implications",
       "complexity",
     ],

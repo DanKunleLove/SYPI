@@ -4,7 +4,84 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-**2026-09-11: DEPLOYED — Live at https://sypi-dev.vercel.app** (Vercel project `spi`)
+**2026-09-13: Units 0-5 of the USS programme shipped — live at https://sypi-dev.vercel.app**
+
+### 2026-09-12/13 — The USS programme: Units 0-5 shipped
+
+SYPI became a **system-engineering reasoning layer**. See `context/architecture.md`
+for the design; this is the record of what was built and what was learned.
+
+**Unit 0 — production safety.** Prod was 5 commits behind with 2 unapplied
+migrations. Verified the physical DDL rather than trusting the migration ledger
+(the 2026-06 "PgBouncer ate DDL" incident is why). Found and fixed a dead
+production URL that `lib/ai/kit.ts` had been stamping into **every System Kit ever
+generated**. Upgraded Next 16.2.6 → 16.3.5: two critical unauthenticated RCEs and,
+more importantly, a middleware/proxy-bypass advisory — all route protection gates
+on `proxy.ts`. `npm audit` critical 1 → 0.
+
+**Unit 0.5 — measurement before change.** `evals/`: 10 canonical briefs written the
+way clients actually talk, each declaring expected engineering PROPERTIES rather
+than one reference architecture. Baseline on Nemotron 3 Ultra:
+
+```
+requirements-completeness  26     over-engineering  100
+business-correctness       49     edge-labelling    100
+implementability           50     connectivity       90
+simplicity                 66     expected-props     72
+```
+
+That shape is the whole thesis as data: **structure near-perfect, reasoning weak.**
+Worst cases — the marketplace omitted payment idempotency and an order state
+machine while producing 26 components against a budget of 18; the internal tool
+scored 0 on requirements-completeness; one brief emitted 22 edges against 3 nodes
+(33 dangling endpoints) which would have silently placed a broken canvas.
+
+**Unit 1 — the USS.** Typed entity graph, not 28 sections. The earlier plan
+reserved empty arrays for future sections; the adversarial review killed that —
+an empty array reserves a name, not a contract. Entity-level provenance, capability
+taxonomy (32 domain-neutral classes, zero vendor names), the ambiguity question
+bank (~50 senior questions as DATA, zero LLM calls), tier→budget as code,
+referential integrity as a parse error.
+
+**Unit 2 — the reasoning chain.** `requirement → implication → capability →
+component → technology`. 12 deterministic implication rules. 100% rule coverage on
+the 2GB-upload case (target was 70%).
+
+**Unit 3 — domain and invariants.** Domain entities distinct from components,
+lifecycles where a transition not listed is ILLEGAL by construction, and 7 seeded
+invariants keyed on capability signals. Six new blocking checks.
+
+**Unit 4 — the Engineering Council, and Trigger.dev retired.** Ten disciplines,
+deterministically selected: a tier-1 tool gets 2 reviewers, a payments platform
+gets 5-6. Removed trigger/, 3 routes, 3 dependencies — **127 packages**, and
+`npm audit` high 21 → 11, moderate 19 → 5.
+
+**Unit 5 — validation by scenario.** 13 scenarios, all deterministic. The key
+insight: "the webhook arrives three times" is a graph query, not a simulation.
+Three outcomes, and UNKNOWN is excluded from the score rather than counted as
+failure.
+
+**What the self-test caught that review would not have:**
+- A complete tier-1 project scored 96 because completeness demanded a documented
+  constraint at tier 1 — the exact "punish simple projects" failure that makes
+  rigor read as an accusation. Fixed the rule, not the test.
+- A test written with `|| true` in the condition, which made it pass
+  unconditionally. A test that cannot fail reports confidence it has not earned.
+
+**Harness bugs found by running it, not by reading it:**
+- It wrote a "baseline" containing 10 failures. Now refused.
+- It burned all 10 briefs against an exhausted quota. Now aborts after 2.
+- It had no timeout, so one stalled call hung a run for 14 hours. Now 15 min/call.
+
+**Provider position.** NVIDIA NIM (free, Nemotron 3 Ultra/Super) is the platform
+model; only models verified to work with `generateObject` are listed, because the
+catalogue advertises 82 and most return "Not Found" when actually called. The
+Gemini free tier died at ~20 requests/day — which is the empirical basis for
+BYOK-gating deep reasoning. CheaperInference has frontier models at ~$0.30/eval-run
+but zero wallet balance.
+
+**Open / next:** re-baseline against all five units (running); Unit 6 provider
+registry; Unit 7 execution targets. `NEXT_PUBLIC_APP_URL` still unset in Vercel.
 
 ### 2026-09-11 — Unit 0: production sync + Next security upgrade (USS programme begins)
 
