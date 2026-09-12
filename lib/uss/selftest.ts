@@ -323,5 +323,45 @@ check(
 const simpleSeeds = seedInvariants(simple);
 check("a simple tool seeds no payment invariants", !simpleSeeds.some((s) => s.category === "financial"), `${simpleSeeds.length} seeded`);
 
+// ─── Unit 4: the engineering council ─────────────────────────────────────────
+
+import { selectCouncil, estimateCouncilCalls, preReviewFindings } from "@/lib/uss/council";
+
+console.log("");
+
+// A simple tool gets the two mandatory reviewers and nothing else. Paying for six
+// specialist opinions on an 8-user internal tool is the same over-engineering this
+// product exists to prevent.
+const simpleCouncil = selectCouncil(simple);
+check(
+  "tier-1 tool invokes only the two mandatory reviewers",
+  simpleCouncil.disciplines.length === 2,
+  simpleCouncil.disciplines.map((d) => d.id).join(",")
+);
+check(
+  "the mandatory two are architecture and implementability",
+  simpleCouncil.disciplines.map((d) => d.id).sort().join(",") === "architecture,implementability"
+);
+
+// A payments platform pulls in the specialists that money demands.
+const marketCouncil = selectCouncil(withInvariants);
+const marketIds = marketCouncil.disciplines.map((d) => d.id);
+check("payments platform invokes security", marketIds.includes("security"), marketIds.join(","));
+check("payments platform invokes data review", marketIds.includes("data"));
+check("payments platform invokes more reviewers than a simple tool", marketIds.length > simpleCouncil.disciplines.length);
+check(
+  "every reviewer states why it was selected",
+  marketCouncil.disciplines.every((d) => Boolean(marketCouncil.reasons[d.id]))
+);
+check("council is capped", selectCouncil(withInvariants, 3).disciplines.length === 3);
+
+// Cost is knowable before spending it.
+check("call count is estimable up front", estimateCouncilCalls(simple) === 3);
+
+// Reviewers receive what the rules already proved, so they go deeper instead of
+// rediscovering it.
+const pre = preReviewFindings(withInvariants);
+check("deterministic findings are handed to reviewers", pre.length > 0, `${pre.length} passed through`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -30,6 +30,7 @@ const PREFIX: Record<EntityKind, string> = {
   state: "STA",
   transition: "TRN",
   workflow: "WFL",
+  finding: "FND",
 };
 
 export function prefixFor(kind: EntityKind): string {

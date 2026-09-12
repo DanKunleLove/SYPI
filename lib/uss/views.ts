@@ -105,6 +105,10 @@ export function domainEntities(doc: Uss): Of<"domainEntity">[] {
   return new UssGraph(doc).byKind("domainEntity");
 }
 
+export function findings(doc: Uss): Of<"finding">[] {
+  return new UssGraph(doc).byKind("finding").filter((f) => !f.dismissed);
+}
+
 export function invariants(doc: Uss): Of<"invariant">[] {
   return new UssGraph(doc).byKind("invariant");
 }

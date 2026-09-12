@@ -94,6 +94,7 @@ export const entityKindEnum = z.enum([
   "state",
   "transition",
   "workflow",
+  "finding",
 ]);
 export type EntityKind = z.infer<typeof entityKindEnum>;
 
@@ -409,6 +410,25 @@ export const WorkflowEntity = z.object({
 });
 
 /**
+ * One reviewer's finding. An entity rather than a transient message so it can be
+ * traced to what it is about, dismissed with memory, and re-checked next review
+ * instead of being raised again from scratch every time.
+ */
+export const FindingEntity = z.object({
+  ...base,
+  kind: z.literal("finding"),
+  discipline: z.string().max(40),
+  severity: z.enum(["blocking", "material", "cosmetic"]),
+  statement: z.string().max(500),
+  /** Concrete inputs or sequence that produce the failure. */
+  failureScenario: z.string().max(500).default(""),
+  /** A specific fix, not "consider improving". */
+  recommendation: z.string().max(500).default(""),
+  dismissed: z.boolean().default(false),
+  dismissedReason: z.string().max(300).optional(),
+});
+
+/**
  * Adding a kind here is the ONLY change a future unit needs to introduce a new
  * concept. Envelope, storage, migration and existing views stay untouched.
  *   domain unit → domainEntity, invariant, workflow, state, transition, dataStore, api, event
@@ -437,6 +457,7 @@ export const EntitySchema = z.discriminatedUnion("kind", [
   StateEntity,
   TransitionEntity,
   WorkflowEntity,
+  FindingEntity,
 ]);
 export type Entity = z.infer<typeof EntitySchema>;
 
@@ -463,6 +484,7 @@ export const relationTypeEnum = z.enum([
   "manages", // component → domainEntity
   "transitions", // transition → state
   "partOf", // state | transition → domainEntity
+  "flags", // finding → any
 ]);
 export type RelationType = z.infer<typeof relationTypeEnum>;
 
