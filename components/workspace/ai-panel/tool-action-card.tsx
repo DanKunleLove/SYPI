@@ -10,6 +10,7 @@ const TOOL_META: Record<string, { icon: typeof Sparkles; running: string }> = {
   "tool-runDesignReview": { icon: Lightbulb, running: "Reviewing the design…" },
   "tool-refineArchitecture": { icon: Zap, running: "Applying changes…" },
   "tool-researchUrl": { icon: Globe, running: "Reading the site…" },
+  "tool-resolveOpenDecision": { icon: Check, running: "Recording your answer…" },
 };
 
 const SEVERITY_COLORS: Record<string, string> = {

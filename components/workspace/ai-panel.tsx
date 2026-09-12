@@ -6,6 +6,8 @@ import { FileText, Lightbulb, MessageSquare, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Suggestion } from "@/lib/ai/suggestions";
+import { useSystemSpec } from "@/hooks/use-system-spec";
+import { SpecHealthBar } from "./ai-panel/spec-health-bar";
 import { ChatTab } from "./ai-panel/chat-tab";
 import { SpecTab } from "./ai-panel/spec-tab";
 import { SuggestionsTab } from "./ai-panel/suggestions-tab";
@@ -38,6 +40,7 @@ export function AiPanel({
 }: AiPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { spec, refresh: refreshSpec } = useSystemSpec(projectId);
 
   useEffect(() => {
     if (open && initialTab) setActiveTab(initialTab);
@@ -115,6 +118,10 @@ export function AiPanel({
             })}
           </div>
 
+          {/* Spec health — hidden entirely until a spec exists, so a first-time
+              user sees exactly the panel they saw before. */}
+          <SpecHealthBar spec={spec} />
+
           {/* Content */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {activeTab === "chat" ? (
@@ -122,6 +129,8 @@ export function AiPanel({
                 projectId={projectId}
                 inputRef={inputRef}
                 initialPrompt={initialPrompt}
+                spec={spec}
+                onSpecChanged={refreshSpec}
               />
             ) : activeTab === "suggestions" ? (
               <SuggestionsTab

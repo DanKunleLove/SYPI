@@ -27,9 +27,13 @@ function progressTrackerFile(nextUpHint: string): KitFileSpec {
 Include sections: Current Phase (set to "Foundation — system designed in SYPI, work not
 started"); Current Goal; Completed (list "System designed" with today's component count);
 In Progress (none yet); Next Up — a realistic ordered list of the first 5-8 work units
-derived from the canvas (${nextUpHint}); Open Questions (infer 2-4 real unresolved
-decisions from the design); Decisions Made (the key ones already visible in the canvas);
-Session Notes.`,
+derived from the canvas (${nextUpHint}); Open Questions; Decisions Made; Session Notes.
+
+For Open Questions: if the provided context contains an UNRESOLVED DECISIONS list,
+reproduce it VERBATIM, preserving each id and its "why it matters" line, and do NOT
+invent additional questions — these are the project's real unanswered decisions and
+their ids are how a person traces one back to the spec. Only if no such list is
+provided should you infer 2-4 open questions from the design.`,
   };
 }
 
@@ -752,8 +756,17 @@ so precision beats prose.
 RULES:
 - Derive everything from the ACTUAL design provided (component names, categories,
   configured tools/technologies, connections). Reference real component labels.
-- Be specific and concrete. If the canvas doesn't answer something, make ONE reasonable
-  decision and state it plainly — never write "TBD" or generic filler.
+- Be specific and concrete. Never write "TBD" or generic filler.
+
+EPISTEMIC DISCIPLINE — the spec marks how well each fact is established, and you
+must preserve that rather than flattening it into confident prose:
+- Marked KNOWN → state it as fact.
+- Marked (inferred) → state it, then add "(inferred — confirm before building)".
+- Marked (ASSUMPTION) or (UNKNOWN) → do NOT invent an answer. Take the provisional
+  default, label it "ASSUMPTION:", and list it in this file's Assumptions section.
+A reader must be able to tell what was decided from what was guessed. Presenting a
+guess as a decision is the most damaging thing this file can do, because whoever
+builds from it will not know to check.
 - Plain Markdown with a single H1 title — unless the file's own instructions specify a
   different format (e.g. raw dotenv). No preamble, no closing summary.
 - Keep each file focused on its own job — do not repeat content that belongs in the

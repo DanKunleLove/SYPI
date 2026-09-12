@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isToolUIPart } from "ai";
 import { useReactFlow } from "@xyflow/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +25,8 @@ import { applyDiffOperations } from "@/lib/ai/canvas-diff";
 import type { ArchitectureOutput, DiffOperation } from "@/lib/ai/schemas";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 import { ToolActionCard } from "./tool-action-card";
+import { OpenDecisionsTray } from "./open-decisions-tray";
+import type { SpecDecision, SpecHead } from "@/hooks/use-system-spec";
 
 const QUICK_PROMPTS = [
   "E-commerce platform with microservices",
@@ -37,12 +39,58 @@ export function ChatTab({
   projectId,
   inputRef,
   initialPrompt,
+  spec,
+  onSpecChanged,
 }: {
   projectId: string;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   initialPrompt?: string;
+  spec?: SpecHead | null;
+  onSpecChanged?: () => void;
 }) {
   const reactFlow = useReactFlow();
+  const [answering, setAnswering] = useState<string | null>(null);
+
+  /**
+   * Answer an open decision. Applies any resulting canvas operations through the
+   * EXISTING applyDiffOperations engine — never placeArchitectureOnCanvas, which
+   * stagger-adds fresh nodes and would duplicate the whole canvas.
+   */
+  const handleAnswer = useCallback(
+    async (decision: SpecDecision, answer: string) => {
+      setAnswering(decision.id);
+      try {
+        const res = await fetch("/api/uss/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            projectId,
+            decisionId: decision.id,
+            answer,
+            nodes: reactFlow.getNodes(),
+            edges: reactFlow.getEdges(),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not record that");
+
+        if (Array.isArray(data.operations) && data.operations.length > 0) {
+          await applyDiffOperations(
+            reactFlow,
+            data.operations as DiffOperation[],
+            reactFlow.getNodes() as CanvasNode[],
+            reactFlow.getEdges() as CanvasEdge[]
+          );
+        }
+        onSpecChanged?.();
+      } catch {
+        // Answering is an enhancement; a failure must not disturb the conversation.
+      } finally {
+        setAnswering(null);
+      }
+    },
+    [projectId, reactFlow, onSpecChanged]
+  );
   const getNodes = useCallback(() => reactFlow.getNodes() as CanvasNode[], [reactFlow]);
   const getEdges = useCallback(() => reactFlow.getEdges() as CanvasEdge[], [reactFlow]);
 
@@ -361,6 +409,9 @@ export function ChatTab({
           {error.message}
         </div>
       )}
+
+      {/* Open decisions — collapsed, above the composer, material only */}
+      <OpenDecisionsTray spec={spec ?? null} onAnswer={handleAnswer} answering={answering} />
 
       {/* Input area */}
       <div className="border-t border-[var(--border-default)] p-3 shrink-0">
