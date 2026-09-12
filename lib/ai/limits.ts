@@ -24,7 +24,11 @@ export type AiKind =
   | "refine"
   | "spec"
   | "chat"
-  | "plan";
+  | "plan"
+  // USS: cheap extraction, available on the platform key
+  | "intent"
+  // USS: the full deep reasoning run. daily:0 below IS the BYOK gate.
+  | "deepspec";
 
 interface KindLimits {
   burst: number;
@@ -44,6 +48,11 @@ export const AI_LIMITS: Record<AiKind, KindLimits> = {
   spec: { burst: 6, burstWindowMs: 60_000, daily: 30, byokDaily: 150 },
   chat: { burst: 20, burstWindowMs: 60_000, daily: 300, byokDaily: 1500 },
   plan: { burst: 15, burstWindowMs: 60_000, daily: 100, byokDaily: 500 },
+  intent: { burst: 10, burstWindowMs: 60_000, daily: 150, byokDaily: 800 },
+  // daily: 0 IS the BYOK gate. checkAiQuota returns the existing "Add your own
+  // API key in Settings" 429 before writing a UsageEvent, so no quota is burned
+  // and no parallel gating mechanism is needed.
+  deepspec: { burst: 2, burstWindowMs: 600_000, daily: 0, byokDaily: 30 },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -74,6 +83,7 @@ export async function checkAiQuota(
   const flagIds: PlatformFlagId[] = ["ai_enabled"];
   if (kind === "generate") flagIds.push("generation_enabled");
   if (kind === "kit") flagIds.push("kit_enabled");
+  if (kind === "deepspec") flagIds.push("deep_reasoning_enabled");
 
   const dayAgo = new Date(Date.now() - DAY_MS);
   const [disabled, used, byokKeys, user] = await Promise.all([

@@ -148,7 +148,9 @@ check("removal marks the component orphaned", removed.orphaned === 1);
 // Reconcile is idempotent — it runs after every save, so a double run must be a no-op.
 const nodes: CanvasNode[] = [
   // description matches the spec's responsibility: a genuinely synced canvas.
-  { id: "node-1", type: "systemNode", position: { x: 0, y: 0 }, data: { label: "Equipment DB", color: "", shape: "rounded", nodeCategory: "database", description: "stores assignments" } },
+  // `type` is the React Flow registry key ("systemNode"); the CanvasNode generic
+  // says "canvasNode" and is cosmetic, hence the cast.
+  { id: "node-1", type: "canvasNode", position: { x: 0, y: 0 }, data: { label: "Equipment DB", color: "", shape: "rounded", nodeCategory: "database", description: "stores assignments" } },
 ];
 const edges: CanvasEdge[] = [];
 const once = reconcileCanvasIntoSpec(withNode, nodes, edges, 2);

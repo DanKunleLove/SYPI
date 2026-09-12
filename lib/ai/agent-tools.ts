@@ -18,6 +18,11 @@ import {
   type ArchitectureOutput,
 } from "@/lib/ai/schemas";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
+import { commitWithRetry } from "@/lib/uss/store";
+import { UssGraph } from "@/lib/uss/graph";
+import { finalise } from "@/lib/ai/uss";
+import { renderUssSummary } from "@/lib/uss/render";
+import { materialOpenDecisions } from "@/lib/uss/views";
 import { checkAiQuota } from "@/lib/ai/limits";
 import { Prisma } from "@/app/generated/prisma/client";
 
@@ -29,6 +34,8 @@ export interface AgentContext {
   userId: string;
   canvasContext?: string;
   userInstructions?: string | null;
+  /** One-line spec summary, refreshed after a resolve so later tools see it. */
+  ussSummary?: string;
 }
 
 function summarizeArchitecture(arch: ArchitectureOutput): string {
@@ -175,6 +182,62 @@ export function createAgentTools(ctx: AgentContext) {
           };
         } catch (error) {
           return { error: error instanceof Error ? error.message : "Refinement failed" };
+        }
+      },
+    }),
+
+    resolveOpenDecision: tool({
+      description:
+        "Record the user's answer to one of the open decisions about this system. Call this whenever they answer a question you raised, or state a requirement that settles one. The answer becomes an established constraint and may change the architecture.",
+      inputSchema: z.object({
+        decisionId: z.string().describe("The decision id, e.g. OPN-003"),
+        answer: z.string().describe("What the user decided, in their own words"),
+      }),
+      execute: async ({ decisionId, answer }) => {
+        try {
+          const result = await commitWithRetry({
+            projectId: ctx.projectId,
+            source: "answer",
+            changeSummary: `Answered ${decisionId}`,
+            authorUserId: ctx.userId,
+            apply: (current) => {
+              const g = new UssGraph(current);
+              const decision = g.get(decisionId);
+              if (!decision || decision.kind !== "openDecision") {
+                throw new Error(`No open question with id ${decisionId}`);
+              }
+              const version = current.complexity.firstSeenVersion + 1;
+              g.update(decisionId, {
+                resolvedAt: new Date().toISOString(),
+                resolution: answer,
+                status: "KNOWN",
+                confidence: 1,
+                evidence: [{ kind: "answer", ref: decisionId, quote: answer.slice(0, 400) }],
+              });
+              g.add("constraint", {
+                title: decision.title,
+                category: "other",
+                statement: `${decision.question} — ${answer}`,
+                status: "KNOWN",
+                confidence: 1,
+                evidence: [{ kind: "answer", ref: decisionId, quote: answer.slice(0, 400) }],
+                firstSeenVersion: version,
+              });
+              return finalise(g.snapshot());
+            },
+          });
+
+          // Later tools in this turn must see the updated spec.
+          ctx.ussSummary = renderUssSummary(result.doc);
+
+          return {
+            action: "decisionResolved",
+            decisionId,
+            completeness: result.doc.meta.completeness,
+            remaining: materialOpenDecisions(result.doc).length,
+          };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : "Could not record that" };
         }
       },
     }),

@@ -16,6 +16,8 @@ import { createAgentTools, type AgentContext } from "@/lib/ai/agent-tools";
 import { extractUrls, fetchSiteEvidence } from "@/lib/ai/url-research";
 import { enforceAiQuota } from "@/lib/ai/limits";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { getSpec } from "@/lib/uss/store";
+import { renderUssForPrompt, renderUssSummary } from "@/lib/uss/render";
 
 // Agent turns can chain research → generation → review; give them room.
 export const maxDuration = 300;
@@ -81,6 +83,25 @@ export async function POST(request: Request) {
   }
 
   const userInstructions = await getUserInstructions(user.id);
+
+  // Give the agent what the spec already establishes, plus the questions that are
+  // still open, so it stops re-asking what it has been told and can call
+  // resolveOpenDecision when the user settles one.
+  let ussSummary: string | undefined;
+  try {
+    const spec = await getSpec(projectId);
+    if (spec) {
+      ussSummary = renderUssSummary(spec.doc);
+      const specBlock = renderUssForPrompt(spec.doc, {
+        sections: ["product", "actors", "constraints", "complexity", "openDecisions"],
+        maxChars: 6_000,
+      });
+      if (specBlock) systemPrompt += `\n\nWHAT IS ESTABLISHED SO FAR:\n${specBlock}`;
+    }
+  } catch {
+    // The spec is an enhancement to chat, never a prerequisite.
+  }
+
   systemPrompt = applyUserInstructions(systemPrompt, userInstructions);
 
   // Shared mutable context: generation updates it so later tools in the same
@@ -89,6 +110,7 @@ export async function POST(request: Request) {
     projectId,
     userId: user.id,
     canvasContext: context,
+    ussSummary,
     userInstructions,
   };
 

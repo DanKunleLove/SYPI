@@ -16,13 +16,20 @@ import {
 } from "@/lib/ai/schemas";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
 import { enforceAiQuota } from "@/lib/ai/limits";
+import { classifyComplexity, extractIntent, finalise } from "@/lib/ai/uss";
+import { commitSpec, getOrCreateSpec } from "@/lib/uss/store";
+import { renderUssForPrompt } from "@/lib/uss/render";
+import { materialOpenDecisions } from "@/lib/uss/views";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
 // Generation runs inline (a single structured LLM call, ~10-30s) rather than
 // offloading to a Trigger.dev worker. Give it room for the URL-research step.
-export const maxDuration = 120;
+// Raised from 120: the understanding pass adds one flash call before generation,
+// and slower providers (NVIDIA Nemotron measured at 200-600s for a full design)
+// can otherwise hit the ceiling mid-run.
+export const maxDuration = 300;
 
 const MAX_PROMPT_CHARS = 6_000;
 const MAX_CONTEXT_CHARS = 24_000;
@@ -133,6 +140,63 @@ export async function POST(request: Request) {
           userPrompt = canvasContext ? `${prompt}\n\n${canvasContext}` : prompt;
         }
 
+        // ── Understanding: establish WHAT is being built before designing it ──
+        // Cheap (one flash call) and available on every path, including the
+        // platform key. This is where requirements-completeness comes from.
+        const instructions = await getUserInstructions(user.id);
+        let budgetBlock = "";
+
+        try {
+          controller.enqueue(
+            line({
+              type: "status",
+              stage: "understanding",
+              message: "Understanding what you're building…",
+            })
+          );
+
+          const flash = await resolveModelForProject(projectId, "flash");
+          const current = await getOrCreateSpec(projectId);
+          const passCtx = {
+            model: flash,
+            brief: prompt,
+            userInstructions: instructions,
+            version: current.doc.complexity.firstSeenVersion + 1,
+          };
+
+          let doc = await extractIntent(current.doc, passCtx);
+          doc = await classifyComplexity(doc, passCtx);
+          doc = finalise(doc);
+
+          const saved = await commitSpec({
+            projectId,
+            doc,
+            source: "extract",
+            changeSummary: "Understood the brief",
+            authorUserId: user.id,
+            ifVersion: current.version,
+          });
+
+          budgetBlock = renderUssForPrompt(saved.doc, {
+            sections: ["product", "actors", "constraints", "complexity"],
+            maxChars: 6_000,
+          });
+
+          controller.enqueue(
+            line({
+              type: "spec",
+              completeness: saved.doc.meta.completeness,
+              tier: saved.doc.complexity.tier,
+              tierLabel: saved.doc.complexity.label,
+              materialDecisions: materialOpenDecisions(saved.doc).length,
+            })
+          );
+        } catch (e) {
+          // Understanding is an enhancement, never a gate. A failure here must
+          // not cost the user their generation.
+          console.error("[generate] understanding pass failed", e);
+        }
+
         controller.enqueue(
           line({
             type: "status",
@@ -142,8 +206,12 @@ export async function POST(request: Request) {
         );
 
         // User layer: appended, never replaces the schema contract.
-        const instructions = await getUserInstructions(user.id);
         systemPrompt = applyUserInstructions(systemPrompt, instructions);
+        if (budgetBlock) {
+          // The budget is stated as prohibitions, which is what actually stops
+          // over-engineering — "keep it practical" demonstrably does not.
+          userPrompt = `${userPrompt}\n\n${budgetBlock}`;
+        }
 
         const model = await resolveModelForProject(projectId, "pro");
         const result = await generateObject({

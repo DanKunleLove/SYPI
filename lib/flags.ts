@@ -10,6 +10,7 @@ export type PlatformFlagId =
   | "ai_enabled"
   | "generation_enabled"
   | "kit_enabled"
+  | "deep_reasoning_enabled"
   | "signups_enabled";
 
 export const PLATFORM_FLAGS: {
@@ -31,6 +32,12 @@ export const PLATFORM_FLAGS: {
     id: "kit_enabled",
     label: "System Kit",
     description: "Kit generation (the most expensive feature: 5-7 LLM calls each).",
+  },
+  {
+    id: "deep_reasoning_enabled",
+    label: "Deep reasoning",
+    description:
+      "The multi-pass requirements pipeline (BYOK only). Turning this off leaves the fast path untouched.",
   },
   {
     id: "signups_enabled",
