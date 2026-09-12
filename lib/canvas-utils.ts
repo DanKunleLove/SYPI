@@ -183,10 +183,14 @@ export function createNodeData(
   };
 }
 
-let nodeIdCounter = 0;
-
-/** Generate a unique node ID */
+/**
+ * Generate a unique node ID.
+ *
+ * Uses randomUUID rather than a timestamp plus a module-local counter: the counter
+ * is per-tab, so two collaborators adding a node in the same millisecond could
+ * collide. That risk was latent before; USS-driven re-derivation makes simultaneous
+ * placement far more likely, so it is worth closing now.
+ */
 export function generateNodeId(): string {
-  nodeIdCounter++;
-  return `node-${Date.now()}-${nodeIdCounter}`;
+  return `node-${crypto.randomUUID()}`;
 }

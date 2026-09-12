@@ -49,6 +49,7 @@ model Project {
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   collaborators  Collaborator[]
   generations    AIGeneration[]
+  systemSpec     SystemSpec?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -152,6 +153,52 @@ model PlatformFlag {
   id        String   @id // ai_enabled | generation_enabled | kit_enabled | signups_enabled
   enabled   Boolean  @default(true)
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * The Universal System Specification for a project — SYPI's canonical semantic
+ * representation. Head document; the version log lives in SystemSpecVersion.
+ *
+ * Stored as jsonb rather than in Liveblocks (which is client-mutable, so a client
+ * could forge `status: KNOWN` on a fabricated requirement) or Blob (no
+ * transactional read-modify-write, so two collaborators answering decisions
+ * concurrently would clobber each other).
+ */
+model SystemSpec {
+  id             String   @id @default(cuid())
+  projectId      String   @unique
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  schemaVersion  Int      @default(1) // USS_VERSION the doc was written with
+  version        Int      @default(1) // head version; optimistic concurrency key
+  doc            Json
+  // Denormalised projections so lists and dashboards never parse the document
+  complexityTier Int      @default(2)
+  completeness   Int      @default(0)
+  openDecisions  Int      @default(0) // MATERIAL count only
+  domain         String   @default("software")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  versions       SystemSpecVersion[]
+
+  @@index([projectId])
+}
+
+/**
+ * Immutable version log. Later units diff these to show what a turn changed.
+ */
+model SystemSpecVersion {
+  id            String     @id @default(cuid())
+  specId        String
+  spec          SystemSpec @relation(fields: [specId], references: [id], onDelete: Cascade)
+  version       Int
+  doc           Json
+  changeSummary String
+  source        String // extract, answer, canvas-sync, manual, import
+  authorUserId  String?
+  createdAt     DateTime   @default(now())
+
+  @@unique([specId, version])
+  @@index([specId, createdAt])
 }
 
 /**

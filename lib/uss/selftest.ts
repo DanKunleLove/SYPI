@@ -91,5 +91,91 @@ check("slug ids deduplicate", slug1 === "CAP-video-generation" && slug2 === "CAP
 // 10. Relation ids are deterministic — the same edge asserted twice is one edge.
 check("relation ids are deterministic", relationId("satisfies", "CMP-001", "REQ-001") === relationId("satisfies", "CMP-001", "REQ-001"));
 
+// ─── Deterministic layer ─────────────────────────────────────────────────────
+
+import { mutate } from "@/lib/uss/graph";
+import { computeCompleteness, checkIntegrity, detectGaps } from "@/lib/uss/gaps";
+import { renderUssForPrompt } from "@/lib/uss/render";
+import { reconcileCanvasIntoSpec } from "@/lib/uss/reconcile";
+import { diffUssToCanvas } from "@/lib/uss/project";
+import { ALL_SECTIONS, materialOpenDecisions } from "@/lib/uss/views";
+import type { CanvasNode, CanvasEdge } from "@/types/canvas";
+
+console.log("");
+
+// A tier-1 project that states its problem, its actor and three requirements is
+// COMPLETE. Punishing simple projects with a low score would make the whole rigor
+// layer read as an accusation — the likeliest way this feature fails.
+const simple = mutate(
+  { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: { ...normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 1, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) } },
+  (g) => {
+    g.add("product", { ...prov, title: "Equipment tracker", problem: "Spreadsheet keeps getting overwritten.", valueProposition: "", inScope: ["check in/out"], outOfScope: ["billing"], successCriteria: ["a manager can assign an item"] });
+    const actor = g.add("actor", { ...prov, title: "Site manager", description: "", isHuman: true, goals: [], permissions: ["assign equipment"] });
+    const uc = g.add("useCase", { ...prov, title: "Check out equipment", trigger: "crew needs a tool", mainFlow: ["pick item", "assign to crew"], alternateFlows: [], postconditions: [] });
+    g.link("actsOn", actor.id, uc.id, { status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }], firstSeenVersion: 1 });
+    const cap = g.add("capability", { ...prov, title: "Relational database", capabilityClass: "RELATIONAL_STORE", why: "assignments are related records" });
+    const cmp = g.add("component", { ...prov, title: "Equipment DB", category: "database", responsibility: "stores assignments", orphaned: false });
+    g.link("realizes", cmp.id, cap.id, { status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }], firstSeenVersion: 1 });
+    for (let i = 1; i <= 3; i++) {
+      const r = g.add("requirement", { ...prov, title: `Requirement ${i}`, requirementKind: "functional", statement: `Does thing ${i}`, acceptanceCriteria: ["verifiable"], priority: "must" });
+      g.link("satisfies", cmp.id, r.id, { status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }], firstSeenVersion: 1 });
+      g.link("requires", r.id, cap.id, { status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }], firstSeenVersion: 1 });
+    }
+  }
+);
+const simpleScore = computeCompleteness(simple);
+check("a complete tier-1 project scores 100", simpleScore === 100, `got ${simpleScore}`);
+check("simple project has no orphan components", !checkIntegrity(simple).some((f) => f.rule === "orphan-component"));
+
+// An unjustified component must be caught deterministically.
+const inflated = mutate(simple, (g) => {
+  g.add("component", { ...prov, title: "Redis Cache", category: "cache", responsibility: "", orphaned: false });
+});
+const inflatedFindings = checkIntegrity(inflated);
+check("orphan component detected", inflatedFindings.some((f) => f.rule === "orphan-component"));
+
+// Removing a depended-on canvas node raises exactly one BLOCKING question and
+// does NOT delete the component.
+const dbComponent = simple.entities.find((e) => e.kind === "component")!;
+const withNode = mutate(simple, (g) => {
+  g.update(dbComponent.id, { canvasNodeId: "node-1" });
+});
+const removed = reconcileCanvasIntoSpec(withNode, [], [], 2);
+check("depended-on component is not deleted", removed.doc.entities.some((e) => e.id === dbComponent.id));
+check("removal raises one blocking question", removed.questions.filter((q) => q.severity === "blocking").length === 1);
+check("removal marks the component orphaned", removed.orphaned === 1);
+
+// Reconcile is idempotent — it runs after every save, so a double run must be a no-op.
+const nodes: CanvasNode[] = [
+  // description matches the spec's responsibility: a genuinely synced canvas.
+  { id: "node-1", type: "systemNode", position: { x: 0, y: 0 }, data: { label: "Equipment DB", color: "", shape: "rounded", nodeCategory: "database", description: "stores assignments" } },
+];
+const edges: CanvasEdge[] = [];
+const once = reconcileCanvasIntoSpec(withNode, nodes, edges, 2);
+const twice = reconcileCanvasIntoSpec(once.doc, nodes, edges, 3);
+check("reconcile is idempotent", twice.added === 0 && twice.orphaned === 0 && twice.questions.length === 0);
+
+// A canvas already matching the spec produces no diff.
+check("synced canvas produces no diff", diffUssToCanvas(once.doc, nodes, edges).length === 0);
+
+// THE critical render rule: an empty section must never reach a prompt.
+const emptyDoc = createEmptySpec({ specId: "s", projectId: "p" });
+const renderedEmpty = renderUssForPrompt(emptyDoc, { sections: ALL_SECTIONS });
+check("empty spec renders nothing", renderedEmpty.trim().length === 0, `got ${renderedEmpty.length} chars`);
+const renderedSimple = renderUssForPrompt(simple, { sections: ALL_SECTIONS });
+check("populated spec renders no empty headings", !/GLOSSARY|ASSUMPTIONS|KNOWN UNKNOWNS/.test(renderedSimple));
+check("render respects maxChars", renderUssForPrompt(simple, { sections: ALL_SECTIONS, maxChars: 300 }).length <= 300);
+
+// Gap detection is free and finds capability questions.
+const gaps = detectGaps(simple);
+check("gap rules produce questions with zero LLM calls", gaps.length > 0, `${gaps.length} found`);
+
+// Material ranking: only decisions that would change the design count.
+const withDecisions = mutate(simple, (g) => {
+  g.add("openDecision", { ...prov, title: "Cosmetic", question: "What colour?", why: "", category: "scope", options: [], impact: { affectsComponents: [], affectsRequirements: [], severity: "cosmetic" } });
+  g.add("openDecision", { ...prov, title: "Material", question: "Who can delete?", why: "", category: "auth", options: [], impact: { affectsComponents: [dbComponent.id], affectsRequirements: [], severity: "material" } });
+});
+check("only material decisions are surfaced", materialOpenDecisions(withDecisions).length === 1);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
