@@ -31,12 +31,11 @@ import { buildDesignPrompt } from "@/lib/ai/design-prompt";
 import type { Uss } from "@/lib/uss/schema";
 import { applyArchitectureToSpec } from "@/lib/uss/architecture";
 
-// Generation runs inline (a single structured LLM call, ~10-30s) rather than
-// offloading to a Trigger.dev worker. Give it room for the URL-research step.
-// Raised from 120: the understanding pass adds one flash call before generation,
-// and slower providers (NVIDIA Nemotron measured at 200-600s for a full design)
-// can otherwise hit the ceiling mid-run.
-export const maxDuration = 300;
+// Vercel Hobby hard-caps a function at 60s regardless of what this says. Asking
+// for 300 did not buy 300 -- it only meant a platform kill looked like a mystery
+// instead of a timeout. Every AI route now declares the ceiling it actually has,
+// and work too big to fit is split across requests rather than wished into one.
+export const maxDuration = 60;
 
 const MAX_PROMPT_CHARS = 6_000;
 const MAX_CONTEXT_CHARS = 24_000;

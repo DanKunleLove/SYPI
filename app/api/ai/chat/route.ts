@@ -20,7 +20,11 @@ import { getSpec } from "@/lib/uss/store";
 import { renderUssForPrompt, renderUssSummary } from "@/lib/uss/render";
 
 // Agent turns can chain research → generation → review; give them room.
-export const maxDuration = 300;
+// Vercel Hobby hard-caps a function at 60s regardless of what this says. Asking
+// for 300 did not buy 300 -- it only meant a platform kill looked like a mystery
+// instead of a timeout. Every AI route now declares the ceiling it actually has,
+// and work too big to fit is split across requests rather than wished into one.
+export const maxDuration = 60;
 
 /** Concatenate the text parts of the latest user message (UIMessage shape). */
 function lastUserText(messages: UIMessage[]): string {

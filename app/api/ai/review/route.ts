@@ -20,7 +20,11 @@ import { specCoverage } from "@/lib/uss/views";
  * Reviewers run sequentially and the response streams per discipline, so a slow
  * six-reviewer run shows progress rather than a spinner.
  */
-export const maxDuration = 300;
+// Vercel Hobby hard-caps a function at 60s regardless of what this says. Asking
+// for 300 did not buy 300 -- it only meant a platform kill looked like a mystery
+// instead of a timeout. Every AI route now declares the ceiling it actually has,
+// and work too big to fit is split across requests rather than wished into one.
+export const maxDuration = 60;
 
 function line(obj: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(JSON.stringify(obj) + "\n");

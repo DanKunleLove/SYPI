@@ -5,7 +5,14 @@ import { useReactFlow } from "@xyflow/react";
 import { toast } from "sonner";
 import { autoLayout } from "@/lib/ai/layout";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
-import type { ArchitectureOutput } from "@/lib/ai/schemas";
+import {
+  FIRST_STEP,
+  initialSteps,
+  stepLabel,
+  type PipelineStepId,
+  type PipelineStepState,
+} from "@/lib/ai/pipeline";
+import type { ArchitectureOutput, DiffOperation } from "@/lib/ai/schemas";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 
 export type GenerationStatus =
@@ -19,10 +26,49 @@ export type GenerationStatus =
 interface GenerationState {
   status: GenerationStatus;
   generationId: string | null;
+  /** Human label of whatever is happening right now. */
   step: string;
-  /** Pipeline stages seen so far this run (server-streamed), in order. */
-  stages: string[];
+  /** The whole plan, seeded up front so the user can see where this is going. */
+  steps: PipelineStepState[];
+  /** Set when a step fails, so it — and only it — can be retried. */
+  failedStep: { runId: string; step: PipelineStepId } | null;
 }
+
+export interface ResumableRun {
+  runId: string;
+  brief: string;
+  step: PipelineStepId;
+}
+
+/** The spec numbers a step returns, so the health bar moves as the run proceeds. */
+export interface SpecSnapshot {
+  coverage: number;
+  tier: number;
+  tierLabel: string;
+  materialDecisions: number;
+  components: number;
+}
+
+interface PipelineResponse {
+  ok: boolean;
+  step: PipelineStepId;
+  runId?: string;
+  nextStep: PipelineStepId | null;
+  ms?: number;
+  detail?: string;
+  skipped?: boolean;
+  error?: string;
+  architecture?: ArchitectureOutput;
+  operations?: DiffOperation[];
+  spec?: SpecSnapshot | null;
+}
+
+/**
+ * The platform kills a function at 60s. Give up at 55 so the CLIENT owns the
+ * timeout and can name the step that ran out, instead of surfacing a bare
+ * network error that could mean anything.
+ */
+const STEP_TIMEOUT_MS = 55_000;
 
 /** The most recent completed generation — powers Revert/Restore + feedback. */
 export interface LastGeneration {
@@ -46,8 +92,10 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
     status: "idle",
     generationId: null,
     step: "",
-    stages: [],
+    steps: [],
+    failedStep: null,
   });
+  const [spec, setSpec] = useState<SpecSnapshot | null>(null);
   const [lastGeneration, setLastGeneration] = useState<LastGeneration | null>(null);
   const rateLimitRef = useRef(false);
 
@@ -151,135 +199,218 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
     [reactFlow]
   );
 
-  const generate = useCallback(
-    async (prompt: string, mode: "generate" | "url-analyze" = "generate", url?: string) => {
+  /**
+   * Put the design on the canvas — merging, never duplicating.
+   *
+   * `placeArchitectureOnCanvas` calls generateNodeId() per node with no lookup
+   * against what is already there, so it APPENDS. Generate twice and you get two
+   * "Portfolio Frontend" nodes, two gateways, two databases — which is exactly
+   * what happened to the project that started this work.
+   *
+   * An empty canvas keeps the staggered auto-layout entrance, because that is the
+   * moment the layout is worth having. A canvas with something on it goes through
+   * the operations the server derived from the spec, which match by label and add
+   * only what is genuinely missing.
+   */
+  const placeOrMerge = useCallback(
+    async (architecture: ArchitectureOutput, operations: DiffOperation[], runId: string | null) => {
+      const existing = getNodes();
+
+      if (existing.length === 0) {
+        const placed = await placeArchitectureOnCanvas(architecture);
+        if (runId) {
+          setLastGeneration({
+            generationId: runId,
+            architecture,
+            nodeIds: placed.nodeIds,
+            edgeIds: placed.edgeIds,
+            reverted: false,
+            rating: null,
+          });
+        }
+        toast.success(`Placed ${architecture.nodes.length} components`);
+        return;
+      }
+
+      const { applyDiffOperations } = await import("@/lib/ai/canvas-diff");
+      const result = applyDiffOperations(reactFlow, operations, existing, getEdges());
+      const added = operations.filter((o) => o.op === "ADD_NODE").length;
+      toast.success(
+        added > 0
+          ? `Merged into the canvas — ${added} new component${added === 1 ? "" : "s"}`
+          : "Canvas already matches the design"
+      );
+      void result;
+    },
+    [getNodes, getEdges, reactFlow, placeArchitectureOnCanvas]
+  );
+
+  /**
+   * Run the design pipeline, one request per step.
+   *
+   * This replaces `generate`, which posted the whole chain to /api/ai/generate in
+   * a single request. Two things were wrong with that: it could not finish inside
+   * Vercel Hobby's 60s ceiling, and — the reason no project in the database has
+   * ever had a specification — NOTHING EVER CALLED IT. This hook exported it and
+   * the one component using the hook never destructured it.
+   *
+   * Every step commits to the spec before the next begins, so a failure costs one
+   * step rather than the whole run, and a closed tab can be resumed.
+   */
+  const runPipeline = useCallback(
+    async (brief: string, options?: { url?: string; runId?: string; fromStep?: PipelineStepId }) => {
       if (rateLimitRef.current) {
         toast.error("Please wait a moment before generating again");
         return;
       }
+      rateLimitRef.current = true;
+      setTimeout(() => {
+        rateLimitRef.current = false;
+      }, 3000);
 
+      // Seed the whole plan up front, greyed out. Showing the steps only as they
+      // start reads as "something is happening"; showing them all reads as "it
+      // knows what it is doing", which is the difference that matters.
       setState({
-        status: mode === "url-analyze" ? "generating" : "submitting",
-        generationId: null,
-        step: mode === "url-analyze" ? `Researching ${url ?? "the site"}…` : "Generating architecture…",
-        stages: [],
+        status: "generating",
+        generationId: options?.runId ?? null,
+        step: "",
+        steps: initialSteps(),
+        failedStep: null,
       });
 
-      // Rate limit: 3 seconds
-      rateLimitRef.current = true;
-      setTimeout(() => { rateLimitRef.current = false; }, 3000);
+      let runId = options?.runId ?? null;
+      let step: PipelineStepId | null = options?.fromStep ?? FIRST_STEP;
+
+      const mark = (id: PipelineStepId, patch: Partial<PipelineStepState>) =>
+        setState((prev) => ({
+          ...prev,
+          steps: prev.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+        }));
 
       try {
-        // Serialize current canvas for context
-        const nodes = getNodes();
-        const edges = getEdges();
-        const { serializeCanvasForAI } = await import("@/lib/ai/canvas-context");
-        const canvasContext = nodes.length > 0 ? serializeCanvasForAI(nodes, edges) : undefined;
+        while (step) {
+          const current: PipelineStepId = step;
+          mark(current, { status: "running" });
+          setState((prev) => ({ ...prev, step: stepLabel(current) }));
 
-        setState((prev) => ({ ...prev, status: "generating", step: "Generating architecture…" }));
+          const nodes = getNodes();
+          const edges = getEdges();
 
-        const res = await fetch("/api/ai/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId, prompt, mode, url, canvasContext }),
-        });
+          const res = await fetch("/api/ai/pipeline", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            // The client owns the timeout. The platform kills the function at 60s
+            // with no usable error, so we give up at 55 and can at least name the
+            // step that ran out of time.
+            signal: AbortSignal.timeout(STEP_TIMEOUT_MS),
+            body: JSON.stringify({
+              projectId,
+              step: current,
+              runId,
+              brief,
+              url: options?.url,
+              nodes,
+              edges,
+            }),
+          }).catch((e: unknown) => {
+            const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+            throw new Error(
+              timedOut
+                ? `"${stepLabel(current)}" took longer than 55s and was cut off. Retry it.`
+                : "Lost connection. Retry this step."
+            );
+          });
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Failed to generate architecture");
-        }
+          if (!res.ok) {
+            const data = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(data.error || `"${stepLabel(current)}" failed`);
+          }
 
-        // The route streams NDJSON: status events (live stage text) followed by
-        // a single result or error event.
-        if (!res.body) throw new Error("No response stream");
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let final: { generationId: string; architecture: ArchitectureOutput } | null = null;
+          const data = (await res.json()) as PipelineResponse;
 
-        const handleLine = (raw: string) => {
-          if (!raw.trim()) return;
-          const event = JSON.parse(raw) as {
-            type: "status" | "result" | "error";
-            message?: string;
-            error?: string;
-            generationId?: string;
-            architecture?: ArchitectureOutput;
-          };
-          if (event.type === "status" && event.message) {
-            const stage = (event as { stage?: string }).stage;
+          // A failed step is a 200 with ok:false — an HTTP error would be
+          // indistinguishable from the platform killing the function.
+          if (data.ok === false) {
+            mark(current, { status: "failed", error: data.error });
             setState((prev) => ({
               ...prev,
-              status: "generating",
-              step: event.message!,
-              stages:
-                stage && !prev.stages.includes(stage)
-                  ? [...prev.stages, stage]
-                  : prev.stages,
+              status: "error",
+              step: data.error ?? "That step failed",
+              failedStep: { runId: data.runId ?? runId ?? "", step: current },
             }));
-          } else if (event.type === "result" && event.architecture) {
-            final = { generationId: event.generationId!, architecture: event.architecture };
-          } else if (event.type === "error") {
-            throw new Error(event.error || "Generation failed");
+            toast.error(`${stepLabel(current)}: ${data.error}`);
+            return;
           }
-        };
 
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          let newline;
-          while ((newline = buffer.indexOf("\n")) >= 0) {
-            const rawLine = buffer.slice(0, newline);
-            buffer = buffer.slice(newline + 1);
-            handleLine(rawLine);
+          runId = data.runId ?? runId;
+          mark(current, {
+            status: data.skipped ? "skipped" : "done",
+            detail: data.detail,
+            ms: data.ms,
+          });
+          if (data.spec) setSpec(data.spec);
+
+          // The architecture lands on the canvas at the step that records it.
+          if (data.architecture && data.operations) {
+            await placeOrMerge(data.architecture, data.operations, runId);
           }
+
+          step = data.nextStep;
         }
-        if (buffer.trim()) handleLine(buffer);
 
-        if (!final) throw new Error("Generation ended unexpectedly — please retry");
-        const { generationId, architecture } = final as {
-          generationId: string;
-          architecture: ArchitectureOutput;
-        };
-
-        setState((prev) => ({
-          status: "placing",
-          generationId,
-          step: "Placing nodes on canvas…",
-          stages: prev.stages.includes("placing")
-            ? prev.stages
-            : [...prev.stages, "placing"],
-        }));
-        const placed = await placeArchitectureOnCanvas(architecture);
-
-        setLastGeneration({
-          generationId,
-          architecture,
-          nodeIds: placed.nodeIds,
-          edgeIds: placed.edgeIds,
-          reverted: false,
-          rating: null,
-        });
-
-        setState((prev) => ({ ...prev, status: "done", step: "Architecture ready!" }));
-        toast.success(`Generated ${architecture.nodes.length} components`);
-
-        // Reset to idle after a moment
-        setTimeout(() => {
-          setState({ status: "idle", generationId: null, step: "", stages: [] });
-        }, 3000);
+        setState((prev) => ({ ...prev, status: "done", step: "Done" }));
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Generation failed";
-        setState({ status: "error", generationId: null, step: msg, stages: [] });
+        const msg = error instanceof Error ? error.message : "The run failed";
+        setState((prev) => ({
+          ...prev,
+          status: "error",
+          step: msg,
+          steps: prev.steps.map((s) => (s.status === "running" ? { ...s, status: "failed", error: msg } : s)),
+          failedStep: runId && step ? { runId, step } : null,
+        }));
         toast.error(msg);
       }
     },
-    [projectId, getNodes, getEdges, placeArchitectureOnCanvas]
+    [projectId, getNodes, getEdges, placeOrMerge]
   );
 
+  /**
+   * Retry only the step that failed, on the same run.
+   *
+   * Free, and that is the whole point of committing after every step: nothing
+   * before the failure is re-extracted and no quota is charged again.
+   */
+  const retryStep = useCallback(
+    async (brief: string) => {
+      const failed = state.failedStep;
+      if (!failed) return;
+      rateLimitRef.current = false;
+      await runPipeline(brief, { runId: failed.runId, fromStep: failed.step });
+    },
+    [state.failedStep, runPipeline]
+  );
+
+  /** Is there a run this project abandoned mid-way? Answers the closed-tab case. */
+  const findResumable = useCallback(async (): Promise<ResumableRun | null> => {
+    try {
+      const res = await fetch(`/api/ai/pipeline?projectId=${encodeURIComponent(projectId)}`);
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        resumable: boolean;
+        runId?: string;
+        brief?: string;
+        step?: PipelineStepId | null;
+      };
+      if (!data.resumable || !data.runId || !data.brief || !data.step) return null;
+      return { runId: data.runId, brief: data.brief, step: data.step };
+    } catch {
+      return null;
+    }
+  }, [projectId]);
+
   const reset = useCallback(() => {
-    setState({ status: "idle", generationId: null, step: "", stages: [] });
+    setState({ status: "idle", generationId: null, step: "", steps: [], failedStep: null });
   }, []);
 
   /** Remove everything the last generation placed (kept restorable). */
@@ -347,7 +478,10 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
 
   return {
     ...state,
-    generate,
+    spec,
+    runPipeline,
+    retryStep,
+    findResumable,
     reset,
     placeArchitectureOnCanvas,
     lastGeneration,
