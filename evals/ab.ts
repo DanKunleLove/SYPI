@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BRIEFS } from "./briefs/index";
 import type { BriefResult, EvalReport } from "./types";
@@ -83,14 +83,18 @@ function runOne(briefId: string, arm: Arm, passthrough: string[]): boolean {
   const result = spawnSync("npx", args, { stdio: "inherit", shell: true, env: process.env });
   if (result.status !== 0) console.log(`  ${briefId} [${arm}]: process exited ${result.status}`);
 
-  const reports = readdirSync(join(process.cwd(), "evals", "reports"))
-    .filter((f) => f.endsWith(".json"))
-    .sort();
+  // Only timestamped RUN reports. This directory also holds this script's own
+  // ab-<date>.json, which sorts after every timestamp alphabetically -- reading it
+  // as "the newest run" silently discarded all 20 arm-runs of the first attempt,
+  // including the ones that had completed and scored perfectly well.
+  const dir = join(process.cwd(), "evals", "reports");
+  const reports = readdirSync(dir).filter((f) => /^\d{4}-\d{2}-\d{2}T.*\.json$/.test(f));
   if (reports.length === 0) return false;
+  const newest = reports
+    .map((f) => ({ f, mtime: statSync(join(dir, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime)[0].f;
 
-  const latest = JSON.parse(
-    readFileSync(join(process.cwd(), "evals", "reports", reports[reports.length - 1]), "utf8")
-  ) as EvalReport;
+  const latest = JSON.parse(readFileSync(join(dir, newest), "utf8")) as EvalReport;
 
   // Guard against picking up a stale report from an earlier run: the condition
   // recorded in the file must be the arm we just asked for.
@@ -320,7 +324,7 @@ function main() {
     thresholds: THRESHOLDS,
     verdict: { pairedBriefs: paired.length, wins, losses, ties, guardrailBreaches, passed },
   };
-  const path = join(process.cwd(), "evals", "reports", `ab-${out.runAt.slice(0, 10)}.json`);
+  const path = join(OUT_DIR, `ab-${out.runAt.slice(0, 10)}.json`);
   writeFileSync(path, JSON.stringify(out, null, 2));
   console.log(`\nreport: ${path}`);
 
