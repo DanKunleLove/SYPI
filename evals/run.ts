@@ -187,10 +187,26 @@ async function withTimeout<T>(fn: () => Promise<T>, ms: number, label: string): 
   }
 }
 
+/**
+ * Node resolves DNS independently of the OS resolver, and on this platform it
+ * intermittently returns ENOTFOUND for a host PowerShell resolves in
+ * milliseconds. Forcing IPv4-first ordering avoids the AAAA path that triggers
+ * it. Set before any request is made.
+ */
+import { setDefaultResultOrder } from "node:dns";
+try {
+  setDefaultResultOrder("ipv4first");
+} catch {
+  // Older runtimes do not expose it; the retry below is the fallback.
+}
+
 async function withNetworkRetry<T>(
   fn: () => Promise<T>,
   label: string,
-  attempts = 3
+  // Five attempts, not three: a DNS outage on this machine has outlasted a
+  // 30s + 60s schedule more than once, and losing a ten-minute brief to it
+  // produces a failure that says nothing about the design.
+  attempts = 5
 ): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -203,7 +219,9 @@ async function withNetworkRetry<T>(
       const parseFailure = /parse the response|no object generated|match schema/i.test(
         e instanceof Error ? e.message : String(e)
       );
-      const waitMs = parseFailure ? 3_000 : 30_000 * (i + 1);
+      // Exponential for network: 15s, 30s, 60s, 120s - patient enough to outlast
+      // a resolver outage without stalling the whole run on a dead provider.
+      const waitMs = parseFailure ? 3_000 : 15_000 * Math.pow(2, i);
       process.stdout.write(
         `    network error during ${label} — retrying in ${waitMs / 1000}s (attempt ${i + 2}/${attempts})\n`
       );
@@ -527,6 +545,27 @@ async function main() {
     if (prev.model !== report.model || prev.runs !== report.runs) {
       console.log("  ⚠ model or run-count differs — this is not a like-for-like comparison");
     }
+
+    // Comparing means across DIFFERENT brief sets is meaningless, and dangerously
+    // so: a run where only the easiest brief succeeded once reported
+    // "business-correctness 49 → 78 (+29)" purely because it was averaging one
+    // brief against ten. Refuse rather than print a number that looks like progress.
+    const prevIds = new Set(prev.results.filter((r) => r.ok).map((r) => r.briefId));
+    const curIds = new Set(results.filter((r) => r.ok).map((r) => r.briefId));
+    const sameSet =
+      prevIds.size === curIds.size && [...curIds].every((id) => prevIds.has(id));
+
+    if (!sameSet) {
+      const missing = [...prevIds].filter((id) => !curIds.has(id));
+      console.log(
+        `\n  COMPARISON REFUSED — different brief sets.\n` +
+          `  baseline succeeded on ${prevIds.size}, this run on ${curIds.size}.` +
+          (missing.length ? `\n  Missing here: ${missing.join(", ")}` : "") +
+          `\n  Averaging different sets produces numbers that look like progress and are not.` +
+          `\n  Per-brief scores are in the report; fix the failures and re-run to compare.`
+      );
+      process.exitCode = 1;
+    } else {
     console.log("");
 
     let regressions = 0;
@@ -558,6 +597,7 @@ async function main() {
       process.exitCode = 1;
     } else {
       console.log("  No dimension regressed by more than 5%. Gate: PASS");
+    }
     }
   }
 

@@ -11,7 +11,8 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "eval": "tsx evals/run.ts",
-    "uss:test": "tsx lib/uss/selftest.ts"
+    "uss:test": "tsx lib/uss/selftest.ts",
+    "eval:sweep": "tsx evals/sweep.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
