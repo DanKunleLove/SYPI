@@ -1,3 +1,4 @@
+import { describeComponent } from "@/lib/uss/architecture";
 import { UssGraph } from "@/lib/uss/graph";
 import type { Uss } from "@/lib/uss/schema";
 import type { CanvasEdge, CanvasNode } from "@/types/canvas";
@@ -51,7 +52,13 @@ export function reconcileCanvasIntoSpec(
     if (!label) continue;
 
     const category = (node.data?.nodeCategory ?? "custom") as (typeof components)[number]["category"];
-    const description = String(node.data?.description ?? "");
+    // Config the entity has no field for is folded into the responsibility. Without
+    // this a canvas save would erase "replication=Read replica" — which is exactly
+    // the evidence the durability scenario needs — on the round trip.
+    const description = describeComponent(
+      String(node.data?.description ?? ""),
+      (node.data ?? {}) as Record<string, string | undefined>
+    );
     const technology =
       (node.data?.configTechnology as string | undefined) ??
       (node.data?.configDbType as string | undefined) ??

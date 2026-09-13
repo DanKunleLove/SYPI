@@ -1,4 +1,5 @@
 import { renderBudgetForPrompt } from "@/lib/uss/complexity";
+import { unenforcedInvariants } from "@/lib/uss/domain";
 import {
   actors,
   architecture,
@@ -12,6 +13,7 @@ import {
   product,
   requirements,
   sectionIsEmpty,
+  specCoverage,
   implications,
   domainEntities,
   invariants,
@@ -184,26 +186,39 @@ function renderSection(doc: Uss, section: UssSection): string | null {
     }
     case "providers":
       // Rendered with the rejected alternatives, so the design carries its own
-      // justification rather than reading as a list of preferences.
+      // justification rather than reading as a list of preferences — and with
+      // mark(status), like every other section. This was the one section that
+      // omitted it, so an INFERRED technology choice reached the model as a flat
+      // assertion: a guess presented as a decision.
       return `TECHNOLOGY CHOICES — each was selected against the project's constraints:\n${providerBindings(
         doc
       )
         .map(
           (b) =>
-            `- ${b.capabilityClass}: ${b.providerLabel}${b.rationale ? ` — ${b.rationale}` : ""}${b.drivenBy.length ? ` [driven by: ${b.drivenBy.join("; ")}]` : ""}`
+            `- ${b.capabilityClass}: ${b.providerLabel}${mark(b.status)}${b.rationale ? ` — ${b.rationale}` : ""}${b.drivenBy.length ? ` [driven by: ${b.drivenBy.join("; ")}]` : ""}`
         )
         .join("\n")}`;
-    case "invariants":
+    case "invariants": {
       // Stated as laws, because that is what they are. The architecture must
       // show how each is enforced, not merely avoid contradicting it.
+      //
+      // "Enforced by" comes from the same predicate checkDomainIntegrity and the
+      // council use, and is always marked inferred — a fuzzy match must never
+      // read as a settled answer.
+      const unenforced = new Set(unenforcedInvariants(doc).map((i) => i.id));
       return `INVARIANTS — rules this system must NEVER violate. For each one, the design must make clear what enforces it:\n${invariants(
         doc
       )
         .map(
           (i) =>
-            `- ${i.statement}${i.violationConsequence ? ` (if violated: ${i.violationConsequence})` : ""}${i.enforcement ? ` [enforced by: ${i.enforcement}]` : " [NOTHING ENFORCES THIS YET]"}`
+            `- ${i.statement}${i.violationConsequence ? ` (if violated: ${i.violationConsequence})` : ""}${
+              unenforced.has(i.id)
+                ? " [NOTHING ENFORCES THIS YET — the design must name what does]"
+                : ` [enforced by: ${i.enforcement} (inferred — confirm)]`
+            }`
         )
         .join("\n")}`;
+    }
   }
 }
 
@@ -238,7 +253,9 @@ export function renderUssSummary(doc: Uss): string {
     `tier ${doc.complexity.tier} (${doc.complexity.label})`,
     `${requirements(doc).length} requirements`,
     `${architecture(doc).components.length} components`,
-    `spec ${doc.meta.completeness}% complete`,
+    // Never "spec 90% complete" — that phrasing, in a system prompt, invites the
+    // model to treat a filled-in checklist as a finished design.
+    `spec coverage ${specCoverage(doc)}%`,
   ];
   if (open.length > 0) {
     parts.push(`${open.length} unresolved decision(s) that affect the design`);

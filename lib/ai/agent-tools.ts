@@ -22,7 +22,7 @@ import { commitWithRetry } from "@/lib/uss/store";
 import { UssGraph } from "@/lib/uss/graph";
 import { finalise } from "@/lib/ai/uss";
 import { renderUssSummary } from "@/lib/uss/render";
-import { materialOpenDecisions } from "@/lib/uss/views";
+import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { checkAiQuota } from "@/lib/ai/limits";
 import { Prisma } from "@/app/generated/prisma/client";
 
@@ -233,7 +233,7 @@ export function createAgentTools(ctx: AgentContext) {
           return {
             action: "decisionResolved",
             decisionId,
-            completeness: result.doc.meta.completeness,
+            coverage: specCoverage(result.doc),
             remaining: materialOpenDecisions(result.doc).length,
           };
         } catch (error) {

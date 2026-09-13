@@ -4,6 +4,7 @@ import { reconcileCanvasIntoSpec } from "@/lib/uss/reconcile";
 import { finalise } from "@/lib/ai/uss";
 import { UssGraph } from "@/lib/uss/graph";
 import type { CanvasEdge, CanvasNode } from "@/types/canvas";
+import { specCoverage } from "@/lib/uss/views";
 
 /**
  * POST /api/projects/[projectId]/spec/sync — canvas → USS.
@@ -82,7 +83,7 @@ export async function POST(
     return Response.json({
       ok: true,
       version: result.version,
-      completeness: result.doc.meta.completeness,
+      coverage: specCoverage(result.doc),
     });
   } catch (error) {
     // Sync is best-effort by design: it must never make a save look failed.

@@ -10,9 +10,14 @@ import {
 import { CAPABILITY_CLASSES } from "@/lib/capabilities/registry";
 import { normaliseComplexity } from "@/lib/uss/complexity";
 import { UssGraph } from "@/lib/uss/graph";
-import { detectGaps, checkIntegrity, computeCompleteness } from "@/lib/uss/gaps";
+import { detectGaps, checkIntegrity, computeSpecCoverage } from "@/lib/uss/gaps";
 import { IdAllocator } from "@/lib/uss/ids";
-import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
+import {
+  applyInvariants,
+  checkDomainIntegrity,
+  linkEnforcement,
+  seedInvariants,
+} from "@/lib/uss/domain";
 import { applyBindings } from "@/lib/uss/binding";
 import { scenarioFindings } from "@/lib/uss/scenarios";
 import type { Uss } from "@/lib/uss/schema";
@@ -466,7 +471,14 @@ export function finalise(doc: Uss): Uss {
   // Bind providers once capabilities and constraints are known. Deterministic:
   // selection from a catalogue against stated constraints is reproducible, and
   // cannot hallucinate a product that does not exist.
-  const withBindings = applyBindings(withInvariants, withInvariants.complexity.firstSeenVersion);
+  // Link each invariant to the component whose OWN description shows it is
+  // enforced. Must run after invariants are seeded and before integrity is
+  // checked, or every check reads a stale enforcement state.
+  const withEnforcement = linkEnforcement(withInvariants, withInvariants.complexity.firstSeenVersion);
+  // Bind providers once capabilities and constraints are known. Deterministic:
+  // selection from a catalogue against stated constraints is reproducible, and
+  // cannot hallucinate a product that does not exist.
+  const withBindings = applyBindings(withEnforcement, withEnforcement.complexity.firstSeenVersion);
   const withGaps = mergeGaps(withBindings);
   return {
     ...withGaps,
@@ -479,7 +491,7 @@ export function finalise(doc: Uss): Uss {
     ],
     meta: {
       ...withGaps.meta,
-      completeness: computeCompleteness(withGaps),
+      coverage: computeSpecCoverage(withGaps),
       lastExtractedAt: new Date().toISOString(),
     },
   };

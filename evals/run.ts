@@ -194,6 +194,7 @@ async function withTimeout<T>(fn: () => Promise<T>, ms: number, label: string): 
  * it. Set before any request is made.
  */
 import { setDefaultResultOrder } from "node:dns";
+import { specCoverage } from "@/lib/uss/views";
 try {
   setDefaultResultOrder("ipv4first");
 } catch {
@@ -408,7 +409,7 @@ async function main() {
           if (built.contextBlock) designPrompt = `${brief.brief}\n\n${built.contextBlock}`;
           const cov = ruleCoverage(doc);
           process.stdout.write(
-            `    spec: ${doc.meta.completeness}% complete, tier ${doc.complexity.tier}, ` +
+            `    spec: ${specCoverage(doc)}% coverage, tier ${doc.complexity.tier}, ` +
               `${cov.total} implications (${cov.pct}% by rule)\n`
           );
         }

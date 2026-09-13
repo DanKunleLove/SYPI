@@ -1,4 +1,5 @@
 import type { CapabilityClass } from "@/lib/capabilities/registry";
+import { unenforcedInvariants } from "@/lib/uss/domain";
 import { UssGraph } from "@/lib/uss/graph";
 import { capabilities, domainEntities, invariants, requirements } from "@/lib/uss/views";
 import type { Uss } from "@/lib/uss/schema";
@@ -245,10 +246,12 @@ export function preReviewFindings(doc: Uss): string[] {
     out.push(`[${f.severity}] ${f.message}`);
   }
 
-  const unenforced = g.byKind("invariant").filter((i) => !i.enforcement);
+  // One predicate, shared with checkDomainIntegrity and render.ts. These three used
+  // to disagree about the same invariant.
+  const unenforced = g.byKind("component").length > 0 ? unenforcedInvariants(doc) : [];
   if (unenforced.length > 0) {
     out.push(
-      `[blocking] ${unenforced.length} invariant(s) have nothing stated to enforce them`
+      `[blocking] ${unenforced.length} invariant(s) have no component enforcing them`
     );
   }
 

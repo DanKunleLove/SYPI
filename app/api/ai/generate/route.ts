@@ -27,7 +27,7 @@ import {
 import { applyImplications, deriveImplications, ruleCoverage } from "@/lib/uss/reasoning";
 import { commitSpec, getOrCreateSpec } from "@/lib/uss/store";
 import { renderUssForPrompt } from "@/lib/uss/render";
-import { materialOpenDecisions } from "@/lib/uss/views";
+import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
@@ -222,7 +222,7 @@ export async function POST(request: Request) {
           controller.enqueue(
             line({
               type: "spec",
-              completeness: saved.doc.meta.completeness,
+              coverage: specCoverage(saved.doc),
               tier: saved.doc.complexity.tier,
               tierLabel: saved.doc.complexity.label,
               materialDecisions: materialOpenDecisions(saved.doc).length,

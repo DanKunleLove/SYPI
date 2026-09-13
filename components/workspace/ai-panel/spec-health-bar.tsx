@@ -5,8 +5,13 @@ import { cn } from "@/lib/utils";
 import type { SpecHead } from "@/hooks/use-system-spec";
 
 /**
- * Spec health: completeness, tier, and how many open questions would actually
- * change the design.
+ * Spec health: coverage, tier, and how many open questions would actually change
+ * the design.
+ *
+ * The bar is labelled "Spec coverage", not left as a bare percentage. A naked 90%
+ * next to a product title reads as "this design is 90% right"; it means nine of
+ * ten boxes have something in them. The numbers that speak to quality — scenarios
+ * proven, unknowns outstanding — sit beside it rather than being folded into it.
  *
  * Hidden entirely until a spec exists, so a first-time user sees exactly the panel
  * they saw before. The count shown is MATERIAL decisions only — never the raw
@@ -20,16 +25,17 @@ export function SpecHealthBar({
   spec: SpecHead | null;
   onOpenDecisions?: () => void;
 }) {
-  if (!spec?.exists || spec.completeness === undefined) return null;
+  if (!spec?.exists || spec.coverage === undefined) return null;
 
-  const completeness = spec.completeness;
+  const coverage = spec.coverage;
+  const health = spec.health;
   const material = spec.counts?.material ?? 0;
   const blocking = spec.integrity?.filter((f) => f.severity === "blocking") ?? [];
 
   const tone =
-    completeness >= 80
+    coverage >= 80
       ? "var(--state-success)"
-      : completeness >= 50
+      : coverage >= 50
         ? "var(--accent-primary)"
         : "var(--state-warning)";
 
@@ -44,14 +50,14 @@ export function SpecHealthBar({
               {spec.productTitle ?? "System spec"}
             </span>
             <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
-              {completeness}%
+              spec coverage {coverage}%
             </span>
           </div>
 
           <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--bg-surface-raised)]">
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${completeness}%`, backgroundColor: tone }}
+              style={{ width: `${coverage}%`, backgroundColor: tone }}
             />
           </div>
         </div>
@@ -65,6 +71,26 @@ export function SpecHealthBar({
           </span>
         )}
       </div>
+
+      {health && (health.scenarioScore !== null || health.unknowns > 0) && (
+        <div className="mt-1.5 flex items-center gap-3 pl-6 text-[10px] tabular-nums text-[var(--text-muted)]">
+          {health.scenarioScore !== null && (
+            <span title="Failure scenarios the architecture demonstrably handles">
+              {health.scenarioScore}% scenarios proven
+            </span>
+          )}
+          {health.scenariosUnknown > 0 && (
+            <span title="Nothing in the design demonstrates these either way">
+              {health.scenariosUnknown} unproven
+            </span>
+          )}
+          {health.unknowns > 0 && (
+            <span title="Things the spec explicitly does not know">
+              {health.unknowns} unknown
+            </span>
+          )}
+        </div>
+      )}
 
       {(material > 0 || blocking.length > 0) && (
         <button

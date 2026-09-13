@@ -2,6 +2,7 @@ import { getCapability } from "@/lib/capabilities/registry";
 import { CAPABILITY_QUESTIONS } from "@/lib/capabilities/questions";
 import { UssGraph } from "@/lib/uss/graph";
 import { capabilitiesOverBudget } from "@/lib/uss/complexity";
+import { runScenarios, summariseScenarios } from "@/lib/uss/scenarios";
 import {
   actors,
   capabilities,
@@ -11,6 +12,7 @@ import {
   openDecisions,
   product,
   requirements,
+  unknowns,
   useCases,
 } from "@/lib/uss/views";
 import type { Entity, IntegrityFinding, Uss } from "@/lib/uss/schema";
@@ -364,14 +366,27 @@ export function checkIntegrity(doc: Uss): IntegrityFinding[] {
 // ─── Completeness ────────────────────────────────────────────────────────────
 
 /**
- * Tier-weighted completeness.
+ * Tier-weighted SPEC COVERAGE.
+ *
+ * Read this for exactly what it is: how much of the specification has been filled
+ * in. It is NOT a measure of how good the system is, how correct the design is, or
+ * how close the project is to done. It was called "completeness" and surfaced as a
+ * headline percentage, and a name like that on a number like this invites everyone
+ * — users and the model reading the chat prompt alike — to believe a 90 means the
+ * design is 90% right. It means nine of ten boxes have something in them.
  *
  * A tier-1 script that states its problem, its one actor and three requirements
  * should read 100 — not 30. A user must never be punished by this meter for
  * building something simple; that would make the whole rigor layer feel like an
  * accusation, which is the single likeliest way this feature fails.
+ *
+ * Note what is deliberately NOT here: the old version docked 2 points whenever a
+ * blocking open decision existed. Surfacing the question a senior engineer would
+ * ask is the product's entire reason to exist, and the score went DOWN for doing
+ * it — so the meter rewarded staying quiet. Blocking decisions are now counted and
+ * shown as their own number in `computeSpecHealth`, never subtracted from this one.
  */
-export function computeCompleteness(doc: Uss): number {
+export function computeSpecCoverage(doc: Uss): number {
   const tier = doc.complexity.tier;
   const checks: { has: boolean; weight: number; appliesAtTier: number }[] = [
     { has: Boolean(product(doc)), weight: 3, appliesAtTier: 0 },
@@ -389,7 +404,6 @@ export function computeCompleteness(doc: Uss): number {
     { has: nonFunctional(doc).length > 0, weight: 2, appliesAtTier: 3 },
     { has: nonFunctional(doc).some((r) => Boolean(r.target)), weight: 2, appliesAtTier: 3 },
     { has: doc.complexity.status !== "UNKNOWN", weight: 1, appliesAtTier: 0 },
-    { has: openDecisions(doc).every((d) => d.impact.severity !== "blocking"), weight: 2, appliesAtTier: 1 },
   ];
 
   const applicable = checks.filter((c) => tier >= c.appliesAtTier);
@@ -397,4 +411,45 @@ export function computeCompleteness(doc: Uss): number {
   if (total === 0) return 100;
   const earned = applicable.filter((c) => c.has).reduce((s, c) => s + c.weight, 0);
   return Math.round((earned / total) * 100);
+}
+
+/**
+ * The several numbers that "completeness" was pretending to be.
+ *
+ * One percentage cannot say both "the spec is filled in" and "the design is
+ * sound", and trying to make it do both is what produced a meter that fell when
+ * the system found a real problem. These are reported side by side, and none of
+ * them is subtracted from another.
+ */
+export interface SpecHealth {
+  /** How much of the specification has been filled in. 0-100. */
+  coverage: number;
+  /** Questions that must be answered before the design can be trusted. A COUNT. */
+  blockingDecisions: number;
+  /** Things the spec explicitly does not know. Honesty, not failure. */
+  unknowns: number;
+  /** Share of applicable scenarios the architecture demonstrably handles. */
+  scenarioScore: number | null;
+  /** Scenarios nothing could yet demonstrate either way. */
+  scenariosUnknown: number;
+  /** Share of entities carrying evidence for what they claim. 0-100. */
+  evidenceConfidence: number;
+}
+
+export function computeSpecHealth(doc: Uss): SpecHealth {
+  const results = runScenarios(doc);
+  const scenarios = summariseScenarios(results);
+
+  const entities = doc.entities;
+  const withEvidence = entities.filter((e) => e.evidence.length > 0).length;
+
+  return {
+    coverage: computeSpecCoverage(doc),
+    blockingDecisions: openDecisions(doc).filter((d) => d.impact.severity === "blocking").length,
+    unknowns:
+      unknowns(doc).length + entities.filter((e) => e.status === "UNKNOWN").length,
+    scenarioScore: scenarios.score,
+    scenariosUnknown: scenarios.unknown,
+    evidenceConfidence: entities.length === 0 ? 0 : Math.round((withEvidence / entities.length) * 100),
+  };
 }

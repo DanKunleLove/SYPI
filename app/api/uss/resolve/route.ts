@@ -5,6 +5,7 @@ import { UssGraph } from "@/lib/uss/graph";
 import { finalise } from "@/lib/ai/uss";
 import { diffUssToCanvas } from "@/lib/uss/project";
 import type { CanvasEdge, CanvasNode } from "@/types/canvas";
+import { specCoverage } from "@/lib/uss/views";
 
 /**
  * POST /api/uss/resolve — answer one open decision.
@@ -118,7 +119,7 @@ export async function POST(request: Request) {
   return Response.json({
     ok: true,
     version: result.version,
-    completeness: result.doc.meta.completeness,
+    coverage: specCoverage(result.doc),
     operations,
   });
 }

@@ -213,3 +213,14 @@ export function sectionIsEmpty(doc: Uss, section: UssSection): boolean {
       return providerBindings(doc).length === 0;
   }
 }
+
+/**
+ * Spec coverage, tolerant of documents written before the rename.
+ *
+ * `coverage` defaults to 0, so a document stored under the old name would read as
+ * a hard 0 until the next write. Falling back keeps existing projects showing the
+ * truth, and they self-heal on their next commit.
+ */
+export function specCoverage(doc: Uss): number {
+  return doc.meta.coverage || doc.meta.completeness || 0;
+}

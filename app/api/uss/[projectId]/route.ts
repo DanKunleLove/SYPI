@@ -1,6 +1,7 @@
 import { getProjectWithAccess } from "@/lib/project-access";
 import { getSpec } from "@/lib/uss/store";
-import { materialOpenDecisions, product } from "@/lib/uss/views";
+import { materialOpenDecisions, product, specCoverage } from "@/lib/uss/views";
+import { computeSpecHealth } from "@/lib/uss/gaps";
 
 /**
  * GET /api/uss/[projectId] — spec head for the UI.
@@ -31,7 +32,8 @@ export async function GET(
   return Response.json({
     exists: true,
     version,
-    completeness: doc.meta.completeness,
+    coverage: specCoverage(doc),
+    health: computeSpecHealth(doc),
     tier: doc.complexity.tier,
     tierLabel: doc.complexity.label,
     tierRationale: doc.complexity.rationale,
@@ -52,6 +54,12 @@ export async function GET(
       severity: d.impact.severity,
       options: d.options,
     })),
-    integrity: doc.integrity.filter((f) => f.severity !== "cosmetic").slice(0, 6),
+    // Sorted before slicing: recording the generated architecture means orphan
+    // and unenforced-invariant findings now fire on real projects, and an
+    // unsorted slice(0, 6) would bury the blocking ones behind cosmetics.
+    integrity: doc.integrity
+      .filter((f) => f.severity !== "cosmetic")
+      .sort((a, b) => (a.severity === "blocking" ? 0 : 1) - (b.severity === "blocking" ? 0 : 1))
+      .slice(0, 6),
   });
 }

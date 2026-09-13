@@ -7,6 +7,7 @@ import { commitSpec, getSpec } from "@/lib/uss/store";
 import { finalise } from "@/lib/ai/uss";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
+import { specCoverage } from "@/lib/uss/views";
 
 /**
  * POST /api/ai/review — the Engineering Council.
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
             findings: result.findings,
             disciplines: result.disciplines,
             calls: result.calls,
-            completeness: saved.doc.meta.completeness,
+            coverage: specCoverage(saved.doc),
           })
         );
       } catch (error) {

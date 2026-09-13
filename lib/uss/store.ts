@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
 import { createEmptySpec } from "@/lib/uss/empty";
 import { normaliseComplexity } from "@/lib/uss/complexity";
-import { materialOpenDecisions } from "@/lib/uss/views";
+import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { USS_VERSION, UssSchema, type Uss } from "@/lib/uss/schema";
 
 /**
@@ -91,6 +91,8 @@ export async function getOrCreateSpec(
       version: 1,
       doc: doc as unknown as Prisma.InputJsonValue,
       complexityTier: doc.complexity.tier,
+      // Prisma column, deliberately NOT renamed: it is a denormalised mirror of
+      // meta.coverage and renaming it would cost a migration for no benefit.
       completeness: 0,
       openDecisions: 0,
       domain: doc.domain,
@@ -152,7 +154,7 @@ export async function commitSpec(params: {
           version: 1,
           doc: doc as unknown as Prisma.InputJsonValue,
           complexityTier: doc.complexity.tier,
-          completeness: doc.meta.completeness,
+          completeness: specCoverage(doc),
           openDecisions: material,
           domain: doc.domain,
         },
@@ -182,7 +184,7 @@ export async function commitSpec(params: {
         version: nextVersion,
         doc: doc as unknown as Prisma.InputJsonValue,
         complexityTier: doc.complexity.tier,
-        completeness: doc.meta.completeness,
+        completeness: specCoverage(doc),
         openDecisions: material,
         domain: doc.domain,
       },

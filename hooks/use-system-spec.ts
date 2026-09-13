@@ -19,7 +19,16 @@ export interface SpecDecision {
 export interface SpecHead {
   exists: boolean;
   version?: number;
-  completeness?: number;
+  /** How much of the SPEC is filled in. Not a measure of design quality. */
+  coverage?: number;
+  health?: {
+    coverage: number;
+    blockingDecisions: number;
+    unknowns: number;
+    scenarioScore: number | null;
+    scenariosUnknown: number;
+    evidenceConfidence: number;
+  };
   tier?: number;
   tierLabel?: string;
   tierRationale?: string;

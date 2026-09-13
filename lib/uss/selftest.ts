@@ -94,7 +94,7 @@ check("relation ids are deterministic", relationId("satisfies", "CMP-001", "REQ-
 // ─── Deterministic layer ─────────────────────────────────────────────────────
 
 import { mutate } from "@/lib/uss/graph";
-import { computeCompleteness, checkIntegrity, detectGaps } from "@/lib/uss/gaps";
+import { computeSpecCoverage, computeSpecHealth, checkIntegrity, detectGaps } from "@/lib/uss/gaps";
 import { renderUssForPrompt } from "@/lib/uss/render";
 import { reconcileCanvasIntoSpec } from "@/lib/uss/reconcile";
 import { diffUssToCanvas } from "@/lib/uss/project";
@@ -123,9 +123,40 @@ const simple = mutate(
     }
   }
 );
-const simpleScore = computeCompleteness(simple);
+const simpleScore = computeSpecCoverage(simple);
 check("a complete tier-1 project scores 100", simpleScore === 100, `got ${simpleScore}`);
 check("simple project has no orphan components", !checkIntegrity(simple).some((f) => f.rule === "orphan-component"));
+
+// The inverted-incentive regression test. Coverage used to dock 2 points for a
+// blocking open decision, so the meter went DOWN when the system did the one
+// thing it exists to do. Surfacing a question must never cost the user score.
+const withBlockingQuestion = mutate(simple, (g) => {
+  g.add("openDecision", {
+    ...prov,
+    title: "Who may delete equipment?",
+    question: "Who is allowed to delete an equipment record, and is it recoverable?",
+    why: "Deletion rights decide the whole authorization model.",
+    category: "auth",
+    options: [],
+    impact: { affectsComponents: [], affectsRequirements: [], severity: "blocking" },
+  });
+});
+check(
+  "surfacing a blocking question does NOT lower coverage",
+  computeSpecCoverage(withBlockingQuestion) === simpleScore,
+  `${simpleScore} → ${computeSpecCoverage(withBlockingQuestion)}`
+);
+check(
+  "the blocking question is counted and reported, not subtracted",
+  computeSpecHealth(withBlockingQuestion).blockingDecisions === 1
+);
+const simpleHealth = computeSpecHealth(simple);
+check("health reports coverage separately from scenarios", simpleHealth.coverage === simpleScore);
+check(
+  "a tier-1 tool with two decided scenarios gets no scenario score",
+  simpleHealth.scenarioScore === null,
+  String(simpleHealth.scenarioScore)
+);
 
 // An unjustified component must be caught deterministically.
 const inflated = mutate(simple, (g) => {
@@ -254,7 +285,13 @@ check("tier 1 does not acquire a CDN from the read-scaling rule", !tinyDemands.i
 
 // ─── Unit 3: domain model and invariants ─────────────────────────────────────
 
-import { applyInvariants, checkDomainIntegrity, seedInvariants } from "@/lib/uss/domain";
+import {
+  applyInvariants,
+  checkDomainIntegrity,
+  linkEnforcement,
+  seedInvariants,
+  unenforcedInvariants,
+} from "@/lib/uss/domain";
 import { invariants as invariantsView, domainEntities, decisions as decisionsView } from "@/lib/uss/views";
 
 console.log("");
@@ -319,6 +356,103 @@ check(
   checkDomainIntegrity(moneyNoAudit).some((f) => f.rule === "missing-tenant-isolation")
 );
 
+// ─── enforcedBy — the fix for a check that could never fire ──────────────────
+//
+// The old predicate was `!enforcement && no governs`. But applyInvariants creates
+// a governs edge for every seeded invariant and three seeds apply to "*", so the
+// finding was unreachable — while render.ts told the model "[NOTHING ENFORCES
+// THIS YET]" about the same invariants. Two parts of the system, opposite answers.
+
+const noComponents = linkEnforcement(withInvariants, 3);
+check(
+  "with no components, no invariant claims to be enforced",
+  unenforcedInvariants(noComponents).length === invariantsView(noComponents).length,
+  `${unenforcedInvariants(noComponents).length}/${invariantsView(noComponents).length}`
+);
+check(
+  "a spec with no architecture is NOT accused of unenforced invariants",
+  !checkDomainIntegrity(noComponents).some((f) => f.rule === "unenforced-invariant")
+);
+
+// A component that says what it does is evidence. One that does not, is not.
+const withHandler = linkEnforcement(
+  mutate(withInvariants, (g) => {
+    g.add("component", {
+      ...prov,
+      title: "Payment Webhook Handler",
+      category: "service",
+      responsibility: "verifies the provider signature and deduplicates by provider event id",
+      orphaned: false,
+    });
+  }),
+  3
+);
+const uniqueness = invariantsView(withHandler).filter((i) => i.category === "uniqueness");
+check("a uniqueness invariant exists to be enforced", uniqueness.length > 0);
+check(
+  "a component demonstrating the mechanism enforces the invariant",
+  uniqueness.every((i) => !unenforcedInvariants(withHandler).some((u) => u.id === i.id)),
+  unenforcedInvariants(withHandler).map((i) => i.category).join(",")
+);
+check(
+  "enforcement names the component and the phrase that proved it",
+  uniqueness.every((i) => i.enforcement.includes("Payment Webhook Handler")),
+  uniqueness[0]?.enforcement
+);
+const enforcedEdges = new UssGraph(withHandler).relations().filter((r) => r.type === "enforcedBy");
+check("enforcedBy edges are written", enforcedEdges.length > 0);
+check(
+  "auto-derived enforcement is INFERRED, never KNOWN",
+  enforcedEdges.every((r) => r.status === "INFERRED" && r.confidence <= 0.7),
+  enforcedEdges.map((r) => `${r.status}/${r.confidence}`).join(",")
+);
+
+// A component that demonstrates nothing leaves the invariant unenforced, and now
+// that an architecture exists, that IS a finding.
+const withVagueComponent = linkEnforcement(
+  mutate(withInvariants, (g) => {
+    g.add("component", {
+      ...prov,
+      title: "Backend",
+      category: "service",
+      responsibility: "handles the business logic",
+      orphaned: false,
+    });
+  }),
+  3
+);
+check(
+  "a component that demonstrates nothing does not enforce anything",
+  unenforcedInvariants(withVagueComponent).length === invariantsView(withVagueComponent).length
+);
+check(
+  "with an architecture present, an unenforced invariant IS blocking",
+  checkDomainIntegrity(withVagueComponent).some(
+    (f) => f.rule === "unenforced-invariant" && f.severity === "blocking"
+  )
+);
+
+// The agreement test. Three call sites used to answer this three different ways;
+// this is the check that stops that recurring.
+const agreementDoc = withVagueComponent;
+const viaIntegrity =
+  checkDomainIntegrity(agreementDoc).find((f) => f.rule === "unenforced-invariant")?.subjects
+    .length ?? 0;
+const viaPredicate = unenforcedInvariants(agreementDoc).length;
+const viaRender = (
+  renderUssForPrompt(agreementDoc, { sections: ["invariants"] }).match(/NOTHING ENFORCES THIS YET/g) ??
+  []
+).length;
+check(
+  "integrity, the predicate and the render all agree on what is unenforced",
+  viaIntegrity === viaPredicate && viaPredicate === viaRender,
+  `integrity=${viaIntegrity} predicate=${viaPredicate} render=${viaRender}`
+);
+check(
+  "an enforced invariant is rendered as inferred, never as settled fact",
+  renderUssForPrompt(withHandler, { sections: ["invariants"] }).includes("(inferred — confirm)")
+);
+
 // A simple project must NOT acquire payment invariants it has no use for.
 const simpleSeeds = seedInvariants(simple);
 check("a simple tool seeds no payment invariants", !simpleSeeds.some((s) => s.category === "financial"), `${simpleSeeds.length} seeded`);
@@ -360,8 +494,19 @@ check("call count is estimable up front", estimateCouncilCalls(simple) === 3);
 
 // Reviewers receive what the rules already proved, so they go deeper instead of
 // rediscovering it.
-const pre = preReviewFindings(withInvariants);
+const pre = preReviewFindings(withVagueComponent);
 check("deterministic findings are handed to reviewers", pre.length > 0, `${pre.length} passed through`);
+// And the council must agree with checkDomainIntegrity about enforcement rather
+// than running its own, different predicate as it used to.
+check(
+  "the council sees the same unenforced invariants the integrity check does",
+  pre.some((p) => p.includes(`${unenforcedInvariants(withVagueComponent).length} invariant(s)`)),
+  pre.join(" | ")
+);
+check(
+  "the council does not accuse an architecture-free spec",
+  !preReviewFindings(noComponents).some((p) => p.includes("invariant(s) have no component"))
+);
 
 // ─── Unit 5: validation by scenario ──────────────────────────────────────────
 
@@ -385,16 +530,79 @@ const replay = rawResults.find((r) => r.id === "webhook-replay");
 check("webhook-replay scenario applies to a payments system", Boolean(replay));
 check("a design with no idempotency FAILS webhook replay", replay?.outcome === "gap", replay?.outcome);
 check("that failure is blocking", replay?.severity === "blocking");
+check(
+  "a gap tells the reader what would prove it",
+  Boolean(replay?.proofDescription) && replay!.proofDescription.includes("deduplicat"),
+  replay?.proofDescription
+);
 
-// Once the implication rulebook has run, the same design PASSES — proving the
-// scenario reads the spec rather than guessing.
+// ── The anti-circularity test ────────────────────────────────────────────────
+//
+// This assertion is the inversion of the one it replaces. The old test asserted
+// "after reasoning, webhook replay PASSES" — but reasoning writes "payment
+// notifications must be idempotent" INTO the spec, and the scenario then searched
+// that same spec for "idempot". The rulebook was grading itself and the test
+// certified it. What the implication rulebook says the system OUGHT to do can
+// never be evidence that the architecture DOES it.
 const reasonedPayments = applyImp(
   rawPayments,
   derImp(rawPayments).map((d) => ({ ...d, source: "rule" as const })),
   2
 );
+const implicationText = implicationsView(reasonedPayments)
+  .map((i) => i.statement)
+  .join(" ")
+  .toLowerCase();
+check(
+  "the rulebook did write an idempotency implication",
+  implicationText.includes("idempot"),
+  `${implicationsView(reasonedPayments).length} implications`
+);
 const replayAfter = runScenarios(reasonedPayments).find((r) => r.id === "webhook-replay");
-check("after reasoning, webhook replay PASSES", replayAfter?.outcome === "pass", replayAfter?.reasoning);
+check(
+  "an implication saying it SHOULD be idempotent does not make the scenario pass",
+  replayAfter?.outcome !== "pass",
+  replayAfter?.outcome
+);
+
+// Only the architecture can prove it. A component that states the mechanism does.
+const provenPayments = mutate(rawPayments, (g) => {
+  g.add("component", {
+    ...prov,
+    title: "Payment Webhook Handler",
+    category: "service",
+    responsibility: "verifies the provider signature and deduplicates by provider event id",
+    orphaned: false,
+  });
+});
+const replayProven = runScenarios(provenPayments).find((r) => r.id === "webhook-replay");
+check("a component that states the mechanism PASSES webhook replay", replayProven?.outcome === "pass", replayProven?.reasoning);
+check("a pass names the component that proved it", (replayProven?.provenBy.length ?? 0) > 0, replayProven?.provenBy.join(","));
+check(
+  "the proof is quoted back, not merely asserted",
+  replayProven?.reasoning.includes("Payment Webhook Handler") === true,
+  replayProven?.reasoning
+);
+
+// Before any architecture exists, the honest answer is UNKNOWN — never PASS, and
+// never a gap, because there was nothing to inspect.
+const noArchPayments = mutate(rawPayments, (g) => {
+  for (const c of g.byKind("component")) g.remove(c.id);
+});
+const replayNoArch = runScenarios(noArchPayments).find((r) => r.id === "webhook-replay");
+check("with no architecture, the scenario is UNKNOWN not PASS", replayNoArch?.outcome === "unknown", replayNoArch?.outcome);
+
+// The word "tenant" appearing somewhere in a brief is not an authorization model.
+const tenantWords = mutate(rawPayments, (g) => {
+  g.add("capability", { ...prov, title: "AUTHZ", capabilityClass: "AUTHZ", why: "multi-tenant" });
+  g.add("requirement", { ...prov, title: "Tenancy", requirementKind: "functional", statement: "Each tenant sees only their own data", acceptanceCriteria: ["scoped"], priority: "must" });
+});
+const tenantResult = runScenarios(tenantWords).find((r) => r.id === "cross-tenant");
+check(
+  "saying 'each tenant sees only their own data' does not pass cross-tenant",
+  tenantResult?.outcome === "gap",
+  tenantResult?.outcome
+);
 
 // Unknown is a distinct, honest outcome — never counted as a failure.
 const summary = summariseScenarios(rawResults);

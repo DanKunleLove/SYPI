@@ -1,4 +1,5 @@
 import { UssGraph } from "@/lib/uss/graph";
+import { MECHANISMS, componentsDemonstrating } from "@/lib/uss/proof";
 import { capabilities, constraints, requirements } from "@/lib/uss/views";
 import type { IntegrityFinding, Uss } from "@/lib/uss/schema";
 
@@ -171,6 +172,61 @@ export function applyInvariants(doc: Uss, seeds: InvariantSeed[], version: numbe
 }
 
 /**
+ * Link each invariant to the component that visibly enforces it.
+ *
+ * `governs` is invariant → domainEntity: "this rule is ABOUT Orders". It says
+ * nothing about whether anything stops the violation, which is why the old
+ * unenforced check — `!enforcement && no governs` — could essentially never fire:
+ * `applyInvariants` creates a `governs` edge for every seeded invariant, and three
+ * of the seeds apply to `*`.
+ *
+ * `enforcedBy` is invariant → component: "this thing actually STOPS it". It is
+ * written only when a component's OWN description demonstrates the mechanism, and
+ * only ever as INFERRED. An auto-derived enforcement rendered as settled fact
+ * would be precisely the manufactured certainty this system exists to prevent —
+ * so `render.ts` shows it as "(inferred — confirm)", never as a decided answer.
+ */
+export function linkEnforcement(doc: Uss, version: number): Uss {
+  const g = new UssGraph(doc);
+
+  for (const inv of g.byKind("invariant")) {
+    const mechanism = MECHANISMS[inv.category];
+    if (!mechanism) continue;
+
+    const demos = componentsDemonstrating(g.snapshot(), mechanism);
+    if (demos.length === 0) continue;
+
+    for (const d of demos) {
+      if (g.hasRelation("enforcedBy", inv.id, d.componentId)) continue;
+      g.link("enforcedBy", inv.id, d.componentId, {
+        status: "INFERRED",
+        confidence: 0.6,
+        evidence: [{ kind: "inference", ref: d.componentId, quote: d.matched }],
+        firstSeenVersion: version,
+      });
+    }
+
+    const first = demos[0];
+    g.update(inv.id, { enforcement: `${first.componentTitle} — "${first.matched}"` });
+  }
+
+  return g.snapshot();
+}
+
+/**
+ * The ONE predicate for "nothing enforces this".
+ *
+ * Three call sites used to answer this question three different ways and disagree:
+ * `checkDomainIntegrity` reported no problem while `render.ts` told the model
+ * "[NOTHING ENFORCES THIS YET]" about the same invariant. Everything now routes
+ * through here, and a self-test asserts all three agree.
+ */
+export function unenforcedInvariants(doc: Uss) {
+  const g = new UssGraph(doc);
+  return g.byKind("invariant").filter((i) => g.from(i.id, "enforcedBy").length === 0);
+}
+
+/**
  * Domain-level integrity checks.
  *
  * These are the "business correctness" dimension made computable. An invariant
@@ -187,9 +243,10 @@ export function checkDomainIntegrity(doc: Uss): IntegrityFinding[] {
   const states = g.byKind("state");
 
   // An invariant with no component enforcing it is a rule nobody implements.
-  const unenforced = invariants.filter(
-    (i) => !i.enforcement && g.neighbours(i.id, "governs").length === 0
-  );
+  // Gated on there BEING an architecture: an invariant cannot be enforced by
+  // components that do not exist yet, and firing a blocking finding on every
+  // fresh spec would be noise dressed as rigour.
+  const unenforced = g.byKind("component").length > 0 ? unenforcedInvariants(doc) : [];
   if (unenforced.length > 0) {
     findings.push({
       rule: "unenforced-invariant",

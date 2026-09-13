@@ -504,7 +504,8 @@ export const relationTypeEnum = z.enum([
   "blocks", // openDecision → any
   "constrains", // constraint → any
   "implies", // requirement | constraint → implication
-  "governs", // invariant → domainEntity | workflow | component
+  "governs", // invariant → domainEntity | workflow   ← "this rule is ABOUT Orders"
+  "enforcedBy", // invariant → component             ← "this thing actually STOPS it"
   "manages", // component → domainEntity
   "transitions", // transition → state
   "partOf", // state | transition → domainEntity
@@ -605,8 +606,14 @@ export const ussModeEnum = z.enum([
 ]);
 
 export const MetaSchema = z.object({
-  /** Tier-weighted, computed by gaps.ts. A simple project can honestly reach 100. */
-  completeness: z.number().int().min(0).max(100).default(0),
+  /**
+   * How much of the SPEC is filled in — tier-weighted, computed by gaps.ts. A
+   * simple project can honestly reach 100. This is not a measure of design
+   * quality; read `computeSpecHealth` for the numbers that are.
+   */
+  coverage: z.number().int().min(0).max(100).default(0),
+  /** @deprecated Renamed to `coverage`. Retained so stored documents still parse. */
+  completeness: z.number().int().min(0).max(100).optional(),
   sourceKinds: z.array(evidenceKindEnum).max(8).default([]),
   lastExtractedAt: z.string().optional(),
 });

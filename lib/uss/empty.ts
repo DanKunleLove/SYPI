@@ -46,7 +46,7 @@ export function createEmptySpec(params: {
     relations: [],
     integrity: [],
     meta: {
-      completeness: 0,
+      coverage: 0,
       sourceKinds: [],
     },
   } satisfies z.infer<typeof UssSchema>;
