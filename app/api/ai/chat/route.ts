@@ -2,6 +2,7 @@ import {
   streamText,
   tool,
   stepCountIs,
+  hasToolCall,
   convertToModelMessages,
   type UIMessage,
 } from "ai";
@@ -175,7 +176,14 @@ export async function POST(request: Request) {
         },
       }),
     },
-    stopWhen: stepCountIs(8),
+    // Bounded at one tool plus one reply.
+    //
+    // Eight steps could mean eight model calls inside ONE request, and the
+    // platform kills the function at 60 seconds. The heavy work moved to the
+    // client pipeline, so what remains server-side is a single review, refine or
+    // research call. If the agent needs to do more it takes another turn — which
+    // is what a conversational agent should do anyway.
+    stopWhen: [stepCountIs(2), hasToolCall("generateArchitecture")],
   });
 
   return result.toUIMessageStreamResponse();

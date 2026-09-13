@@ -381,15 +381,14 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
    * Free, and that is the whole point of committing after every step: nothing
    * before the failure is re-extracted and no quota is charged again.
    */
-  const retryStep = useCallback(
-    async (brief: string) => {
-      const failed = state.failedStep;
-      if (!failed) return;
-      rateLimitRef.current = false;
-      await runPipeline(brief, { runId: failed.runId, fromStep: failed.step });
-    },
-    [state.failedStep, runPipeline]
-  );
+  const retryStep = useCallback(async () => {
+    const failed = state.failedStep;
+    if (!failed) return;
+    rateLimitRef.current = false;
+    // The brief is not passed: it lives on the run record server-side, and a
+    // retry never re-runs `start`, which is the only step that reads it.
+    await runPipeline("", { runId: failed.runId, fromStep: failed.step });
+  }, [state.failedStep, runPipeline]);
 
   /** Is there a run this project abandoned mid-way? Answers the closed-tab case. */
   const findResumable = useCallback(async (): Promise<ResumableRun | null> => {

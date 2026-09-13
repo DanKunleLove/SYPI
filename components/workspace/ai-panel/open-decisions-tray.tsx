@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, HelpCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,12 +19,23 @@ export function OpenDecisionsTray({
   spec,
   onAnswer,
   answering,
+  openSignal,
 }: {
   spec: SpecHead | null;
   onAnswer: (decision: SpecDecision, answer: string) => void;
   answering?: string | null;
+  /** Increment to open the tray from outside. */
+  openSignal?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  // The health bar's "N decisions affect this design" banner lives in another
+  // component and another tab. Bumping a counter is how it reaches in here to
+  // open the tray, which is what that banner has always claimed to do and never
+  // did — it was mounted without its handler.
+  useEffect(() => {
+    if (openSignal) setExpanded(true);
+  }, [openSignal]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const decisions = (spec?.decisions ?? []).slice(0, 3);

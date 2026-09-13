@@ -39,6 +39,7 @@ export function AiPanel({
   suggestions, onDismissSuggestion, onApplySuggestion,
 }: AiPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [decisionsSignal, setDecisionsSignal] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { spec, refresh: refreshSpec } = useSystemSpec(projectId);
 
@@ -120,7 +121,13 @@ export function AiPanel({
 
           {/* Spec health — hidden entirely until a spec exists, so a first-time
               user sees exactly the panel they saw before. */}
-          <SpecHealthBar spec={spec} />
+          <SpecHealthBar
+            spec={spec}
+            onOpenDecisions={() => {
+              setActiveTab("chat");
+              setDecisionsSignal((n) => n + 1);
+            }}
+          />
 
           {/* Content — min-h-0 so a tall tab scrolls inside the panel instead of
               overflowing past the bottom of it. */}
@@ -132,6 +139,7 @@ export function AiPanel({
                 initialPrompt={initialPrompt}
                 spec={spec}
                 onSpecChanged={refreshSpec}
+                decisionsSignal={decisionsSignal}
               />
             ) : activeTab === "suggestions" ? (
               <SuggestionsTab

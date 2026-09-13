@@ -26,6 +26,7 @@ import type { ArchitectureOutput, DiffOperation } from "@/lib/ai/schemas";
 import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 import { ToolActionCard } from "./tool-action-card";
 import { OpenDecisionsTray } from "./open-decisions-tray";
+import { PipelineSteps } from "./pipeline-steps";
 import type { SpecDecision, SpecHead } from "@/hooks/use-system-spec";
 
 const QUICK_PROMPTS = [
@@ -41,12 +42,15 @@ export function ChatTab({
   initialPrompt,
   spec,
   onSpecChanged,
+  decisionsSignal,
 }: {
   projectId: string;
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
   initialPrompt?: string;
   spec?: SpecHead | null;
   onSpecChanged?: () => void;
+  /** Bumped by the health bar's decisions banner to open the tray. */
+  decisionsSignal?: number;
 }) {
   const reactFlow = useReactFlow();
   const [answering, setAnswering] = useState<string | null>(null);
@@ -111,6 +115,13 @@ export function ChatTab({
   const {
     status: genStatus,
     step: genStep,
+    // `runPipeline` is the line whose ABSENCE was the bug: this hook exported a
+    // `generate` function and nothing ever destructured it, so no project in the
+    // database had ever had a specification.
+    runPipeline,
+    retryStep,
+    steps: pipelineSteps,
+    failedStep,
     lastGeneration,
     revertGeneration,
     restoreGeneration,
@@ -169,7 +180,11 @@ export function ChatTab({
         if (!result?.action) continue;
         appliedToolCallsRef.current.add(part.toolCallId);
 
-        if (result.action === "placeArchitecture") {
+        if (result.action === "runPipeline") {
+          // The agent agreed a plan; the client now runs the pipeline it kicked
+          // off, one request per step, so the user watches it happen.
+          void runPipeline(result.brief as string, { url: result.url as string | undefined });
+        } else if (result.action === "placeArchitecture") {
           // Agent-generated architecture → stagger-place + register for revert/rate.
           const architecture = result.architecture as ArchitectureOutput;
           const generationId = result.generationId as string;
@@ -219,7 +234,7 @@ export function ChatTab({
         }
       }
     }
-  }, [messages, reactFlow, placeArchitectureOnCanvas, registerPlacement]);
+  }, [messages, reactFlow, placeArchitectureOnCanvas, registerPlacement, runPipeline]);
 
   const hasMessages = messages.length > 0;
 
@@ -301,9 +316,24 @@ export function ChatTab({
         )}
       </div>
 
-      {/* Placement in progress */}
+      {/* The run, step by step */}
       <AnimatePresence>
-        {isPlacing && (
+        {pipelineSteps.length > 0 && genStatus !== "idle" && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="mx-3 mb-2"
+          >
+            <PipelineSteps
+              steps={pipelineSteps}
+              onRetry={failedStep ? () => void retryStep() : undefined}
+              retrying={genStatus === "generating"}
+            />
+          </motion.div>
+        )}
+        {isPlacing && pipelineSteps.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -411,7 +441,12 @@ export function ChatTab({
       )}
 
       {/* Open decisions — collapsed, above the composer, material only */}
-      <OpenDecisionsTray spec={spec ?? null} onAnswer={handleAnswer} answering={answering} />
+      <OpenDecisionsTray
+        spec={spec ?? null}
+        onAnswer={handleAnswer}
+        answering={answering}
+        openSignal={decisionsSignal}
+      />
 
       {/* Input area */}
       <div className="border-t border-[var(--border-default)] p-3 shrink-0">

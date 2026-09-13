@@ -1,6 +1,5 @@
 import { tool, generateObject } from "ai";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import {
   applyUserInstructions,
   resolveModelForProject,
@@ -9,21 +8,14 @@ import {
   CRITIQUE_SYSTEM_PROMPT,
   REFINEMENT_SYSTEM_PROMPT,
 } from "@/lib/ai/prompts";
-import {
-  ArchitectureOutputSchema,
-  CritiqueOutputSchema,
-  RefinementOutputSchema,
-  type ArchitectureOutput,
-} from "@/lib/ai/schemas";
-import { extractUrls, researchSite } from "@/lib/ai/url-research";
-import { commitWithRetry, getSpec } from "@/lib/uss/store";
+import { CritiqueOutputSchema, RefinementOutputSchema } from "@/lib/ai/schemas";
+import { researchSite } from "@/lib/ai/url-research";
+import { commitWithRetry } from "@/lib/uss/store";
 import { UssGraph } from "@/lib/uss/graph";
 import { finalise } from "@/lib/ai/uss";
 import { renderUssSummary } from "@/lib/uss/render";
 import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { checkAiQuota } from "@/lib/ai/limits";
-import { Prisma } from "@/app/generated/prisma/client";
-import { buildDesignPrompt } from "@/lib/ai/design-prompt";
 
 /** Mutable per-request context shared by the agent's tools. `canvasContext`
  * is updated after a generation so later tool calls in the same turn see
@@ -37,26 +29,11 @@ export interface AgentContext {
   ussSummary?: string;
 }
 
-function summarizeArchitecture(arch: ArchitectureOutput): string {
-  const nodes = arch.nodes
-    .map((n) => `- ${n.label} (${n.category})${n.description ? `: ${n.description}` : ""}`)
-    .join("\n");
-  const edges = arch.edges
-    .map((e) => `- ${e.sourceLabel} → ${e.targetLabel}${e.label ? ` [${e.label}]` : ""}`)
-    .join("\n");
-  return `NODES:\n${nodes}\n\nCONNECTIONS:\n${edges}`;
-}
-
-/**
- * Heavy agent tools — each wraps one of SYPI's schema-enforced pipelines so
- * the conversational agent narrates while the disciplined pipelines do the
- * structured work (agent front-door, specialized back-end).
- */
 export function createAgentTools(ctx: AgentContext) {
   return {
     generateArchitecture: tool({
       description:
-        "Design a complete architecture and place it on the canvas. Call this ONLY after the user has approved your proposed plan, or explicitly asked you to build without discussion. Pass the full agreed plan as the description.",
+        "Start the design pipeline: understand the brief, size it, write the requirements, model the domain, then design and review the architecture. Call this ONLY after the user has approved your plan, or explicitly asked you to build without discussion. It starts a multi-minute run the user watches step by step — do not start it to explore an idea. Pass the full agreed plan as the description.",
       inputSchema: z.object({
         description: z
           .string()
@@ -66,70 +43,24 @@ export function createAgentTools(ctx: AgentContext) {
           .optional()
           .describe("A URL the user referenced, to ground the design in the real site"),
       }),
-      execute: async ({ description, url }) => {
-        // Same quota pool as the direct generate route.
-        const quota = await checkAiQuota(ctx.userId, "generate");
-        if (!quota.ok) return { error: quota.error };
-
-        const urls = url ? [url] : extractUrls(description, 1);
-        const researchBrief = urls.length > 0 ? await researchSite(urls[0]) : null;
-
-        // The same builder the generate route uses. This tool used to be entirely
-        // spec-blind: it designed from the description alone while a specification
-        // for the project sat unread in the database.
-        const spec = await getSpec(ctx.projectId);
-        const { system, user: prompt } = buildDesignPrompt({
-          brief: description,
-          canvasContext: ctx.canvasContext,
-          researchBrief,
-          doc: spec?.doc ?? null,
-          userInstructions: ctx.userInstructions,
-        });
-
-        const generation = await prisma.aIGeneration.create({
-          data: {
-            projectId: ctx.projectId,
-            prompt: description.slice(0, 4000),
-            type: urls.length > 0 ? "url-analysis" : "generation",
-            status: "running",
-          },
-        });
-
-        try {
-          const result = await generateObject({
-            model: await resolveModelForProject(ctx.projectId, "pro"),
-            schema: ArchitectureOutputSchema,
-            system,
-            prompt,
-          });
-          const architecture = result.object;
-
-          await prisma.aIGeneration.update({
-            where: { id: generation.id },
-            data: {
-              status: "completed",
-              result: architecture as unknown as Prisma.InputJsonValue,
-            },
-          });
-
-          // Later tools in this turn (e.g. runDesignReview) must see the new state.
-          ctx.canvasContext = `CURRENT CANVAS (just generated):\n${summarizeArchitecture(architecture)}`;
-
-          return {
-            action: "placeArchitecture",
-            generationId: generation.id,
-            architecture,
-            componentCount: architecture.nodes.length,
-            reasoning: architecture.reasoning,
-          };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Generation failed";
-          await prisma.aIGeneration
-            .update({ where: { id: generation.id }, data: { status: "failed", error: message } })
-            .catch(() => {});
-          return { error: message };
-        }
-      },
+      // Returns immediately and hands off to the client, which runs the pipeline
+      // one request per step.
+      //
+      // This tool used to do the whole design itself: one generateObject against
+      // a spec it read but never wrote back. That is why a canvas built through
+      // chat — the only reachable path — left no specification behind, and why
+      // every USS surface in the product was empty. It is also why the budget
+      // never bound: the understanding pass that decides the tier never ran.
+      //
+      // It cannot run the pipeline here. Every tool call is a model step inside
+      // ONE HTTP request, and nine model calls cannot fit in a 60-second
+      // function. The client loop is what makes the work both possible and
+      // visible.
+      execute: async ({ description, url }) => ({
+        action: "runPipeline",
+        brief: description,
+        url,
+      }),
     }),
 
     runDesignReview: tool({
