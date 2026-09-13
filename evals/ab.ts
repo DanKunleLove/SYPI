@@ -204,6 +204,17 @@ function main() {
     summary[d] = { control: c, uss: u, delta: c === null || u === null ? null : u - c, n: both.length };
   }
 
+  // USS-only dimensions have no control value BY CONSTRUCTION, so the paired
+  // loop above leaves them null. Their mean is taken over the uss arm alone, and
+  // they stay quarantined from the verdict for exactly that reason.
+  const ussOnlyMeans: Record<string, number | null> = {};
+  for (const d of USS_ONLY) {
+    const xs = paired
+      .map((p) => scoreOf(p.uss, d))
+      .filter((x): x is number => x !== null);
+    ussOnlyMeans[d] = xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
+  }
+
   // --- Verdict -------------------------------------------------------------
   const wins: string[] = [];
   const losses: string[] = [];
@@ -252,11 +263,12 @@ function main() {
   // "SYPI is better" number built from them would be measuring nothing but its
   // own existence.
   console.log("\nUSS-ONLY MEASUREMENTS  (no control value exists; NOT part of the verdict)\n");
+  const anyUssOnly = USS_ONLY.some((d) => ussOnlyMeans[d] !== null);
   for (const d of USS_ONLY) {
-    const s = summary[d];
-    if (!s || s.uss === null) continue;
-    console.log(`  ${d.padEnd(28)} ${s.uss}`);
+    if (ussOnlyMeans[d] === null) continue;
+    console.log(`  ${d.padEnd(28)} ${ussOnlyMeans[d]}  (uss arm only, n=${paired.length})`);
   }
+  if (!anyUssOnly) console.log("  none measured");
 
   console.log("\nPER BRIEF  (business-correctness)\n");
   for (const p of pairs) {
@@ -304,7 +316,7 @@ function main() {
     ...meta,
     pairs,
     summary,
-    ussOnly: Object.fromEntries(USS_ONLY.map((d) => [d, summary[d]?.uss ?? null])),
+    ussOnly: ussOnlyMeans,
     thresholds: THRESHOLDS,
     verdict: { pairedBriefs: paired.length, wins, losses, ties, guardrailBreaches, passed },
   };
