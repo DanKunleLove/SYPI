@@ -11,9 +11,11 @@ import {
   Download,
   FileText,
   Image,
+  AlertTriangle,
   LayoutTemplate,
   Loader2,
   Package,
+  RotateCw,
   Sparkles,
   Upload,
   Zap,
@@ -70,9 +72,13 @@ export function SpecTab({
 
   // System Kit — the proper-system files, generated from the canvas.
   const [kitFiles, setKitFiles] = useState<Record<string, string>>({});
-  const [kitCurrent, setKitCurrent] = useState<string | null>(null);
   const [kitBusy, setKitBusy] = useState(false);
   const [kitError, setKitError] = useState<string | null>(null);
+  const [kitRunId, setKitRunId] = useState<string | null>(null);
+  const [kitFailed, setKitFailed] = useState<Record<string, string>>({});
+  const [kitFileState, setKitFileState] = useState<
+    Record<string, "pending" | "running" | "done" | "failed">
+  >({});
   const [kitProfiles, setKitProfiles] = useState<KitProfileId[]>(() => {
     if (typeof window === "undefined") return ["claude-code"];
     try {
@@ -176,62 +182,61 @@ export function SpecTab({
     }
   }, [nodes, edges, projectId]);
 
-  const handleGenerateKit = useCallback(async () => {
-    setKitBusy(true);
-    setKitError(null);
-    setKitFiles({});
-    try {
-      const canvasContext = serializeCanvasForAI(nodes, edges);
-      const res = await fetch("/api/ai/kit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, canvasContext, projectName, domain: kitDomain.id }),
-      });
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to generate the kit");
-      }
+  /**
+   * Generate the System Kit, ONE FILE PER REQUEST.
+   *
+   * The old version streamed all seven files from a single request, which on a
+   * 60-second function never once finished. Worse, the client judged success by
+   * counting files, so a platform kill, an empty response and a dropped line all
+   * surfaced as the same sentence — "Kit generation ended early" — and a failure
+   * on the last file destroyed the six that had worked.
+   *
+   * Now every file is its own request. What lands is kept, what fails says which
+   * file and why, and a retry re-runs only the failures. The whole Kit is still
+   * one quota charge, taken once at /start.
+   */
+  const runKitFiles = useCallback(
+    async (runId: string, names: string[], existing: Record<string, string>) => {
+      const collected: Record<string, string> = { ...existing };
+      const failed: Record<string, string> = {};
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      const collected: Record<string, string> = {};
-
-      const handleLine = (raw: string) => {
-        if (!raw.trim()) return;
-        const event = JSON.parse(raw) as {
-          type: "start" | "file" | "done" | "error";
-          name?: string;
-          content?: string;
-          error?: string;
-        };
-        if (event.type === "start" && event.name) {
-          setKitCurrent(event.name);
-        } else if (event.type === "file" && event.name && event.content) {
-          collected[event.name] = event.content;
+      for (const name of names) {
+        setKitFileState((prev) => ({ ...prev, [name]: "running" }));
+        try {
+          const res = await fetch("/api/ai/kit/file", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: AbortSignal.timeout(55_000),
+            body: JSON.stringify({ projectId, runId, name }),
+          });
+          const data = (await res.json()) as {
+            ok?: boolean;
+            name?: string;
+            content?: string;
+            error?: string;
+          };
+          if (!res.ok || data.ok === false || !data.content) {
+            failed[name] = data.error ?? "failed";
+            setKitFileState((prev) => ({ ...prev, [name]: "failed" }));
+            continue;
+          }
+          collected[name] = data.content;
           setKitFiles({ ...collected });
-        } else if (event.type === "error") {
-          throw new Error(event.error || "Kit generation failed");
-        }
-      };
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let newline;
-        while ((newline = buffer.indexOf("\n")) >= 0) {
-          const rawLine = buffer.slice(0, newline);
-          buffer = buffer.slice(newline + 1);
-          handleLine(rawLine);
+          setKitFileState((prev) => ({ ...prev, [name]: "done" }));
+        } catch (e) {
+          const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+          failed[name] = timedOut ? "took longer than 55s" : "lost connection";
+          setKitFileState((prev) => ({ ...prev, [name]: "failed" }));
         }
       }
-      if (buffer.trim()) handleLine(buffer);
+      setKitFailed(failed);
+      return { collected, failed };
+    },
+    [projectId]
+  );
 
-      if (Object.keys(collected).length < kitDomain.files.length) {
-        throw new Error("Kit generation ended early — please retry");
-      }
-
+  const deliverKit = useCallback(
+    async (collected: Record<string, string>) => {
       await downloadSystemKit(
         collected,
         kitEntryFile(projectName, kitDomain),
@@ -241,16 +246,92 @@ export function SpecTab({
         kitProfiles,
         kitDomain
       );
+      void fetch("/api/ai/kit/file", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, domain: kitDomain.id }),
+      }).catch(() => {});
       toast.success("System Kit downloaded", {
         description: "Drop the files into your repo — your AI tools read their setup natively.",
       });
+    },
+    [nodes, edges, projectId, projectName, kitProfiles, kitDomain]
+  );
+
+  const handleGenerateKit = useCallback(async () => {
+    setKitBusy(true);
+    setKitError(null);
+    setKitFiles({});
+    setKitFailed({});
+    setKitFileState({});
+    try {
+      const canvasContext = serializeCanvasForAI(nodes, edges);
+      const res = await fetch("/api/ai/kit/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, canvasContext, projectName, domain: kitDomain.id }),
+      });
+      const start = (await res.json()) as {
+        runId?: string;
+        files?: { name: string; title: string }[];
+        error?: string;
+      };
+      if (!res.ok || !start.runId || !start.files) {
+        throw new Error(start.error || "Could not start the kit");
+      }
+
+      setKitRunId(start.runId);
+      const names = start.files.map((f) => f.name);
+      setKitFileState(Object.fromEntries(names.map((n) => [n, "pending" as const])));
+
+      const { collected, failed } = await runKitFiles(start.runId, names, {});
+      if (Object.keys(failed).length > 0) {
+        // Never throw away what worked. The finished files stay on screen with a
+        // retry for the rest and a download for what exists.
+        setKitError(
+          `${Object.keys(failed).length} of ${names.length} files failed: ${Object.entries(failed)
+            .map(([n, e]) => `${n} (${e})`)
+            .join(", ")}`
+        );
+        return;
+      }
+
+      await deliverKit(collected);
     } catch (error) {
       setKitError(error instanceof Error ? error.message : "Kit generation failed");
     } finally {
       setKitBusy(false);
-      setKitCurrent(null);
     }
-  }, [nodes, edges, projectId, projectName, kitProfiles, kitDomain]);
+  }, [nodes, edges, projectId, projectName, kitDomain, runKitFiles, deliverKit]);
+
+  /** Re-run only the files that failed, on the same run — no new quota charge. */
+  const handleRetryKitFiles = useCallback(async () => {
+    if (!kitRunId) return;
+    const names = Object.keys(kitFailed);
+    if (names.length === 0) return;
+    setKitBusy(true);
+    setKitError(null);
+    try {
+      const { collected, failed } = await runKitFiles(kitRunId, names, kitFiles);
+      if (Object.keys(failed).length > 0) {
+        setKitError(
+          `${Object.keys(failed).length} file(s) still failing: ${Object.entries(failed)
+            .map(([n, e]) => `${n} (${e})`)
+            .join(", ")}`
+        );
+        return;
+      }
+      await deliverKit(collected);
+    } finally {
+      setKitBusy(false);
+    }
+  }, [kitRunId, kitFailed, kitFiles, runKitFiles, deliverKit]);
+
+  /** Download what did generate, rather than losing it to one bad file. */
+  const handleDownloadPartialKit = useCallback(async () => {
+    if (Object.keys(kitFiles).length === 0) return;
+    await deliverKit(kitFiles);
+  }, [kitFiles, deliverKit]);
 
   const handleAgentBundle = useCallback(async () => {
     setBundling(true);
@@ -492,29 +573,37 @@ export function SpecTab({
               prompting guide, context files &amp; tool setup.
             </p>
           )}
-          {kitBusy && (
+          {(kitBusy || Object.keys(kitFileState).length > 0) && (
             <div className="mt-2.5 space-y-1">
               {kitDomain.files.map((f) => {
-                const isDone = kitFiles[f.name] !== undefined;
-                const isCurrent = kitCurrent === f.name && !isDone;
+                const state = kitFileState[f.name] ?? "pending";
                 return (
                   <div key={f.name} className="flex items-center gap-1.5 text-[11px]">
-                    {isDone ? (
+                    {state === "done" ? (
                       <Check className="h-3 w-3 text-[var(--state-success)]" />
-                    ) : isCurrent ? (
+                    ) : state === "running" ? (
                       <Loader2 className="h-3 w-3 animate-spin text-[var(--accent-ai)]" />
+                    ) : state === "failed" ? (
+                      <AlertTriangle className="h-3 w-3 text-[var(--state-error)]" />
                     ) : (
                       <span className="h-3 w-3 rounded-full border border-[var(--border-default)]" />
                     )}
                     <span
                       className={cn(
-                        isDone || isCurrent
-                          ? "text-[var(--text-secondary)]"
-                          : "text-[var(--text-muted)]"
+                        state === "failed"
+                          ? "text-[var(--state-error)]"
+                          : state === "pending"
+                            ? "text-[var(--text-muted)]"
+                            : "text-[var(--text-secondary)]"
                       )}
                     >
                       {f.title}
                     </span>
+                    {state === "failed" && kitFailed[f.name] && (
+                      <span className="truncate text-[10px] text-[var(--text-muted)]">
+                        {kitFailed[f.name]}
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -522,6 +611,29 @@ export function SpecTab({
           )}
           {kitError && (
             <p className="mt-2 text-[11px] text-[var(--state-error)]">{kitError}</p>
+          )}
+          {/* A failure used to destroy every file that HAD generated. Keep them. */}
+          {Object.keys(kitFailed).length > 0 && !kitBusy && (
+            <div className="mt-2 flex gap-2">
+              <Button
+                onClick={handleRetryKitFiles}
+                variant="ghost"
+                className="flex-1 gap-1.5 border border-[var(--border-default)] text-[11px] text-[var(--text-secondary)]"
+              >
+                <RotateCw className="h-3 w-3" />
+                Retry {Object.keys(kitFailed).length} failed
+              </Button>
+              {Object.keys(kitFiles).length > 0 && (
+                <Button
+                  onClick={handleDownloadPartialKit}
+                  variant="ghost"
+                  className="flex-1 gap-1.5 border border-[var(--border-default)] text-[11px] text-[var(--text-secondary)]"
+                >
+                  <Download className="h-3 w-3" />
+                  Download the {Object.keys(kitFiles).length} I have
+                </Button>
+              )}
+            </div>
           )}
           <Button
             onClick={handleGenerateKit}

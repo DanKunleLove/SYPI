@@ -8,6 +8,8 @@
  * automation) — packaged per platform where tool-native files exist.
  */
 
+import type { UssSection } from "@/lib/uss/views";
+
 export interface KitFileSpec {
   name: string;
   title: string;
@@ -773,3 +775,37 @@ builds from it will not know to check.
   other files of the system.
 `.trim();
 }
+
+/**
+ * Which slice of the spec each kit file needs.
+ *
+ * Keyed by FILE NAME rather than declared on every KitFileSpec, because the same
+ * names recur across all eight domain packs — one map covers them all without
+ * touching a single domain definition.
+ */
+export const SECTIONS_BY_FILE: Record<string, UssSection[]> = {
+  "project-overview.md": ["product", "actors", "useCases", "requirements", "constraints"],
+  "business-overview.md": ["product", "actors", "requirements", "constraints"],
+  "architecture.md": ["architecture", "decisions", "constraints", "complexity", "capabilities", "providers", "domain", "invariants"],
+  "content-architecture.md": ["product", "architecture", "requirements"],
+  "campaign-architecture.md": ["product", "actors", "requirements", "constraints"],
+  "workflow-architecture.md": ["architecture", "capabilities", "constraints", "complexity"],
+  "operations-architecture.md": ["architecture", "actors", "constraints"],
+  "production-pipeline.md": ["architecture", "capabilities", "constraints"],
+  "generation-pipeline.md": ["architecture", "capabilities", "constraints"],
+  "integration-standards.md": ["architecture", "capabilities", "constraints"],
+  "code-standards.md": ["architecture", "constraints", "complexity", "invariants"],
+  "ai-workflow-rules.md": ["complexity", "decisions", "openDecisions", "invariants"],
+  "ui-context.md": ["actors", "useCases", "architecture"],
+  "style-guide.md": ["product", "actors"],
+  "brand-voice-guide.md": ["product", "actors"],
+  "style-voice-guide.md": ["product", "actors"],
+  "creative-direction.md": ["product", "actors", "requirements"],
+  "sound-direction.md": ["product", "requirements"],
+  "content-bible.md": ["product", "actors", "glossary", "requirements"],
+  "asset-library.md": ["architecture", "constraints"],
+  "sops-and-standards.md": ["actors", "useCases", "constraints"],
+  "progress-tracker.md": ["requirements", "openDecisions", "decisions", "assumptions"],
+  "tool-setup.md": ["architecture", "capabilities", "providers", "constraints"],
+  "env.example": ["architecture", "capabilities", "providers", "constraints"],
+};
