@@ -69,3 +69,6 @@ _local/
 
 # Eval harness: baselines are committed, per-run reports are not
 evals/reports/
+
+# Scratch probes written during debugging
+scripts/_*.ts
