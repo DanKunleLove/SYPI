@@ -792,5 +792,107 @@ check(
   })
 );
 
+
+// ─── The design prompt: the spec must DRIVE generation, not argue with it ────
+
+import { buildDesignPrompt } from "@/lib/ai/design-prompt";
+import { GENERATION_SYSTEM_PROMPT, URL_ANALYSIS_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { applyArchitectureToSpec } from "@/lib/uss/architecture";
+import { components as componentsView } from "@/lib/uss/views";
+
+console.log("");
+
+// The control arm of the A/B. If this ever stops being byte-identical, the
+// experiment is measuring two changes instead of one.
+const noSpec = buildDesignPrompt({ brief: "a tool that renames files", doc: null });
+check(
+  "with no spec, the system prompt is byte-identical to what shipped",
+  noSpec.system === GENERATION_SYSTEM_PROMPT
+);
+check("with no spec, the user prompt is just the brief", noSpec.user === "a tool that renames files");
+check("no spec means no USS applied", noSpec.ussApplied === false);
+
+// An empty spec is not a spec. It must not trigger the spec-driven path.
+check(
+  "an empty spec falls back to the shipped prompt",
+  buildDesignPrompt({ brief: "x", doc: createEmptySpec({ specId: "s", projectId: "p" }) }).system ===
+    GENERATION_SYSTEM_PROMPT
+);
+
+// With a spec, the contradiction must be GONE. That was the bug: a system prompt
+// saying "typically 5-15 nodes" and "add appropriate middleware" outranking a
+// user message saying "at most 6 components" and "DO NOT include a cache tier".
+const tier1Design = buildDesignPrompt({ brief: "an equipment tracker", doc: simple });
+check("a spec drives the system prompt", tier1Design.ussApplied === true);
+check(
+  "the budget is IN the system prompt, at the same authority as everything else",
+  tier1Design.system.includes("at most 6 components")
+);
+check("the system prompt states the prohibitions", tier1Design.system.includes("DO NOT include"));
+check(
+  "the contradicting node-count advice is gone",
+  !tier1Design.system.includes("5-15"),
+  "system prompt still says 5-15"
+);
+check(
+  "the contradicting middleware advice is gone",
+  !tier1Design.system.toLowerCase().includes("appropriate middleware")
+);
+check(
+  "the schema contract survives",
+  tier1Design.system.includes("sourceLabel") && tier1Design.system.includes("configDbType")
+);
+check(
+  "the design is told to name the enforcing mechanism",
+  tier1Design.system.includes("NAME THE MECHANISM")
+);
+check("the spec travels in the user message too", tier1Design.user.includes("REQUIREMENTS:"));
+
+// Reverse-engineering a live site: a budget would make the model describe a
+// system that does not exist.
+const research = buildDesignPrompt({
+  brief: "rebuild this",
+  researchBrief: "The site uses Next.js and Stripe.",
+  doc: simple,
+});
+check("a research brief uses the URL prompt", research.system === URL_ANALYSIS_SYSTEM_PROMPT);
+check("a research brief is NOT given a component budget", !research.system.includes("at most"));
+
+// ─── Recording the architecture into the spec ────────────────────────────────
+
+const generated = applyArchitectureToSpec(
+  simple,
+  {
+    reasoning: "",
+    nodes: [
+      { label: "Equipment API", category: "service", description: "serves the tracker", configTechnology: "Node.js" },
+      { label: "Equipment DB", category: "database", description: "stores assignments", configReplication: "Replica" },
+    ],
+    edges: [{ sourceLabel: "Equipment API", targetLabel: "Equipment DB", label: "reads/writes" }],
+  },
+  2,
+  "gen_1"
+);
+check("a new component is added", generated.added === 1, String(generated.added));
+check("an existing component is matched by title, not duplicated", generated.updated === 1);
+check(
+  "no duplicate Equipment DB is created",
+  componentsView(generated.doc).filter((c) => c.title === "Equipment DB").length === 1
+);
+check(
+  "config the entity has no field for is carried into the responsibility",
+  componentsView(generated.doc).some((c) => c.responsibility.includes("replication=Replica")),
+  componentsView(generated.doc).map((c) => c.responsibility).join(" | ")
+);
+check(
+  "generated components are INFERRED, never KNOWN",
+  componentsView(generated.doc).some((c) => c.title === "Equipment API" && c.status === "INFERRED")
+);
+check(
+  "edges become dependsOn relations carrying their label",
+  new UssGraph(generated.doc).relations().some((r) => r.type === "dependsOn" && r.note === "reads/writes")
+);
+check("the result still parses", UssSchema.safeParse(generated.doc).success);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

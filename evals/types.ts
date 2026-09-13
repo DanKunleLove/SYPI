@@ -104,6 +104,12 @@ export interface EvalReport {
   judgeModel: string | null;
   runs: number;
   gitCommit: string;
+  /**
+   * Was the USS understanding chain run? Comparing a report across conditions is
+   * meaningless -- a no-USS run diffed against a USS baseline reads as a
+   * catastrophic regression when nothing regressed at all.
+   */
+  ussEnabled: boolean;
   results: BriefResult[];
   /** Per-dimension mean across briefs, skipping unmeasurable entries. */
   summary: Record<string, { mean: number | null; measuredIn: number; of: number }>;

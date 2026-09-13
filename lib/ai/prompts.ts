@@ -1,5 +1,11 @@
-/** Shared preamble describing the node categories and their config fields */
-const NODE_CATEGORIES_CONTEXT = `
+/**
+ * Shared preamble describing the node categories and their config fields.
+ *
+ * Exported because this half is the SCHEMA CONTRACT — the category vocabulary, the
+ * config field names, and the rule that sourceLabel must match a node label
+ * exactly. Every design prompt needs it verbatim, including the spec-driven one.
+ */
+export const NODE_CATEGORIES_CONTEXT = `
 You are designing system architectures. Each component is a node with one of these categories:
 
 CATEGORIES:

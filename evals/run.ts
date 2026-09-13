@@ -1,3 +1,4 @@
+import { CRITIQUE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import "dotenv/config";
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -5,7 +6,6 @@ import { execSync } from "node:child_process";
 import { generateObject, type LanguageModel } from "ai";
 import { getModel } from "@/lib/ai/index";
 import { PROVIDERS, isProviderId } from "@/lib/ai/providers";
-import { GENERATION_SYSTEM_PROMPT, CRITIQUE_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { ArchitectureOutputSchema, CritiqueOutputSchema, type ArchitectureOutput } from "@/lib/ai/schemas";
 import { BRIEFS } from "./briefs/index";
 import { createEmptySpec } from "@/lib/uss/empty";
@@ -18,7 +18,6 @@ import {
   finalise,
 } from "@/lib/ai/uss";
 import { applyImplications, deriveImplications, ruleCoverage } from "@/lib/uss/reasoning";
-import { renderUssForPrompt } from "@/lib/uss/render";
 import type { Uss } from "@/lib/uss/schema";
 import { scoreArchitecture, scoreUss } from "./scorers";
 import { judge } from "./judge";
@@ -195,6 +194,7 @@ async function withTimeout<T>(fn: () => Promise<T>, ms: number, label: string): 
  */
 import { setDefaultResultOrder } from "node:dns";
 import { specCoverage } from "@/lib/uss/views";
+import { buildDesignPrompt } from "@/lib/ai/design-prompt";
 try {
   setDefaultResultOrder("ipv4first");
 } catch {
@@ -251,7 +251,7 @@ function gitCommit(): string {
 async function buildSpec(
   flash: LanguageModel,
   brief: string
-): Promise<{ doc: Uss; contextBlock: string }> {
+): Promise<{ doc: Uss }> {
   const empty = createEmptySpec({ specId: "eval", projectId: "eval" });
   const ctx = { model: flash, brief, userInstructions: null, version: 1 };
 
@@ -267,34 +267,20 @@ async function buildSpec(
   );
   doc = finalise(doc);
 
-  const contextBlock = renderUssForPrompt(doc, {
-    sections: [
-      "product",
-      "actors",
-      "requirements",
-      "constraints",
-      "capabilities",
-      "domain",
-      "invariants",
-      "implications",
-      "complexity",
-    ],
-    maxChars: 12_000,
-  });
-
-  return { doc, contextBlock };
+  return { doc };
 }
 
 /** Mirrors app/api/ai/generate/route.ts: generate, self-critique, repair criticals once. */
 async function generateWithPipeline(
   model: LanguageModel,
+  system: string,
   prompt: string,
   useCritique: boolean
 ): Promise<{ arch: ArchitectureOutput; repaired: boolean }> {
   const first = await generateObject({
     model,
     schema: ArchitectureOutputSchema,
-    system: GENERATION_SYSTEM_PROMPT,
+    system,
     prompt,
   });
   let arch = first.object;
@@ -320,7 +306,7 @@ async function generateWithPipeline(
       const fixed = await generateObject({
         model,
         schema: ArchitectureOutputSchema,
-        system: GENERATION_SYSTEM_PROMPT,
+        system,
         prompt: `${prompt}\n\nYou already produced this draft:\n${summary}\n\nA design review found these CRITICAL issues:\n${issues}\n\nReturn the FULL corrected architecture (all nodes and edges, not a diff), fixing only these issues while keeping everything else intact.`,
       });
       arch = fixed.object;
@@ -399,14 +385,12 @@ async function main() {
 
         // The understanding pass, as the route runs it.
         let doc: Uss | undefined;
-        let designPrompt = brief.brief;
         if (args.uss) {
           const built = await withNetworkRetry(
             () => buildSpec(judgeModel, brief.brief),
             `${brief.id} understanding`
           );
           doc = built.doc;
-          if (built.contextBlock) designPrompt = `${brief.brief}\n\n${built.contextBlock}`;
           const cov = ruleCoverage(doc);
           process.stdout.write(
             `    spec: ${specCoverage(doc)}% coverage, tier ${doc.complexity.tier}, ` +
@@ -414,8 +398,12 @@ async function main() {
           );
         }
 
+        // Same builder the route uses, so the benchmark measures what ships.
+        // Without this the harness could not measure the spec-driven prompt at
+        // all: it hardcoded GENERATION_SYSTEM_PROMPT on both arms.
+        const design = buildDesignPrompt({ brief: brief.brief, doc: doc ?? null });
         const { arch, repaired } = await withNetworkRetry(
-          () => generateWithPipeline(model, designPrompt, args.critique),
+          () => generateWithPipeline(model, design.system, design.user, args.critique),
           `${brief.id} generation`
         );
         latency = Date.now() - t0;
@@ -518,6 +506,7 @@ async function main() {
     judgeModel: args.judge ? modelId(judgeModel) : null,
     runs: args.runs,
     gitCommit: gitCommit(),
+    ussEnabled: args.uss,
     results,
     summary,
   };
@@ -546,6 +535,25 @@ async function main() {
     if (prev.model !== report.model || prev.runs !== report.runs) {
       console.log("  ⚠ model or run-count differs — this is not a like-for-like comparison");
     }
+    // A USS run and a control run are two different systems. Diffing them and
+    // calling the difference a regression is precisely the mislabelling this
+    // whole phase exists to stop, so refuse outright rather than warn.
+    const prevCondition = (prev as { ussEnabled?: boolean }).ussEnabled;
+    if (prevCondition === undefined) {
+      console.log(
+        "\n  COMPARISON REFUSED - the baseline predates the ussEnabled field," +
+          "\n  so there is no way to tell which condition produced it." +
+          "\n  Write a fresh baseline from a known arm and compare against that."
+      );
+      process.exitCode = 1;
+    } else if (prevCondition !== report.ussEnabled) {
+      console.log(
+        `\n  COMPARISON REFUSED - different conditions.` +
+          `\n  baseline ran with USS ${prevCondition ? "ON" : "OFF"}, this run with USS ${report.ussEnabled ? "ON" : "OFF"}.` +
+          `\n  That is an A/B, not a regression check. Use: npm run eval:ab`
+      );
+      process.exitCode = 1;
+    } else {
 
     // Comparing means across DIFFERENT brief sets is meaningless, and dangerously
     // so: a run where only the easiest brief succeeded once reported
@@ -598,6 +606,7 @@ async function main() {
       process.exitCode = 1;
     } else {
       console.log("  No dimension regressed by more than 5%. Gate: PASS");
+    }
     }
     }
   }

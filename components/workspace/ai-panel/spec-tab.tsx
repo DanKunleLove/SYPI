@@ -307,7 +307,7 @@ export function SpecTab({
 
   if (nodeCount === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 overflow-y-auto p-6">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-ai)]/10">
           <FileText className="h-6 w-6 text-[var(--accent-ai)]" />
         </div>
@@ -342,15 +342,27 @@ export function SpecTab({
 
   return (
     <>
-      {/* Spec preview */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        <pre className="whitespace-pre-wrap break-words p-4 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]">
+      {/*
+        ONE scroll container for the whole tab.
+
+        This used to be a spec preview with `flex-1 overflow-y-auto` beside a
+        `shrink-0` block holding the scenario matrix, the hand-off card, the System
+        Kit and every export row. In a fixed-height panel that block is far taller
+        than the space available, so it pushed the preview to nothing and then
+        overflowed off the bottom with nothing to scroll — the lower half of the
+        tab was simply unreachable.
+
+        The preview is capped rather than flexible, so a long spec scrolls inside
+        its own box instead of starving everything under it.
+      */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* Spec preview */}
+        <pre className="max-h-[45vh] shrink-0 overflow-y-auto whitespace-pre-wrap break-words p-4 font-mono text-[11px] leading-relaxed text-[var(--text-secondary)]">
           {spec}
         </pre>
-      </div>
 
       {/* Primary actions */}
-      <div className="border-t border-[var(--border-default)] p-3 shrink-0 space-y-2">
+      <div className="border-t border-[var(--border-default)] p-3 space-y-2">
         <div className="flex items-center gap-2">
           <Button
             onClick={handleEnhance}
@@ -391,10 +403,10 @@ export function SpecTab({
           </div>
         </div>
 
-        {/* Failure scenarios — deterministic, no model call */}
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
-          <ScenarioMatrix projectId={projectId} />
-        </div>
+        {/* Failure scenarios — deterministic, no model call. Renders its own
+            container so a project with no spec shows nothing at all, rather than
+            an empty bordered box. */}
+        <ScenarioMatrix projectId={projectId} />
 
         {/* Hand-off — the same spec, rendered for whoever builds it */}
         <HandoffCard projectId={projectId} projectName={projectName} />
@@ -630,6 +642,7 @@ export function SpecTab({
           {importError && (
             <p className="mt-1.5 text-center text-[11px] text-[var(--state-error)]">{importError}</p>
           )}
+        </div>
         </div>
       </div>
 

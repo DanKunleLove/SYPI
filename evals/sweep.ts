@@ -122,6 +122,8 @@ function main() {
     judgeModel: meta?.judgeModel ?? null,
     runs: meta?.runs ?? 1,
     gitCommit: meta?.gitCommit ?? "unknown",
+    // The sweep only ever runs the USS arm; the control arm is eval:ab's job.
+    ussEnabled: true,
     results,
     summary,
   };

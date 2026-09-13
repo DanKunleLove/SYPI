@@ -10,6 +10,10 @@ interface Scenario {
   question: string;
   outcome: "pass" | "gap" | "unknown";
   reasoning: string;
+  /** What WOULD prove this is handled — shown for gaps and unknowns. */
+  proofDescription?: string;
+  /** Component ids that proved it. Empty unless the outcome is a pass. */
+  provenBy?: string[];
   severity: "blocking" | "material" | "cosmetic";
 }
 
@@ -22,6 +26,7 @@ interface ScenarioResponse {
     unknown: number;
     blockingGaps: number;
     score: number | null;
+    scenariosUnknown?: number;
   };
   scenarios: Scenario[];
 }
@@ -30,10 +35,14 @@ interface ScenarioResponse {
  * "What happens when…" — the design tested against the things that actually go
  * wrong in production.
  *
- * Three outcomes, and the third one matters: UNKNOWN means the spec does not say
- * either way. Reporting that as a failure would be the manufactured certainty this
- * product exists to prevent, so it is shown as a decision nobody has made rather
- * than a defect.
+ * Three outcomes, and the distinction between the last two is the whole point:
+ *   PASS     something in the architecture demonstrably handles it, and the row
+ *            says WHAT
+ *   GAP      an architecture exists and nothing in it does — a real finding
+ *   UNKNOWN  no architecture yet, so nothing can show it either way
+ *
+ * Every gap and unknown carries what would prove it, so an empty verdict reads as
+ * an instruction rather than a shrug.
  */
 export function ScenarioMatrix({ projectId }: { projectId: string }) {
   const [data, setData] = useState<ScenarioResponse | null>(null);
@@ -54,7 +63,7 @@ export function ScenarioMatrix({ projectId }: { projectId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 py-3 text-[11px] text-[var(--text-muted)]">
+      <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-3 text-[11px] text-[var(--text-muted)]">
         <Loader2 className="h-3 w-3 animate-spin" />
         Checking failure scenarios…
       </div>
@@ -66,7 +75,7 @@ export function ScenarioMatrix({ projectId }: { projectId: string }) {
   const { summary, scenarios } = data;
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
@@ -74,10 +83,12 @@ export function ScenarioMatrix({ projectId }: { projectId: string }) {
             What happens when…
           </span>
         </div>
-        {summary?.score !== null && summary?.score !== undefined && (
+        {summary && summary.score !== null ? (
           <span className="text-[11px] tabular-nums text-[var(--text-muted)]">
-            {summary.passed}/{summary.passed + summary.gaps} handled
+            {summary.passed}/{summary.passed + summary.gaps} proven
           </span>
+        ) : (
+          <span className="text-[11px] text-[var(--text-muted)]">not enough to score</span>
         )}
       </div>
 
@@ -121,7 +132,19 @@ export function ScenarioMatrix({ projectId }: { projectId: string }) {
                   {s.title}
                 </p>
                 {s.outcome !== "pass" && (
-                  <p className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]">
+                  <>
+                    <p className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]">
+                      {s.reasoning}
+                    </p>
+                    {s.proofDescription && (
+                      <p className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]/70">
+                        Would prove it: {s.proofDescription}
+                      </p>
+                    )}
+                  </>
+                )}
+                {s.outcome === "pass" && (
+                  <p className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]/70">
                     {s.reasoning}
                   </p>
                 )}
@@ -133,8 +156,8 @@ export function ScenarioMatrix({ projectId }: { projectId: string }) {
 
       {summary && summary.unknown > 0 && (
         <p className="text-[10px] leading-snug text-[var(--text-muted)]">
-          {summary.unknown} scenario{summary.unknown === 1 ? "" : "s"} the spec does not
-          address either way — decisions nobody has made yet, not necessarily problems.
+          {summary.unknown} scenario{summary.unknown === 1 ? "" : "s"} nothing can
+          demonstrate yet — generate the architecture and they will be answered.
         </p>
       )}
     </div>

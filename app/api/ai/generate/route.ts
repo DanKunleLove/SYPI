@@ -1,13 +1,10 @@
 import { generateObject } from "ai";
 import {
-  applyUserInstructions,
   getUserInstructions,
   resolveModelForProject,
 } from "@/lib/ai/index";
 import {
   CRITIQUE_SYSTEM_PROMPT,
-  GENERATION_SYSTEM_PROMPT,
-  URL_ANALYSIS_SYSTEM_PROMPT,
 } from "@/lib/ai/prompts";
 import {
   ArchitectureOutputSchema,
@@ -26,11 +23,13 @@ import {
 } from "@/lib/ai/uss";
 import { applyImplications, deriveImplications, ruleCoverage } from "@/lib/uss/reasoning";
 import { commitSpec, getOrCreateSpec } from "@/lib/uss/store";
-import { renderUssForPrompt } from "@/lib/uss/render";
 import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { buildDesignPrompt } from "@/lib/ai/design-prompt";
+import type { Uss } from "@/lib/uss/schema";
+import { applyArchitectureToSpec } from "@/lib/uss/architecture";
 
 // Generation runs inline (a single structured LLM call, ~10-30s) rather than
 // offloading to a Trigger.dev worker. Give it room for the URL-research step.
@@ -121,8 +120,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        let systemPrompt: string;
-        let userPrompt: string;
+        let researchBrief: string | null = null;
 
         if (detectedUrls.length > 0) {
           controller.enqueue(
@@ -139,20 +137,14 @@ export async function POST(request: Request) {
             briefs.push(await researchSite(target));
           }
 
-          systemPrompt = URL_ANALYSIS_SYSTEM_PROMPT;
-          userPrompt = `RESEARCH BRIEF:\n\n${briefs.join("\n\n---\n\n")}\n\nUser's request: ${prompt}${
-            canvasContext ? `\n\n${canvasContext}` : ""
-          }`;
-        } else {
-          systemPrompt = GENERATION_SYSTEM_PROMPT;
-          userPrompt = canvasContext ? `${prompt}\n\n${canvasContext}` : prompt;
+          researchBrief = briefs.join("\n\n---\n\n");
         }
 
         // ── Understanding: establish WHAT is being built before designing it ──
         // Cheap (one flash call) and available on every path, including the
         // platform key. This is where requirements-completeness comes from.
         const instructions = await getUserInstructions(user.id);
-        let budgetBlock = "";
+        let specDoc: Uss | null = null;
 
         try {
           controller.enqueue(
@@ -202,21 +194,7 @@ export async function POST(request: Request) {
             ifVersion: current.version,
           });
 
-          budgetBlock = renderUssForPrompt(saved.doc, {
-            sections: [
-              "product",
-              "actors",
-              "requirements",
-              "constraints",
-              "capabilities",
-              "providers",
-              "domain",
-              "invariants",
-              "implications",
-              "complexity",
-            ],
-            maxChars: 12_000,
-          });
+          specDoc = saved.doc;
 
           const coverage = ruleCoverage(saved.doc);
           controller.enqueue(
@@ -246,13 +224,16 @@ export async function POST(request: Request) {
           })
         );
 
-        // User layer: appended, never replaces the schema contract.
-        systemPrompt = applyUserInstructions(systemPrompt, instructions);
-        if (budgetBlock) {
-          // The budget is stated as prohibitions, which is what actually stops
-          // over-engineering — "keep it practical" demonstrably does not.
-          userPrompt = `${userPrompt}\n\n${budgetBlock}`;
-        }
+        // The spec drives the SYSTEM prompt now, instead of riding along in the
+        // user message beneath one that contradicts it. With no spec, this is
+        // byte-for-byte the prompt that shipped before any of this existed.
+        const { system: systemPrompt, user: userPrompt } = buildDesignPrompt({
+          brief: prompt,
+          canvasContext,
+          researchBrief,
+          doc: specDoc,
+          userInstructions: instructions,
+        });
 
         const model = await resolveModelForProject(projectId, "pro");
         const result = await generateObject({
@@ -307,6 +288,43 @@ export async function POST(request: Request) {
           }
         } catch {
           // Keep the original draft — self-critique is an enhancement, not a gate.
+        }
+
+        // Record the architecture in the spec. Until this existed, components only
+        // ever entered the USS via a later canvas save, so scenarios, integrity
+        // checks and the health bar were all evaluated against a document with
+        // zero components -- every structural verdict was empty by construction.
+        // Deterministic, no model call, and best-effort: a failure here must never
+        // cost the user the design they just waited for.
+        if (specDoc) {
+          try {
+            const current = await getOrCreateSpec(projectId);
+            const applied = applyArchitectureToSpec(
+              current.doc,
+              architecture,
+              current.doc.complexity.firstSeenVersion + 1,
+              generation.id
+            );
+            const savedArch = await commitSpec({
+              projectId,
+              doc: finalise(applied.doc),
+              source: "extract",
+              changeSummary: `Recorded the generated architecture (${applied.added} components)`,
+              authorUserId: user.id,
+              ifVersion: current.version,
+            });
+            controller.enqueue(
+              line({
+                type: "spec",
+                coverage: specCoverage(savedArch.doc),
+                tier: savedArch.doc.complexity.tier,
+                tierLabel: savedArch.doc.complexity.label,
+                materialDecisions: materialOpenDecisions(savedArch.doc).length,
+              })
+            );
+          } catch (e) {
+            console.error("[generate] recording the architecture failed", e);
+          }
         }
 
         await prisma.aIGeneration.update({

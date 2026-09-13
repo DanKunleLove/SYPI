@@ -6,8 +6,6 @@ import {
   resolveModelForProject,
 } from "@/lib/ai/index";
 import {
-  GENERATION_SYSTEM_PROMPT,
-  URL_ANALYSIS_SYSTEM_PROMPT,
   CRITIQUE_SYSTEM_PROMPT,
   REFINEMENT_SYSTEM_PROMPT,
 } from "@/lib/ai/prompts";
@@ -18,13 +16,14 @@ import {
   type ArchitectureOutput,
 } from "@/lib/ai/schemas";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
-import { commitWithRetry } from "@/lib/uss/store";
+import { commitWithRetry, getSpec } from "@/lib/uss/store";
 import { UssGraph } from "@/lib/uss/graph";
 import { finalise } from "@/lib/ai/uss";
 import { renderUssSummary } from "@/lib/uss/render";
 import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { checkAiQuota } from "@/lib/ai/limits";
 import { Prisma } from "@/app/generated/prisma/client";
+import { buildDesignPrompt } from "@/lib/ai/design-prompt";
 
 /** Mutable per-request context shared by the agent's tools. `canvasContext`
  * is updated after a generation so later tool calls in the same turn see
@@ -73,15 +72,19 @@ export function createAgentTools(ctx: AgentContext) {
         if (!quota.ok) return { error: quota.error };
 
         const urls = url ? [url] : extractUrls(description, 1);
-        let system = GENERATION_SYSTEM_PROMPT;
-        let prompt = description;
-        if (urls.length > 0) {
-          const brief = await researchSite(urls[0]);
-          system = URL_ANALYSIS_SYSTEM_PROMPT;
-          prompt = `RESEARCH BRIEF:\n\n${brief}\n\nUser's request: ${description}`;
-        }
-        if (ctx.canvasContext) prompt += `\n\n${ctx.canvasContext}`;
-        system = applyUserInstructions(system, ctx.userInstructions);
+        const researchBrief = urls.length > 0 ? await researchSite(urls[0]) : null;
+
+        // The same builder the generate route uses. This tool used to be entirely
+        // spec-blind: it designed from the description alone while a specification
+        // for the project sat unread in the database.
+        const spec = await getSpec(ctx.projectId);
+        const { system, user: prompt } = buildDesignPrompt({
+          brief: description,
+          canvasContext: ctx.canvasContext,
+          researchBrief,
+          doc: spec?.doc ?? null,
+          userInstructions: ctx.userInstructions,
+        });
 
         const generation = await prisma.aIGeneration.create({
           data: {

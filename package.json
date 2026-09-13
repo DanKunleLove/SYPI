@@ -2,7 +2,7 @@
   "name": "sypi-ai",
   "version": "1.0.0",
   "private": true,
-  "description": "SYPI — System Project Intelligence. Design system architectures with your AI Twin on a real-time collaborative canvas.",
+  "description": "SYPI \u2014 System Project Intelligence. Design system architectures with your AI Twin on a real-time collaborative canvas.",
   "author": "Adelusi Dan Kunle",
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,8 @@
     "postinstall": "prisma generate",
     "eval": "tsx evals/run.ts",
     "uss:test": "tsx lib/uss/selftest.ts",
-    "eval:sweep": "tsx evals/sweep.ts"
+    "eval:sweep": "tsx evals/sweep.ts",
+    "eval:ab": "tsx evals/ab.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",

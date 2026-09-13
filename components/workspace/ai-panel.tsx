@@ -122,8 +122,9 @@ export function AiPanel({
               user sees exactly the panel they saw before. */}
           <SpecHealthBar spec={spec} />
 
-          {/* Content */}
-          <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Content — min-h-0 so a tall tab scrolls inside the panel instead of
+              overflowing past the bottom of it. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {activeTab === "chat" ? (
               <ChatTab
                 projectId={projectId}
