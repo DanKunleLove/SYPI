@@ -295,13 +295,32 @@ function main() {
   // The simplicity check is diagnostic, not part of the verdict, but it decides
   // whether the rest of the result can be interpreted at all: if the budget did
   // not bind, the spec never reached the design and nothing else here means much.
-  const simplicity = summary["simplicity"]?.delta;
-  if (simplicity !== null && simplicity !== undefined && simplicity < 5) {
+  // A mean can hide a bimodal result, and on the first real run it did exactly
+  // that: simplicity averaged -15, which reads as "the budget never bound", while
+  // six of eight briefs were in fact leaner than the control AND inside budget,
+  // and one produced 32 components against a budget of 18. Report the spread, not
+  // just the average, or the outlier writes the conclusion.
+  const simplicityDeltas = paired
+    .map((p) => ({ id: p.briefId, d: p.deltas["simplicity"] }))
+    .filter((x): x is { id: string; d: number } => typeof x.d === "number");
+  const leaner = simplicityDeltas.filter((x) => x.d > 0);
+  const blown = simplicityDeltas.filter((x) => x.d < -10);
+
+  if (simplicityDeltas.length > 0) {
     console.log(
-      `\n  WARNING: simplicity moved only ${simplicity}. The budget did not bind,` +
-        `\n  so the spec is probably still not driving the design. Treat this as a` +
-        `\n  failed experiment rather than a null result.`
+      `\n  SIMPLICITY SPREAD: ${leaner.length} leaner with the spec, ` +
+        `${simplicityDeltas.length - leaner.length - blown.length} unchanged, ${blown.length} much worse.`
     );
+    if (blown.length > 0) {
+      console.log(`  blown budgets: ${blown.map((x) => `${x.id} (${x.d})`).join(", ")}`);
+      console.log("  Read those briefs before reading the mean - one outlier moves it a long way.");
+    }
+    if (leaner.length === 0 && blown.length === 0) {
+      console.log(
+        "  Nothing moved either way, so the budget is not reaching the design at all." +
+          "\n  Treat that as a failed experiment rather than a null result."
+      );
+    }
   }
 
   console.log(

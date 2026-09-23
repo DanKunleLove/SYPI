@@ -75,6 +75,20 @@ export function useCanvasAutosave({
         idleTimerRef.current = setTimeout(() => setStatus("idle"), 2000);
         // Capture thumbnail in background after successful save
         captureThumbnail(projectId);
+
+        // Keep the spec in step with the canvas.
+        //
+        // This route existed and its own doc comment claimed it was "fired
+        // fire-and-forget after a successful manual save, exactly as
+        // captureThumbnail already is". It was not: nothing called it, so no
+        // canvas edit has ever reached the reasoning graph. Passing the nodes
+        // and edges we just PUT rather than re-reading React Flow means the spec
+        // and the saved canvas cannot disagree.
+        void fetch(`/api/projects/${projectId}/spec/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nodes, edges, ifExists: true }),
+        }).catch(() => {});
       } else {
         setStatus("error");
         const message = await res

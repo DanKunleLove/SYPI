@@ -6,6 +6,27 @@ Update this file after every meaningful implementation change.
 
 **2026-09-13: Units 0-5 of the USS programme shipped — live at https://sypi-dev.vercel.app**
 
+### 2026-09-23 — Reachability plan Phase 1 finished (Steps 7, 9, 10, 11-prompt, 12)
+
+Commits c16c01c / fb5501c / 45bbe2f shipped Steps 1-6 and 8 (pipeline route, client
+runner, agent front door, merge-not-append, Kit one-file-per-request). This closes the rest:
+- **Step 7** canvas→spec: autosave now calls `spec/sync` with the saved nodes/edges;
+  `ifExists` (default on) means a save never mints a spec — only the pipeline does.
+- **Step 9** hand-off split into `handoff/start` (spec check before quota, charge once) +
+  `handoff/file` (one generateText, named failure under 40 chars). Card: Retry N failed /
+  Download the N I have. Old streaming `handoff/route.ts` deleted.
+- **Step 10** deleted `app/api/ai/plan`, `PLANNING_SYSTEM_PROMPT`, `plan` AiKind/limit.
+  `model TaskRun` NOT removed — needs a DROP TABLE migration against Neon; do deliberately.
+- **Step 11 (free half)** `CHAT_SYSTEM_PROMPT` rule 1 asks the one question that most
+  changes what gets built (static vs 3D vs game portfolio). The `gaps.ts` rule is still open.
+- **Step 12** `/api/uss/[id]` returns `understood`; findings + decisions hidden until the
+  spec has requirements or a product — old canvases don't get a wall of accusations.
+- `evals/ab.ts` reports the simplicity spread, not just the mean (the -15 mean was one
+  32-component outlier; 6/8 briefs came in leaner and inside budget).
+
+Gates: `uss:test` 149/149, `tsc` clean, `next build` exit 0. **Not yet done:** browser E2E
+checks 4-9 from the plan, per-step latency table, portfolio tier measurement, push/deploy.
+
 ### 2026-09-12/13 — The USS programme: Units 0-5 shipped
 
 SYPI became a **system-engineering reasoning layer**. See `context/architecture.md`

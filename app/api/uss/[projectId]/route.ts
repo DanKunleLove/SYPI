@@ -1,6 +1,6 @@
 import { getProjectWithAccess } from "@/lib/project-access";
 import { getSpec } from "@/lib/uss/store";
-import { materialOpenDecisions, product, specCoverage } from "@/lib/uss/views";
+import { materialOpenDecisions, product, requirements, specCoverage } from "@/lib/uss/views";
 import { computeSpecHealth } from "@/lib/uss/gaps";
 
 /**
@@ -29,8 +29,23 @@ export async function GET(
   const { doc, version } = record;
   const material = materialOpenDecisions(doc);
 
+  /**
+   * Has this project actually been through the pipeline?
+   *
+   * A spec can exist because someone saved the canvas, with nothing established
+   * about what is being built. Every integrity rule would then fire at once —
+   * orphan components, unrealized capabilities, budget violations — about a
+   * design nobody asked us to analyse. A wall of findings about a canvas made
+   * last week reads as the tool being broken, not as the tool being honest.
+   *
+   * So findings and decisions surface only once there is something to found them
+   * on. This is not hiding the truth; it is not asserting one we have not earned.
+   */
+  const understood = requirements(doc).length > 0 || Boolean(product(doc));
+
   return Response.json({
     exists: true,
+    understood,
     version,
     coverage: specCoverage(doc),
     health: computeSpecHealth(doc),
@@ -44,9 +59,9 @@ export async function GET(
       ).length,
       components: doc.entities.filter((e) => e.kind === "component").length,
       openDecisions: doc.entities.filter((e) => e.kind === "openDecision" && !e.resolvedAt).length,
-      material: material.length,
+      material: understood ? material.length : 0,
     },
-    decisions: material.slice(0, 8).map((d) => ({
+    decisions: (understood ? material : []).slice(0, 8).map((d) => ({
       id: d.id,
       question: d.question,
       why: d.why,
@@ -57,7 +72,7 @@ export async function GET(
     // Sorted before slicing: recording the generated architecture means orphan
     // and unenforced-invariant findings now fire on real projects, and an
     // unsorted slice(0, 6) would bury the blocking ones behind cosmetics.
-    integrity: doc.integrity
+    integrity: (understood ? doc.integrity : [])
       .filter((f) => f.severity !== "cosmetic")
       .sort((a, b) => (a.severity === "blocking" ? 0 : 1) - (b.severity === "blocking" ? 0 : 1))
       .slice(0, 6),

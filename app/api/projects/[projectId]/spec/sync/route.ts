@@ -1,5 +1,5 @@
 import { getProjectWithAccess } from "@/lib/project-access";
-import { commitWithRetry } from "@/lib/uss/store";
+import { commitWithRetry, getSpec } from "@/lib/uss/store";
 import { reconcileCanvasIntoSpec } from "@/lib/uss/reconcile";
 import { finalise } from "@/lib/ai/uss";
 import { UssGraph } from "@/lib/uss/graph";
@@ -26,7 +26,7 @@ export async function POST(
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
 
-  let body: { nodes?: unknown; edges?: unknown };
+  let body: { nodes?: unknown; edges?: unknown; ifExists?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -39,6 +39,21 @@ export async function POST(
 
   const nodes = body.nodes as CanvasNode[];
   const edges = body.edges as CanvasEdge[];
+
+  /**
+   * Only keep an EXISTING spec current — never bring one into being.
+   *
+   * commitWithRetry calls getOrCreateSpec, so without this guard the first Ctrl+S
+   * on any project would mint a spec AND raise one material question per
+   * unexplained node. A fourteen-node canvas would sprout fourteen questions and
+   * a provisional tier badge the moment it was saved, about a design nobody asked
+   * us to analyse. A spec comes into existence through the pipeline; this route's
+   * job is keeping it in step with the canvas afterwards.
+   */
+  if (body.ifExists !== false) {
+    const existing = await getSpec(projectId);
+    if (!existing) return Response.json({ ok: true, skipped: true });
+  }
 
   try {
     const result = await commitWithRetry({

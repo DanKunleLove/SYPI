@@ -1,14 +1,6 @@
-import { getUserInstructions, resolveModelForProject } from "@/lib/ai/index";
 import { isPipelineStep, nextStep } from "@/lib/ai/pipeline";
 import { runStep, specSummary } from "@/lib/ai/pipeline-steps";
-import {
-  findResumableRun,
-  finishRun,
-  loadRun,
-  markStep,
-  startRun,
-  type RunRecord,
-} from "@/lib/ai/run";
+import { findResumableRun, finishRun, loadRun, markStep, startRun } from "@/lib/ai/run";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
 import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { getOrCreateSpec, getSpec } from "@/lib/uss/store";

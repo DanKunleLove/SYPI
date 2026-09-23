@@ -24,7 +24,6 @@ export type AiKind =
   | "refine"
   | "spec"
   | "chat"
-  | "plan"
   // USS: cheap extraction, available on the platform key
   | "intent"
   // USS: the full deep reasoning run. daily:0 below IS the BYOK gate.
@@ -47,7 +46,6 @@ export const AI_LIMITS: Record<AiKind, KindLimits> = {
   refine: { burst: 6, burstWindowMs: 60_000, daily: 60, byokDaily: 300 },
   spec: { burst: 6, burstWindowMs: 60_000, daily: 30, byokDaily: 150 },
   chat: { burst: 20, burstWindowMs: 60_000, daily: 300, byokDaily: 1500 },
-  plan: { burst: 15, burstWindowMs: 60_000, daily: 100, byokDaily: 500 },
   intent: { burst: 10, burstWindowMs: 60_000, daily: 150, byokDaily: 800 },
   // daily: 0 IS the BYOK gate. checkAiQuota returns the existing "Add your own
   // API key in Settings" 429 before writing a UsageEvent, so no quota is burned
