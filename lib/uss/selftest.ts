@@ -740,7 +740,7 @@ import { ALL_SECTIONS as SECTIONS } from "@/lib/uss/views";
 
 console.log("");
 
-check("five execution targets are defined", EXECUTION_TARGETS.length === 5);
+check("six execution targets are defined", EXECUTION_TARGETS.length === 6);
 check("an unknown target falls back rather than throwing", getTarget("nonsense").id === "claude-code");
 check("target ids are validated", isTargetId("n8n") && !isTargetId("n9n"));
 
@@ -1038,6 +1038,46 @@ const md = renderTasksMarkdown(shop);
 check("tasks.md uses the Spec Kit checkbox shape", /^- \[ \] T001 /m.test(md));
 check("tasks.md tags parallel tasks and requirement ids", md.includes("[P]") && md.includes(`[${ids.place}]`));
 check("an empty spec yields no tasks", taskBreakdown(reqDoc(() => {})).tasks.length === 0);
+
+// ─── GitHub Spec Kit export ──────────────────────────────────────────────────
+
+import { earsToScenario, renderConstitution, renderDataModel, renderPlan, renderSpec, renderSpeckitTasks } from "@/lib/uss/speckit";
+
+console.log("");
+
+check(
+  "EARS event criterion becomes When/Then",
+  earsToScenario("WHEN a cart is submitted, THE SYSTEM SHALL create one order") ===
+    "**When** a cart is submitted, **Then** the system shall create one order"
+);
+check("EARS state criterion becomes Given/Then", earsToScenario("While offline, the app shall queue edits").startsWith("**Given** offline"));
+check("non-EARS criterion is left as written", earsToScenario("playback works") === "playback works");
+
+const speckit = getTarget("spec-kit");
+check("Spec Kit target exists", speckit.id === "spec-kit");
+check("every Spec Kit file renders without a model", speckit.files.every((f) => typeof f.render === "function"));
+check("Spec Kit files use Spec Kit's layout", speckit.files.some((f) => f.path === ".specify/memory/constitution.md") && speckit.files.some((f) => /^specs\/\d{3}-[a-z-]+\/tasks\.md$/.test(f.path)));
+
+const shopWithQuestion = mutate(shop, (g) => {
+  g.add("openDecision", { ...prov, title: "Refunds?", question: "Can an order be refunded after shipping?", why: "", category: "scope", options: [], impact: { affectsComponents: [], affectsRequirements: [ids.place], severity: "material" } });
+});
+const specMd = renderSpec(shopWithQuestion, "Shop");
+check("spec.md has Spec Kit's mandatory sections", ["## User Scenarios & Testing", "## Requirements", "## Success Criteria", "## Assumptions"].every((h) => specMd.includes(h)));
+check("spec.md numbers requirements FR-### and keeps the SYPI id", /\*\*FR-001\*\* \(REQ-\d+/.test(specMd));
+check("an open question on a requirement becomes a clarification marker", specMd.includes("[NEEDS CLARIFICATION: Can an order be refunded after shipping?]"));
+check("acceptance criteria are rendered as When/Then", specMd.includes("**When** a customer submits a cart"));
+check("a spec with no success criteria asks for them", specMd.includes("[NEEDS CLARIFICATION: how will you know this works?]"));
+
+const planMd = renderPlan(shop, "Shop");
+check("plan.md has Technical Context and a Constitution Check", planMd.includes("## Technical Context") && planMd.includes("## Constitution Check"));
+check("plan.md names the chosen storage", planMd.includes("**Storage**: PostgreSQL"));
+check("plan.md checks the invariant has an enforcer", planMd.includes(`[x] ${ids.inv} has an enforcer`));
+
+check("constitution states the complexity budget", renderConstitution(shop, "Shop").includes("Proportionate complexity"));
+check("constitution carries the invariants as laws", renderConstitution(shop, "Shop").includes("An order is paid at most once"));
+check("data-model lists the legal lifecycle", renderDataModel(shop, "Shop").includes("pending → paid"));
+check("Spec Kit tasks.md points at its design documents", renderSpeckitTasks(shop).includes("**Input**: Design documents from `/specs/001-initial-system/`"));
+check("renderers survive an empty spec", [renderSpec, renderPlan, renderConstitution, renderDataModel].every((r) => r(reqDoc(() => {}), "X").length > 20));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

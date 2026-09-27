@@ -1,6 +1,14 @@
 import type { UssSection } from "@/lib/uss/views";
 import type { Uss } from "@/lib/uss/schema";
 import { renderTasksMarkdown } from "@/lib/uss/tasks";
+import {
+  SPECKIT_FEATURE_DIR,
+  renderConstitution,
+  renderDataModel,
+  renderPlan,
+  renderSpec,
+  renderSpeckitTasks,
+} from "@/lib/uss/speckit";
 
 /**
  * Execution targets — who is going to build this.
@@ -20,7 +28,8 @@ export type TargetId =
   | "codex"
   | "lovable"
   | "n8n"
-  | "human-team";
+  | "human-team"
+  | "spec-kit";
 
 export interface TargetFile {
   /** Path inside the exported bundle. */
@@ -260,6 +269,62 @@ reach if a check were missing. Be concrete about the attack, not abstract about 
 risk.`,
       },
       IMPLEMENTATION_PLAN,
+    ],
+  },
+  /**
+   * GitHub Spec Kit — every file rendered from the graph, so this target makes no
+   * model call and charges no quota. Drops into `specify init` projects: the agent
+   * picks up at /tasks or /implement with the reasoning already done.
+   */
+  {
+    id: "spec-kit",
+    label: "GitHub Spec Kit",
+    audience: "a Spec Kit project driven by any coding agent",
+    hint: "constitution · spec · plan · tasks — instant, free",
+    role: "not used — every file is rendered deterministically",
+    files: [
+      {
+        path: ".specify/memory/constitution.md",
+        title: "Constitution",
+        sections: ["complexity", "invariants", "constraints"],
+        guidance: `The project's non-negotiables: the complexity budget for its tier,
+  the business invariants, and the rule that nothing unknown is decided silently.`,
+        render: renderConstitution,
+      },
+      {
+        path: `${SPECKIT_FEATURE_DIR}/spec.md`,
+        title: "Feature specification",
+        sections: ["product", "actors", "useCases", "requirements", "nonFunctional", "domain", "assumptions", "unknowns", "openDecisions"],
+        guidance: `Spec Kit's spec template filled from the graph: user stories, edge
+  cases from the scenario engine, FR-### requirements with their SYPI ids and
+  [NEEDS CLARIFICATION] markers for open questions, key entities, success criteria.`,
+        render: renderSpec,
+      },
+      {
+        path: `${SPECKIT_FEATURE_DIR}/plan.md`,
+        title: "Implementation plan",
+        sections: ["product", "architecture", "providers", "decisions", "constraints", "complexity", "invariants"],
+        guidance: `Spec Kit's plan template: technical context from the chosen
+  components, a constitution check computed from the graph, the architecture table,
+  decisions with rejected alternatives, and complexity tracking.`,
+        render: renderPlan,
+      },
+      {
+        path: `${SPECKIT_FEATURE_DIR}/data-model.md`,
+        title: "Data model",
+        sections: ["domain", "invariants", "actors"],
+        guidance: `Domain entities with key attributes, their legal lifecycle
+  transitions, the rules that govern each, and what every actor may do.`,
+        render: renderDataModel,
+      },
+      {
+        path: `${SPECKIT_FEATURE_DIR}/tasks.md`,
+        title: "Tasks",
+        sections: ["requirements", "architecture", "domain", "openDecisions"],
+        guidance: `The ordered task list in Spec Kit's checkbox format, each task
+  traced to the requirements it delivers and the questions that block it.`,
+        render: (doc) => renderSpeckitTasks(doc),
+      },
     ],
   },
 ];
