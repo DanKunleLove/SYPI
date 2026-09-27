@@ -59,4 +59,4 @@ docs/           Product guides (Mintlify)
 
 ## License
 
-Copyright © 2026 Adelusi Dan Kunle. All rights reserved.
+[AGPL-3.0](LICENSE) © 2026 Adelusi Dan Kunle.

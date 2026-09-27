@@ -2,8 +2,13 @@
   "name": "sypi-ai",
   "version": "1.0.0",
   "private": true,
-  "description": "SYPI \u2014 System Project Intelligence. Design system architectures with your AI Twin on a real-time collaborative canvas.",
+  "description": "SYPI — System Project Intelligence. Design system architectures with your AI Twin on a real-time collaborative canvas.",
   "author": "Adelusi Dan Kunle",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DanKunleLove/SYPI.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

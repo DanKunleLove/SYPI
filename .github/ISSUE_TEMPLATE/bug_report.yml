@@ -1,0 +1,41 @@
+name: Bug report
+description: Something is broken or behaves wrongly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a project
+        2. Ask the AI twin to "build me a …"
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Hosted (sypi-dev.vercel.app)
+        - Self-hosted
+        - Local development
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model / provider (if AI-related)
+      placeholder: e.g. platform default, BYOK Anthropic claude-sonnet-5
+  - type: textarea
+    id: logs
+    attributes:
+      label: Errors or logs
+      render: text
