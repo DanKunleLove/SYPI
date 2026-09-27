@@ -64,6 +64,8 @@ export async function POST(request: Request) {
     kind: "handoff",
     brief: projectName,
     meta: { target: target.id, projectName },
+    // A target made only of deterministic files never calls a model.
+    free: target.files.every((f) => Boolean(f.render)),
   });
   if (!started.ok) return Response.json({ error: started.error }, { status: 429 });
 

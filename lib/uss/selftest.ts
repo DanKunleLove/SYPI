@@ -978,5 +978,66 @@ check("the same target in different units is not a conflict", !checkRequirementQ
 check("the complete tier-1 fixture raises no quality findings", checkRequirementQuality(simple).length === 0);
 check("quality findings flow into checkIntegrity", checkIntegrity(contradictory).some((f) => f.rule === "contradictory-requirements"));
 
+// ─── Task breakdown: requirements → design → ordered tasks ───────────────────
+
+import { renderTasksMarkdown, taskBreakdown } from "@/lib/uss/tasks";
+
+console.log("");
+
+const linkProv = { status: "KNOWN" as const, confidence: 1, evidence: [{ kind: "user-statement" as const }], firstSeenVersion: 1 };
+const ids: Record<string, string> = {};
+const shop = reqDoc((g) => {
+  const db = g.add("component", { ...prov, title: "Orders DB", category: "database", responsibility: "stores orders", technology: "PostgreSQL", orphaned: false });
+  const files = g.add("component", { ...prov, title: "Receipts Store", category: "storage", responsibility: "stores receipts", orphaned: false });
+  const api = g.add("component", { ...prov, title: "Orders API", category: "service", responsibility: "takes orders", orphaned: false });
+  const web = g.add("component", { ...prov, title: "Web App", category: "client", responsibility: "checkout UI", orphaned: false });
+  g.link("dependsOn", web.id, api.id, linkProv);
+  g.link("dependsOn", api.id, db.id, linkProv);
+  g.link("dependsOn", api.id, files.id, linkProv);
+  const place = rq(g, "Place order", "Customers place an order", ["WHEN a customer submits a cart, THE SYSTEM SHALL create one order"]);
+  const lonely = rq(g, "Export", "Managers export orders as CSV");
+  g.link("satisfies", api.id, place.id, linkProv);
+  const order = g.add("domainEntity", { ...prov, title: "Order", description: "", keyAttributes: [], tenantScoped: false, financial: false });
+  g.link("manages", api.id, order.id, linkProv);
+  g.add("transition", { ...prov, title: "Order: pending → paid", entityTitle: "Order", from: "pending", to: "paid", trigger: "", guard: "payment confirmed" });
+  const inv = g.add("invariant", { ...prov, title: "No double pay", statement: "An order is paid at most once", category: "uniqueness", enforcement: "unique payment key", violationConsequence: "customer charged twice", severity: "critical" });
+  g.link("enforcedBy", inv.id, api.id, linkProv);
+  g.add("openDecision", { ...prov, title: "Guest checkout?", question: "Can customers check out without an account?", why: "", category: "auth", options: [], impact: { affectsComponents: [api.id], affectsRequirements: [], severity: "material" } });
+  Object.assign(ids, { db: db.id, files: files.id, api: api.id, web: web.id, place: place.id, lonely: lonely.id, inv: inv.id });
+});
+
+const plan = taskBreakdown(shop);
+const bySource = (id: string) => plan.tasks.find((t) => t.sourceId === id)!;
+check("setup is the first task", plan.tasks[0]?.kind === "setup" && plan.tasks[0].id === "T001");
+check("setup names the chosen stack", plan.tasks[0]?.detail.includes("PostgreSQL"));
+check("stores are built before the API that needs them", bySource(ids.db).phase < bySource(ids.api).phase);
+check("the API is built before the client that calls it", bySource(ids.api).phase < bySource(ids.web).phase);
+check("the API task waits on both stores", [bySource(ids.db).id, bySource(ids.files).id].every((x) => bySource(ids.api).dependsOn.includes(x)));
+check("independent stores in one phase are marked parallel", bySource(ids.db).parallel && bySource(ids.files).parallel);
+check("a lone component in its phase is not marked parallel", !bySource(ids.web).parallel);
+check("a task carries the requirements it delivers", bySource(ids.api).satisfies.includes(ids.place));
+check("…and their acceptance criteria as its done-when", bySource(ids.api).doneWhen.some((d) => d.includes("THE SYSTEM SHALL create one order")));
+check("an open question on a component blocks its task", bySource(ids.api).blockedBy.some((b) => b.question.includes("without an account")));
+check("an invariant becomes a task after its enforcer", bySource(ids.inv).dependsOn.includes(bySource(ids.api).id));
+check("a lifecycle becomes a task that rejects unlisted transitions", plan.tasks.some((t) => t.kind === "lifecycle" && t.detail.includes("pending → paid") && t.detail.includes("Reject")));
+check("a requirement nothing delivers is surfaced, not dropped", bySource(ids.lonely)?.kind === "unassigned");
+check("phases are numbered without gaps", plan.phases.every((p, i) => p.number === i + 1));
+check("no task depends on a task in its own or a later phase", plan.tasks.every((t) => t.dependsOn.every((d) => plan.tasks.find((x) => x.id === d)!.phase < t.phase)));
+check("task ids are deterministic", JSON.stringify(taskBreakdown(shop)) === JSON.stringify(plan));
+
+const looped = reqDoc((g) => {
+  const a = g.add("component", { ...prov, title: "A", category: "service", responsibility: "", orphaned: false });
+  const b = g.add("component", { ...prov, title: "B", category: "service", responsibility: "", orphaned: false });
+  g.link("dependsOn", a.id, b.id, linkProv);
+  g.link("dependsOn", b.id, a.id, linkProv);
+});
+check("a dependency loop is detected, not hung on", taskBreakdown(looped).cycles.length === 2);
+check("…and still produces tasks for both", taskBreakdown(looped).tasks.filter((t) => t.kind === "component").length === 2);
+
+const md = renderTasksMarkdown(shop);
+check("tasks.md uses the Spec Kit checkbox shape", /^- \[ \] T001 /m.test(md));
+check("tasks.md tags parallel tasks and requirement ids", md.includes("[P]") && md.includes(`[${ids.place}]`));
+check("an empty spec yields no tasks", taskBreakdown(reqDoc(() => {})).tasks.length === 0);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

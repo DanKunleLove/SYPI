@@ -83,9 +83,13 @@ export async function startRun(params: {
   kind: RunKind;
   brief: string;
   meta?: Record<string, unknown>;
+  /** The run makes no model calls (every file is deterministic), so charge nothing. */
+  free?: boolean;
 }): Promise<{ ok: true; run: RunRecord } | { ok: false; error: string; retryAfter: number }> {
-  const quota = await checkAiQuota(params.userId, QUOTA_FOR[params.kind]);
-  if (!quota.ok) return quota;
+  if (!params.free) {
+    const quota = await checkAiQuota(params.userId, QUOTA_FOR[params.kind]);
+    if (!quota.ok) return quota;
+  }
 
   const row = await prisma.aIGeneration.create({
     data: {

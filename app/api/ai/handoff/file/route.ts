@@ -52,12 +52,20 @@ export async function POST(request: Request) {
       return Response.json({ ok: false, path, error: "The specification has gone away." });
     }
 
+    const projectName = (run.meta.projectName as string | undefined) ?? "Untitled Project";
+
+    // Deterministic files are a rendering of the graph, not a generation.
+    if (file.render) {
+      const content = file.render(record.doc, projectName);
+      await markStep(runId, file.path, { status: "done" });
+      return Response.json({ ok: true, path: file.path, title: file.title, content });
+    }
+
     const [model, instructions] = await Promise.all([
       resolveModelForProject(projectId, "flash"),
       getUserInstructions(user.id),
     ]);
 
-    const projectName = (run.meta.projectName as string | undefined) ?? "Untitled Project";
     const context = renderUssForPrompt(record.doc, {
       sections: file.sections,
       maxChars: 18_000,

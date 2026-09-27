@@ -1,4 +1,6 @@
 import type { UssSection } from "@/lib/uss/views";
+import type { Uss } from "@/lib/uss/schema";
+import { renderTasksMarkdown } from "@/lib/uss/tasks";
 
 /**
  * Execution targets — who is going to build this.
@@ -28,8 +30,12 @@ export interface TargetFile {
   sections: UssSection[];
   /** What this file must contain, written as instructions to the generator. */
   guidance: string;
-  /** Rendered deterministically from the spec rather than generated. */
-  deterministic?: boolean;
+  /**
+   * Rendered deterministically from the spec rather than generated: no model
+   * call, no quota, identical output for an identical spec. When present, the
+   * hand-off route calls this instead of the model.
+   */
+  render?: (doc: Uss, projectName: string) => string;
 }
 
 export interface ExecutionTarget {
@@ -44,16 +50,20 @@ export interface ExecutionTarget {
   files: TargetFile[];
 }
 
+/**
+ * The ordered task list. Was a model-written "implementation plan"; it is now a
+ * graph query (lib/uss/tasks.ts) — every task traced to the requirements it
+ * delivers and the open questions that block it, at zero model cost.
+ */
 const IMPLEMENTATION_PLAN: TargetFile = {
-  path: "IMPLEMENTATION-PLAN.md",
-  title: "Implementation plan",
+  path: "TASKS.md",
+  title: "Task list",
   sections: ["requirements", "architecture", "domain", "openDecisions", "complexity"],
-  guidance: `Order the work so that nothing is built before what it depends on.
-Group requirements into units that each produce ONE verifiable result and can be
-finished in a single sitting. For each unit: what is built, what "done" looks like
-as a check someone could actually run, and what it depends on. Put anything
-blocked by an unresolved decision in a separate "Blocked" section with the
-decision id — do not quietly assume an answer.`,
+  guidance: `Rendered from the specification's task breakdown: components in
+dependency order, business rules after the components that enforce them, each
+task with the requirements it delivers, what it waits on, and the open question
+that blocks it.`,
+  render: (doc) => renderTasksMarkdown(doc),
 };
 
 export const EXECUTION_TARGETS: ExecutionTarget[] = [

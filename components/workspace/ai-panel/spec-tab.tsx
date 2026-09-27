@@ -49,6 +49,7 @@ import { recordEvent } from "@/lib/events";
 import type { CanvasNode, CanvasEdge } from "@/types/canvas";
 import { ExportRow } from "./export-row";
 import { ScenarioMatrix } from "./scenario-matrix";
+import { TaskPlanCard } from "./task-plan";
 import { HandoffCard } from "./handoff-card";
 
 export function SpecTab({
@@ -488,6 +489,9 @@ export function SpecTab({
             container so a project with no spec shows nothing at all, rather than
             an empty bordered box. */}
         <ScenarioMatrix projectId={projectId} />
+
+        {/* Build plan — ordered tasks traced to requirements. Deterministic. */}
+        <TaskPlanCard projectId={projectId} />
 
         {/* Hand-off — the same spec, rendered for whoever builds it */}
         <HandoffCard projectId={projectId} projectName={projectName} />
