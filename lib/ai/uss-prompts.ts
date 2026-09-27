@@ -46,8 +46,14 @@ actually build from.
 
 Produce:
 - Functional requirements: what the system must DO. One capability per requirement,
-  phrased so it can be verified. Give each an acceptance criterion — the check that
-  proves it works.
+  phrased so it can be verified. Give each 1-3 acceptance criteria written in EARS
+  form, so each one is a test someone could run:
+    WHEN <trigger>, THE SYSTEM SHALL <observable response>
+    WHILE <state>, THE SYSTEM SHALL <response>
+    IF <unwanted condition>, THEN THE SYSTEM SHALL <response>
+    THE SYSTEM SHALL <response>   (always true)
+  e.g. "WHEN a manager assigns an item to a crew, THE SYSTEM SHALL show that item as
+  checked out to that crew." No vague words (fast, easy, intuitive, seamless, robust).
 - Non-functional requirements: speed, scale, availability, security, privacy, cost.
   ONLY where the brief implies one. Each needs a measurable target; if you cannot
   justify a number, say the target is unknown rather than inventing one.

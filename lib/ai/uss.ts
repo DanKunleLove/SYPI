@@ -77,7 +77,9 @@ const RequirementsDraft = z.object({
     z.object({
       title: z.string(),
       statement: z.string().describe("What the system must do. Verifiable."),
-      acceptanceCriteria: z.array(z.string()).describe("The check that proves it works"),
+      acceptanceCriteria: z
+        .array(z.string())
+        .describe("1-3 testable checks in EARS form: 'WHEN <trigger>, THE SYSTEM SHALL <response>'"),
       priority: z.enum(["must", "should", "could"]),
       status: statusEnum,
     })

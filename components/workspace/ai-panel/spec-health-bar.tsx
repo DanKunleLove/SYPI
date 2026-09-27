@@ -72,7 +72,8 @@ export function SpecHealthBar({
         )}
       </div>
 
-      {health && (health.scenarioScore !== null || health.unknowns > 0) && (
+      {health &&
+        (health.scenarioScore !== null || health.unknowns > 0 || typeof health.testability === "number") && (
         <div className="mt-1.5 flex items-center gap-3 pl-6 text-[10px] tabular-nums text-[var(--text-muted)]">
           {health.scenarioScore !== null && (
             <span title="Failure scenarios the architecture demonstrably handles">
@@ -82,6 +83,11 @@ export function SpecHealthBar({
           {health.scenariosUnknown > 0 && (
             <span title="Nothing in the design demonstrates these either way">
               {health.scenariosUnknown} unproven
+            </span>
+          )}
+          {typeof health.testability === "number" && (
+            <span title="Acceptance criteria written as tests (WHEN … THE SYSTEM SHALL …) with no vague words">
+              {health.testability}% testable
             </span>
           )}
           {health.unknowns > 0 && (

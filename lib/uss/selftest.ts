@@ -894,5 +894,89 @@ check(
 );
 check("the result still parses", UssSchema.safeParse(generated.doc).success);
 
+// ─── Requirement quality: EARS, vague words, contradictions ──────────────────
+
+import {
+  checkRequirementQuality,
+  classifyEars,
+  parseTarget,
+  testabilityScore,
+  vagueTermsIn,
+} from "@/lib/uss/requirements-quality";
+
+console.log("");
+
+check("EARS event", classifyEars("WHEN a crew returns an item, THE SYSTEM SHALL mark it available") === "event");
+check("EARS state", classifyEars("While offline, the app shall queue edits") === "state");
+check("EARS unwanted", classifyEars("If payment fails, then the system shall release the stock") === "unwanted");
+check("EARS optional", classifyEars("Where SSO is enabled, the system shall hide the password form") === "optional");
+check("EARS ubiquitous", classifyEars("The system shall log every sign-in") === "ubiquitous");
+check("EARS complex", classifyEars("While a sync is running, when the user edits, the system shall queue the edit") === "complex");
+check("prose is not EARS", classifyEars("playback works") === null);
+check("a trigger with no SHALL is not EARS", classifyEars("When the user uploads a file") === null);
+
+check("vague words found", vagueTermsIn("Search is fast and user-friendly").join(",") === "fast,user-friendly");
+check("vague match respects word boundaries", vagueTermsIn("THE SYSTEM SHALL serve breakfast menus").length === 0);
+check("precise criterion has no vague words", vagueTermsIn("WHEN searching, THE SYSTEM SHALL respond in under 2 seconds").length === 0);
+
+const reqDoc = (build: (g: UssGraph) => void) =>
+  mutate(
+    { ...createEmptySpec({ specId: "s", projectId: "p" }), complexity: normaliseComplexity({ ...createEmptySpec({ specId: "s", projectId: "p" }).complexity, tier: 2, status: "KNOWN", confidence: 1, evidence: [{ kind: "user-statement" }] }) },
+    build
+  );
+const rq = (g: UssGraph, title: string, statement: string, criteria: string[] = [], priority: "must" | "should" | "could" = "must") =>
+  g.add("requirement", { ...prov, title, requirementKind: "functional", statement, acceptanceCriteria: criteria, priority });
+const nfr = (g: UssGraph, title: string, target: string) =>
+  g.add("requirement", { ...prov, title, requirementKind: "non-functional", statement: title, nfrCategory: "performance", target, acceptanceCriteria: [], priority: "must" });
+
+const testable = reqDoc((g) => {
+  rq(g, "Check out", "Managers assign items", ["WHEN a manager assigns an item, THE SYSTEM SHALL show it as checked out"]);
+  rq(g, "Search", "Find items", ["search is quick"]);
+});
+check("testability counts EARS + vague-free criteria", testabilityScore(testable) === 50, String(testabilityScore(testable)));
+check("testability is null with no criteria", testabilityScore(reqDoc(() => {})) === null);
+check("vague criteria raise one finding", checkRequirementQuality(testable).filter((f) => f.rule === "vague-criteria").length === 1);
+
+const contradictory = reqDoc((g) => {
+  rq(g, "Export", "Users can export their order history as CSV");
+  rq(g, "No export", "The system shall not allow users to export their order history as CSV");
+});
+check(
+  "direct contradiction is caught",
+  checkRequirementQuality(contradictory).some((f) => f.rule === "contradictory-requirements" && f.severity === "blocking")
+);
+
+const notContradictory = reqDoc((g) => {
+  rq(g, "Delete account", "Users can delete their account and profile");
+  rq(g, "Keep audit", "The system shall not delete audit records of payments");
+});
+check("a shared verb alone is not a contradiction", !checkRequirementQuality(notContradictory).some((f) => f.rule === "contradictory-requirements"));
+
+const outOfScope = reqDoc((g) => {
+  g.add("product", { ...prov, title: "Tracker", problem: "p", valueProposition: "", inScope: [], outOfScope: ["billing"], successCriteria: [] });
+  rq(g, "Invoices", "Send monthly billing invoices to crews");
+  rq(g, "Maybe", "Show billing history", [], "could");
+});
+const scopeFindings = checkRequirementQuality(outOfScope).filter((f) => f.rule === "requirement-out-of-scope");
+check("a must-requirement asking for out-of-scope work is caught", scopeFindings.length === 1);
+check("a could-requirement is not held to scope", scopeFindings[0]?.subjects.length === 1);
+
+check("parse availability target", parseTarget("99.9% uptime")?.value === 99.9);
+check("parse latency target in seconds", parseTarget("p95 under 2s")?.value === 2000);
+check("target with no metric is not parsed", parseTarget("feels snappy") === null);
+
+const conflicting = reqDoc((g) => {
+  nfr(g, "Search latency", "p95 < 300ms");
+  nfr(g, "Page latency", "p95 under 2s");
+});
+check("two p95 targets that disagree are caught", checkRequirementQuality(conflicting).some((f) => f.rule === "conflicting-targets"));
+const agreeing = reqDoc((g) => {
+  nfr(g, "Search latency", "p95 < 300ms");
+  nfr(g, "Same, in seconds", "p95 < 0.3s");
+});
+check("the same target in different units is not a conflict", !checkRequirementQuality(agreeing).some((f) => f.rule === "conflicting-targets"));
+check("the complete tier-1 fixture raises no quality findings", checkRequirementQuality(simple).length === 0);
+check("quality findings flow into checkIntegrity", checkIntegrity(contradictory).some((f) => f.rule === "contradictory-requirements"));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

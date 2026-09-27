@@ -3,6 +3,7 @@ import { CAPABILITY_QUESTIONS } from "@/lib/capabilities/questions";
 import { UssGraph } from "@/lib/uss/graph";
 import { capabilitiesOverBudget } from "@/lib/uss/complexity";
 import { runScenarios, summariseScenarios } from "@/lib/uss/scenarios";
+import { checkRequirementQuality, testabilityScore } from "@/lib/uss/requirements-quality";
 import {
   actors,
   capabilities,
@@ -360,6 +361,10 @@ export function checkIntegrity(doc: Uss): IntegrityFinding[] {
     });
   }
 
+  // Testable-requirement checks: contradictions, out-of-scope asks, conflicting
+  // targets, vague criteria. See requirements-quality.ts.
+  findings.push(...checkRequirementQuality(doc));
+
   return findings;
 }
 
@@ -434,6 +439,8 @@ export interface SpecHealth {
   scenariosUnknown: number;
   /** Share of entities carrying evidence for what they claim. 0-100. */
   evidenceConfidence: number;
+  /** Share of acceptance criteria written as tests (EARS, no vague words). Null when there are none. */
+  testability: number | null;
 }
 
 export function computeSpecHealth(doc: Uss): SpecHealth {
@@ -451,5 +458,6 @@ export function computeSpecHealth(doc: Uss): SpecHealth {
     scenarioScore: scenarios.score,
     scenariosUnknown: scenarios.unknown,
     evidenceConfidence: entities.length === 0 ? 0 : Math.round((withEvidence / entities.length) * 100),
+    testability: testabilityScore(doc),
   };
 }

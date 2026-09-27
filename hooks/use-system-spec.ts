@@ -28,6 +28,8 @@ export interface SpecHead {
     scenarioScore: number | null;
     scenariosUnknown: number;
     evidenceConfidence: number;
+    /** Share of acceptance criteria written as tests. Null when there are none. */
+    testability?: number | null;
   };
   tier?: number;
   tierLabel?: string;
