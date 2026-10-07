@@ -12,9 +12,16 @@ Validated Codex's slice: `tsc`, `uss:test` 214/214, `next build` pass; no new li
 (26 pre-existing, mostly `useCases` naming false positives in `lib/uss`). Fixed two gaps in it:
 each canvas save now deletes the blob it replaces (otherwise autosave leaked one blob per
 save), and also deletes the legacy public `canvas/{projectId}.json`, so old projects stop
-exposing a stale copy once re-saved. **Still open:** `thumbnails/{projectId}.png` is a
-deterministic public URL (a PNG of the architecture); viewers can no longer comment
-(Liveblocks `READ_ACCESS`) — decide if that's wanted.
+exposing a stale copy once re-saved. Thumbnails got the same treatment (random per-save
+path, replaced + legacy blobs deleted). Viewers keep `comments:write` in Liveblocks but
+cannot write canvas storage.
+
+**Release state:** prod DB (`ep-little-tooth`) has exactly one pending migration,
+`20260928090000_api_tokens` (additive CREATE TABLE). Prod last deployed 2026-09-13
+(`2d4dbb0`); `origin/main` is an ancestor of `feat/open-source`, so release = fast-forward
+merge. Order: apply migration to prod → merge to main → verify deployment. The Vercel
+project that serves the site is `spi-ai` (sypi-dev.vercel.app); a stray empty project `spi`
+was created by mistake while linking and should be deleted.
 
 ### 2026-10-08 — Giant product plan + trust fixes started
 

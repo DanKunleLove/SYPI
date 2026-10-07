@@ -1,4 +1,5 @@
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { canEditProject, getProjectWithAccess } from "@/lib/project-access";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
@@ -49,18 +50,37 @@ export async function PUT(
     const base64 = dataUrl.replace("data:image/png;base64,", "");
     const buffer = Buffer.from(base64, "base64");
 
-    const blob = await put(`thumbnails/${projectId}.png`, buffer, {
-      access: "public",
-      contentType: "image/png",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      token,
-    });
+    // Unguessable per-save path, like the canvas: a fixed public URL would expose a
+    // picture of the architecture to anyone who knew the project id.
+    const blob = await put(
+      `thumbnails/${projectId}/${randomBytes(16).toString("hex")}.png`,
+      buffer,
+      {
+        access: "public",
+        contentType: "image/png",
+        addRandomSuffix: false,
+        allowOverwrite: false,
+        token,
+      }
+    );
 
+    const previous = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { thumbnailUrl: true },
+    });
     await prisma.project.update({
       where: { id: projectId },
       data: { thumbnailUrl: blob.url },
     });
+
+    // Drop the replaced thumbnail and the legacy fixed-path one. Best effort.
+    const stale = [
+      previous?.thumbnailUrl,
+      `${new URL(blob.url).origin}/thumbnails/${projectId}.png`,
+    ].filter((u): u is string => !!u && u !== blob.url);
+    await del(stale, { token }).catch((err) =>
+      console.warn("[thumbnail] Could not delete replaced blob:", err)
+    );
 
     return Response.json({ url: blob.url });
   } catch (error) {
