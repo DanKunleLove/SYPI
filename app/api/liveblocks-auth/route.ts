@@ -59,9 +59,13 @@ export async function POST(request: Request) {
       },
     });
 
+    // Viewers can read, show presence and comment — reviewing is the point of a viewer
+    // seat — but cannot write storage (the canvas itself).
     session.allow(
       room,
-      canEditProject(accessResult.role) ? session.FULL_ACCESS : session.READ_ACCESS
+      canEditProject(accessResult.role)
+        ? session.FULL_ACCESS
+        : ["room:read", "room:presence:write", "comments:write"]
     );
 
     const { status, body: responseBody } = await session.authorize();
