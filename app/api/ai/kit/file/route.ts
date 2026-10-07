@@ -3,7 +3,7 @@ import { applyUserInstructions, getUserInstructions, resolveModelForProject } fr
 import { getKitDomain, kitSystemPrompt, SECTIONS_BY_FILE } from "@/lib/ai/kit";
 import { loadRun, markStep } from "@/lib/ai/run";
 import { prisma } from "@/lib/prisma";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { renderUssForPrompt } from "@/lib/uss/render";
 import { getSpec } from "@/lib/uss/store";
 
@@ -47,6 +47,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot generate System Kit files" },
+      { status: 403 }
+    );
   }
 
   const loaded = await loadRun(runId, projectId);
@@ -133,6 +139,12 @@ export async function PATCH(request: Request) {
   const access = await getProjectWithAccess(body.projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot mark System Kits delivered" },
+      { status: 403 }
+    );
   }
 
   await prisma.usageEvent

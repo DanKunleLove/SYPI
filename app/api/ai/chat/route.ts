@@ -16,7 +16,7 @@ import { CHAT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { createAgentTools, type AgentContext } from "@/lib/ai/agent-tools";
 import { extractUrls, fetchSiteEvidence } from "@/lib/ai/url-research";
 import { enforceAiQuota } from "@/lib/ai/limits";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { getSpec } from "@/lib/uss/store";
 import { renderUssForPrompt, renderUssSummary } from "@/lib/uss/render";
 
@@ -63,6 +63,7 @@ export async function POST(request: Request) {
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
+  const canUseMutationTools = canEditProject(access.role);
 
   const limited = await enforceAiQuota(user.id, "chat");
   if (limited) return limited;
@@ -123,9 +124,10 @@ export async function POST(request: Request) {
     model: await resolveModelForProject(projectId, "flash"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages as UIMessage[]),
-    tools: {
-      ...createAgentTools(agentCtx),
-      addNode: tool({
+    tools: canUseMutationTools
+      ? {
+          ...createAgentTools(agentCtx),
+          addNode: tool({
         description:
           "Add a new component to the architecture canvas. Returns the node data for the client to place.",
         inputSchema: z.object({
@@ -175,7 +177,8 @@ export async function POST(request: Request) {
           return { action: "updateNode", nodeId, changes };
         },
       }),
-    },
+        }
+      : {},
     // Bounded at one tool plus one reply.
     //
     // Eight steps could mean eight model calls inside ONE request, and the
@@ -183,7 +186,9 @@ export async function POST(request: Request) {
     // client pipeline, so what remains server-side is a single review, refine or
     // research call. If the agent needs to do more it takes another turn — which
     // is what a conversational agent should do anyway.
-    stopWhen: [stepCountIs(2), hasToolCall("generateArchitecture")],
+    stopWhen: canUseMutationTools
+      ? [stepCountIs(2), hasToolCall("generateArchitecture")]
+      : stepCountIs(1),
   });
 
   return result.toUIMessageStreamResponse();

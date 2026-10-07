@@ -1,6 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { getLiveblocks, getCursorColor } from "@/lib/liveblocks";
-import { getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getProjectWithAccess } from "@/lib/project-access";
 
 export async function POST(request: Request) {
   try {
@@ -37,8 +37,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const { project } = accessResult;
-
     if (!process.env.LIVEBLOCKS_SECRET_KEY) {
       console.error("[liveblocks-auth] LIVEBLOCKS_SECRET_KEY is not set");
       return Response.json({ error: "Liveblocks not configured" }, { status: 500 });
@@ -61,7 +59,10 @@ export async function POST(request: Request) {
       },
     });
 
-    session.allow(room, session.FULL_ACCESS);
+    session.allow(
+      room,
+      canEditProject(accessResult.role) ? session.FULL_ACCESS : session.READ_ACCESS
+    );
 
     const { status, body: responseBody } = await session.authorize();
     return new Response(responseBody, { status });

@@ -2,7 +2,17 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Lightbulb, MessageSquare, Sparkles, X } from "lucide-react";
+import {
+  FileText,
+  HelpCircle,
+  Lightbulb,
+  ListChecks,
+  MessageSquare,
+  PackageCheck,
+  ShieldAlert,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Suggestion } from "@/lib/ai/suggestions";
@@ -11,14 +21,28 @@ import { SpecHealthBar } from "./ai-panel/spec-health-bar";
 import { ChatTab } from "./ai-panel/chat-tab";
 import { SpecTab } from "./ai-panel/spec-tab";
 import { SuggestionsTab } from "./ai-panel/suggestions-tab";
+import { QuestionsTab } from "./ai-panel/questions-tab";
+import { RisksTab } from "./ai-panel/risks-tab";
+import { TasksTab } from "./ai-panel/tasks-tab";
+import { HandoffTab } from "./ai-panel/handoff-tab";
 
 const TABS = [
   { id: "chat", label: "Chat", icon: MessageSquare },
-  { id: "suggestions", label: "Suggestions", icon: Lightbulb },
   { id: "spec", label: "Spec", icon: FileText },
+  { id: "handoff", label: "Handoff", icon: PackageCheck },
+  { id: "questions", label: "Questions", icon: HelpCircle },
+  { id: "risks", label: "Risks", icon: ShieldAlert },
+  { id: "tasks", label: "Tasks", icon: ListChecks },
+  { id: "suggestions", label: "Tips", icon: Lightbulb },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+const PRIMARY_TABS: TabId[] = ["chat", "spec", "handoff"];
+const SECONDARY_TABS: TabId[] = ["questions", "risks", "tasks", "suggestions"];
+const TAB_BY_ID = Object.fromEntries(TABS.map((tab) => [tab.id, tab])) as Record<
+  TabId,
+  (typeof TABS)[number]
+>;
 
 interface AiPanelProps {
   open: boolean;
@@ -68,15 +92,15 @@ export function AiPanel({
           transition={{ duration: 0.25, ease: "easeOut" }}
           className="flex h-full shrink-0 flex-col overflow-hidden border-l border-[var(--border-default)] bg-[var(--bg-surface)]"
         >
-          {/* Header */}
-          <div className="flex h-12 items-center justify-between border-b border-[var(--border-default)] px-4 shrink-0">
-            <div className="flex items-center gap-2">
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-default)] px-4">
+            <div className="flex min-w-0 items-center gap-2.5">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--accent-ai)]/15">
                 <Sparkles className="h-3.5 w-3.5 text-[var(--accent-ai)]" />
               </div>
-              <span className="text-sm font-medium text-[var(--text-primary)]">
-                AI Twin
-              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-[var(--text-primary)]">AI Twin</p>
+                <p className="truncate text-[11px] text-[var(--text-muted)]">{projectName}</p>
+              </div>
             </div>
             <Button
               variant="ghost"
@@ -89,34 +113,51 @@ export function AiPanel({
             </Button>
           </div>
 
-          {/* Tab bar */}
-          <div className="flex shrink-0 border-b border-[var(--border-default)]">
-            {TABS.map((tab) => {
-              const isActive = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "relative flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition-colors",
-                    isActive
-                      ? "text-[var(--accent-ai)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                  )}
-                >
-                  <tab.icon className="h-3.5 w-3.5" />
-                  <span>{tab.label}</span>
-                  {isActive && (
-                    <motion.div
-                      layoutId="ai-panel-tab"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[var(--accent-ai)]"
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                    />
-                  )}
-                </button>
-              );
-            })}
+          <div className="shrink-0 space-y-2 border-b border-[var(--border-default)] p-2">
+            <div className="grid grid-cols-3 gap-1">
+              {PRIMARY_TABS.map((id) => {
+                const tab = TAB_BY_ID[id];
+                const isActive = tab.id === activeTab;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors",
+                      isActive
+                        ? "border-[var(--accent-ai)]/35 bg-[var(--accent-ai)]/12 text-[var(--accent-ai)]"
+                        : "border-transparent text-[var(--text-muted)] hover:border-[var(--border-default)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-secondary)]"
+                    )}
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {SECONDARY_TABS.map((id) => {
+                const tab = TAB_BY_ID[id];
+                const isActive = tab.id === activeTab;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "flex h-7 min-w-0 items-center justify-center gap-1 rounded-md px-1.5 text-[11px] font-medium transition-colors",
+                      isActive
+                        ? "bg-[var(--bg-surface-raised)] text-[var(--text-primary)]"
+                        : "text-[var(--text-muted)] hover:bg-[var(--bg-surface-raised)] hover:text-[var(--text-secondary)]"
+                    )}
+                  >
+                    <tab.icon className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Spec health — hidden entirely until a spec exists, so a first-time
@@ -147,8 +188,22 @@ export function AiPanel({
                 onDismiss={onDismissSuggestion ?? (() => {})}
                 onApply={onApplySuggestion ?? (() => {})}
               />
-            ) : (
+            ) : activeTab === "spec" ? (
               <SpecTab projectId={projectId} projectName={projectName} />
+            ) : activeTab === "questions" ? (
+              <QuestionsTab
+                spec={spec}
+                onOpenChatDecisions={() => {
+                  setActiveTab("chat");
+                  setDecisionsSignal((n) => n + 1);
+                }}
+              />
+            ) : activeTab === "risks" ? (
+              <RisksTab projectId={projectId} />
+            ) : activeTab === "tasks" ? (
+              <TasksTab projectId={projectId} />
+            ) : (
+              <HandoffTab projectId={projectId} projectName={projectName} />
             )}
           </div>
         </motion.aside>

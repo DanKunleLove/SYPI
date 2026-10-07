@@ -1,4 +1,4 @@
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { enforceAiQuota } from "@/lib/ai/limits";
 import { getUserInstructions, resolveModelForProject } from "@/lib/ai/index";
 import { runCouncil } from "@/lib/ai/council";
@@ -49,6 +49,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot write council findings" },
+      { status: 403 }
+    );
   }
 
   const limited = await enforceAiQuota(user.id, "critique");

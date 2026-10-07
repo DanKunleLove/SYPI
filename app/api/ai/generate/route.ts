@@ -26,7 +26,7 @@ import { commitSpec, getOrCreateSpec } from "@/lib/uss/store";
 import { materialOpenDecisions, specCoverage } from "@/lib/uss/views";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { buildDesignPrompt } from "@/lib/ai/design-prompt";
 import type { Uss } from "@/lib/uss/schema";
 import { applyArchitectureToSpec } from "@/lib/uss/architecture";
@@ -94,6 +94,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot generate architecture changes" },
+      { status: 403 }
+    );
   }
 
   const limited = await enforceAiQuota(user.id, "generate");

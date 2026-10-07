@@ -1,6 +1,6 @@
 import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
-import { getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getProjectWithAccess } from "@/lib/project-access";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 // Thumbnails are 800×450 PNG captures — ~4MB of base64 is far above any
@@ -17,9 +17,15 @@ export async function PUT(
 ) {
   const { projectId } = await params;
 
-  const { project } = await getProjectWithAccess(projectId);
+  const { project, role } = await getProjectWithAccess(projectId);
   if (!project) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot update project thumbnails" },
+      { status: 403 }
+    );
   }
 
   const token = process.env.BLOB_READ_WRITE_TOKEN;

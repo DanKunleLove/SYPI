@@ -6,6 +6,100 @@ Update this file after every meaningful implementation change.
 
 **2026-09-13: Units 0-5 of the USS programme shipped — live at https://sypi-dev.vercel.app**
 
+### 2026-10-08 — Codex slice validated; canvas Blob cleanup
+
+Validated Codex's slice: `tsc`, `uss:test` 214/214, `next build` pass; no new lint errors
+(26 pre-existing, mostly `useCases` naming false positives in `lib/uss`). Fixed two gaps in it:
+each canvas save now deletes the blob it replaces (otherwise autosave leaked one blob per
+save), and also deletes the legacy public `canvas/{projectId}.json`, so old projects stop
+exposing a stale copy once re-saved. **Still open:** `thumbnails/{projectId}.png` is a
+deterministic public URL (a PNG of the architecture); viewers can no longer comment
+(Liveblocks `READ_ACCESS`) — decide if that's wanted.
+
+### 2026-10-08 — Giant product plan + trust fixes started
+
+- Added `context/giant-product-plan.md`: durable implementation plan for the
+  "system-design operating room" direction, including UI/UX upgrades, agent
+  handoff, review mode, decision memory, living architecture, and phased delivery.
+- Access hardening:
+  - Added shared project role helpers (`canEditProject`, `canManageProject`).
+  - Liveblocks now grants viewers `READ_ACCESS` instead of `FULL_ACCESS`.
+  - Canvas save, thumbnail update, spec sync, USS decision resolution, generation,
+    review, pipeline, System Kit, and handoff mutation routes now reject viewers.
+  - Chat remains available to viewers, but mutation tools are disabled.
+- Privacy/share hardening:
+  - Canvas Blob writes no longer use the deterministic public path
+    `canvas/{projectId}.json`; new saves use an unguessable per-save path.
+  - `/api/share/(.*)` is now public in `proxy.ts`, matching the public share page.
+- Tooling:
+  - ESLint now ignores `.trigger/**`, `app/generated/**`, and `node_modules/**`.
+
+Gates run so far: `tsc --noEmit` passed before these edits. Re-run `tsc`, lint,
+and build after this slice; earlier build was blocked by stale `.next/lock`.
+
+### 2026-10-08 — Workspace operating-room tabs
+
+- AI Twin panel navigation now reflects the product direction instead of hiding
+  everything under Chat/Spec:
+  - Chat
+  - Spec
+  - Questions
+  - Risks
+  - Tasks
+  - Handoff
+  - Tips
+- Added first-class tab components:
+  - `questions-tab.tsx` shows material open decisions and routes users to answer
+    them through Chat's existing resolver.
+  - `risks-tab.tsx` promotes deterministic failure scenarios as the Risk Radar.
+  - `tasks-tab.tsx` promotes the USS-derived build plan.
+  - `handoff-tab.tsx` promotes target-specific agent/human handoff generation.
+- The existing Spec tab still contains the full export surface; these tabs are
+  the first IA layer before deeper UI extraction/polish.
+
+Gates: `npx tsc --noEmit --pretty false` passes; `npm run build` passes.
+
+### 2026-10-08 — Handoff payoff surface promoted
+
+- Added `SystemKitCard` and `AgentBundleCard` as reusable Handoff-tab cards.
+- Handoff tab now contains the actual payoff sequence:
+  - System Kit (full working context for AI builders and teams)
+  - Target-specific handoff (Claude Code, Codex/Cursor, Spec Kit, human team, etc.)
+  - Quick Agent Bundle / builder prompts / `spi-schema.json`
+- Command palette now opens the new operating-room tabs directly:
+  Questions, Risks, Tasks, and Handoff, in addition to Chat/Spec/Review.
+- This is the Handoff-first IA layer; next cleanup should remove duplicated
+  System Kit/Agent Bundle controls from the Spec tab so Spec becomes purely the
+  readable/exportable specification.
+
+Gates: `npx tsc --noEmit --pretty false` passes; `npm run build` passes.
+
+### 2026-10-08 - Spec tab focused on readable exports
+
+- Removed duplicated System Kit, Agent Bundle, Lovable, v0, risk, task, and handoff
+  controls from the Spec tab.
+- Spec tab now stays focused on:
+  - generated Markdown spec
+  - optional AI overview enhancement
+  - save as template
+  - PNG, Mermaid, and `spi-schema.json` exports
+  - `spi-schema.json` import
+- Handoff is now the single payoff surface for System Kit and agent-builder exports.
+
+Gates: `npx tsc --noEmit --pretty false` passes; `npm run build` passes.
+
+### 2026-10-08 - AI Twin navigation polish
+
+- AI Twin header now shows the active project name so the right panel feels tied
+  to the current canvas.
+- Navigation is now grouped by workflow:
+  - primary tabs: Chat, Spec, Handoff
+  - secondary tools: Questions, Risks, Tasks, Tips
+- Handoff is visually promoted as a first-class payoff, while diagnostics stay
+  one tap away in a compact row.
+
+Gates: `npx tsc --noEmit --pretty false` passes; `npm run build` passes.
+
 ### 2026-10-08 — MCP endpoint: agents can read the spec and answer decisions
 
 - `POST /api/mcp` (stateless streamable HTTP, `@modelcontextprotocol/sdk` web-standard

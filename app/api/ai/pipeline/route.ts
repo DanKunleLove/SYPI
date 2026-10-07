@@ -2,7 +2,7 @@ import { isPipelineStep, nextStep } from "@/lib/ai/pipeline";
 import { runStep, specSummary } from "@/lib/ai/pipeline-steps";
 import { findResumableRun, finishRun, loadRun, markStep, startRun } from "@/lib/ai/run";
 import { extractUrls, researchSite } from "@/lib/ai/url-research";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { getOrCreateSpec, getSpec } from "@/lib/uss/store";
 import type { CanvasEdge, CanvasNode } from "@/types/canvas";
 
@@ -52,6 +52,12 @@ export async function GET(request: Request) {
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
   }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot run the design pipeline" },
+      { status: 403 }
+    );
+  }
 
   const run = await findResumableRun(projectId, "pipeline");
   if (!run) return Response.json({ resumable: false });
@@ -96,6 +102,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot run the design pipeline" },
+      { status: 403 }
+    );
   }
 
   // ── start: the only step that charges quota ────────────────────────────────

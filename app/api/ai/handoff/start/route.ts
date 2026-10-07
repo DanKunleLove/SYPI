@@ -1,5 +1,5 @@
 import { startRun } from "@/lib/ai/run";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { EXECUTION_TARGETS, getTarget, isTargetId } from "@/lib/uss/targets";
 import { getSpec } from "@/lib/uss/store";
 
@@ -36,6 +36,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot generate hand-offs" },
+      { status: 403 }
+    );
   }
 
   // The spec check comes BEFORE the quota charge. It used to come after, so

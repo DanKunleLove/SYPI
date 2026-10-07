@@ -1,4 +1,4 @@
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { enforceAiQuota } from "@/lib/ai/limits";
 import { commitWithRetry } from "@/lib/uss/store";
 import { applyAnswer } from "@/lib/uss/answer";
@@ -43,6 +43,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot resolve specification decisions" },
+      { status: 403 }
+    );
   }
 
   // Auth and access first, quota second — an unauthorised request must not burn it.

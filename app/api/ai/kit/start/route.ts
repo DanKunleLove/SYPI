@@ -1,6 +1,6 @@
 import { getKitDomain, KIT_DOMAINS } from "@/lib/ai/kit";
 import { startRun } from "@/lib/ai/run";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 
 /**
  * Begin a System Kit run. Charges quota ONCE; the files are free.
@@ -43,6 +43,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot generate System Kits" },
+      { status: 403 }
+    );
   }
 
   const projectName =

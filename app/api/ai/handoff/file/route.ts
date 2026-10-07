@@ -1,7 +1,7 @@
 import { generateText } from "ai";
 import { applyUserInstructions, getUserInstructions, resolveModelForProject } from "@/lib/ai/index";
 import { loadRun, markStep } from "@/lib/ai/run";
-import { getDbUser, getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getDbUser, getProjectWithAccess } from "@/lib/project-access";
 import { renderUssForPrompt } from "@/lib/uss/render";
 import { getSpec } from "@/lib/uss/store";
 import { getTarget, targetSystemPrompt } from "@/lib/uss/targets";
@@ -34,6 +34,12 @@ export async function POST(request: Request) {
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot generate hand-off files" },
+      { status: 403 }
+    );
   }
 
   const loaded = await loadRun(runId, projectId);

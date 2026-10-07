@@ -18,7 +18,11 @@ import type { SaveStatus } from "@/hooks/use-canvas-autosave";
 
 type RightPanelMode =
   | { type: "closed" }
-  | { type: "ai"; tab?: "chat" | "spec"; prompt?: string }
+  | {
+      type: "ai";
+      tab?: "chat" | "spec" | "questions" | "risks" | "tasks" | "handoff" | "suggestions";
+      prompt?: string;
+    }
   | { type: "critique" }
   | { type: "comments" }
   | { type: "inspector"; nodeId: string };
@@ -152,6 +156,18 @@ function WorkspaceContent({ project }: ProjectWorkspaceProps) {
           break;
         case "spec":
           setRightPanel({ type: "ai", tab: "spec" });
+          break;
+        case "questions":
+          setRightPanel({ type: "ai", tab: "questions" });
+          break;
+        case "risks":
+          setRightPanel({ type: "ai", tab: "risks" });
+          break;
+        case "tasks":
+          setRightPanel({ type: "ai", tab: "tasks" });
+          break;
+        case "handoff":
+          setRightPanel({ type: "ai", tab: "handoff" });
           break;
         case "review":
           setRightPanel((prev) => {

@@ -49,6 +49,16 @@ type AccessResult =
   | { project: null; role: null; reason: "unauthenticated" | "not-found" | "forbidden" | "user-not-synced" }
   | { project: Project; role: "owner" | "editor" | "viewer"; reason: null };
 
+export type ProjectRole = NonNullable<AccessResult["role"]>;
+
+export function canEditProject(role: ProjectRole | null): boolean {
+  return role === "owner" || role === "editor";
+}
+
+export function canManageProject(role: ProjectRole | null): boolean {
+  return role === "owner";
+}
+
 /** Fetch a project and verify the caller has access */
 export async function getProjectWithAccess(projectId: string): Promise<AccessResult> {
   const dbUser = await getDbUser();

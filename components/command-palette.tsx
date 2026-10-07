@@ -17,6 +17,7 @@ import {
   Settings,
   Users,
   HelpCircle,
+  ListChecks,
   MessageSquareHeart,
   SunMoon,
   GitBranch,
@@ -26,7 +27,17 @@ import { recordEvent } from "@/lib/events";
 import type { Project } from "@/lib/mock-projects";
 
 /** Workspace-scoped palette actions, handled by ProjectWorkspace via window event. */
-export type WorkspaceCommand = "ai" | "spec" | "review" | "comments" | "share" | "save";
+export type WorkspaceCommand =
+  | "ai"
+  | "spec"
+  | "questions"
+  | "risks"
+  | "tasks"
+  | "handoff"
+  | "review"
+  | "comments"
+  | "share"
+  | "save";
 
 export function dispatchWorkspaceCommand(action: WorkspaceCommand) {
   window.dispatchEvent(new CustomEvent("spi:workspace-command", { detail: { action } }));
@@ -113,7 +124,19 @@ export function CommandPalette({
                   <Sparkles className="h-4 w-4 text-[var(--accent-ai)]" /> Open AI Twin — generate or refine
                 </Command.Item>
                 <Command.Item className={itemClass} onSelect={() => run("spec", () => dispatchWorkspaceCommand("spec"))}>
-                  <Package className="h-4 w-4 text-[var(--accent-ai)]" /> Generate System Kit / export
+                  <Package className="h-4 w-4 text-[var(--accent-ai)]" /> Spec & export
+                </Command.Item>
+                <Command.Item className={itemClass} onSelect={() => run("questions", () => dispatchWorkspaceCommand("questions"))}>
+                  <HelpCircle className="h-4 w-4 text-[var(--accent-ai)]" /> Open questions
+                </Command.Item>
+                <Command.Item className={itemClass} onSelect={() => run("risks", () => dispatchWorkspaceCommand("risks"))}>
+                  <ShieldCheck className="h-4 w-4" /> Risk radar
+                </Command.Item>
+                <Command.Item className={itemClass} onSelect={() => run("tasks", () => dispatchWorkspaceCommand("tasks"))}>
+                  <ListChecks className="h-4 w-4" /> Build plan
+                </Command.Item>
+                <Command.Item className={itemClass} onSelect={() => run("handoff", () => dispatchWorkspaceCommand("handoff"))}>
+                  <Package className="h-4 w-4 text-[var(--accent-ai)]" /> Agent handoff / System Kit
                 </Command.Item>
                 <Command.Item className={itemClass} onSelect={() => run("review", () => dispatchWorkspaceCommand("review"))}>
                   <ShieldCheck className="h-4 w-4" /> Review design (AI critique)

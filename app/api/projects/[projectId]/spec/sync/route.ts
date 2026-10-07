@@ -1,4 +1,4 @@
-import { getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getProjectWithAccess } from "@/lib/project-access";
 import { commitWithRetry, getSpec } from "@/lib/uss/store";
 import { reconcileCanvasIntoSpec } from "@/lib/uss/reconcile";
 import { finalise } from "@/lib/ai/uss";
@@ -24,6 +24,12 @@ export async function POST(
   const access = await getProjectWithAccess(projectId);
   if (!access.project) {
     return Response.json({ error: access.reason ?? "Forbidden" }, { status: 403 });
+  }
+  if (!canEditProject(access.role)) {
+    return Response.json(
+      { error: "Read-only collaborators cannot sync specification changes" },
+      { status: 403 }
+    );
   }
 
   let body: { nodes?: unknown; edges?: unknown; ifExists?: boolean };

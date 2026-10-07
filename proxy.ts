@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/share/(.*)",
+  "/api/share/(.*)",
   "/api/webhooks(.*)",
   "/api/mcp", // authenticates with its own bearer token (lib/mcp/tokens.ts), not a Clerk session
 ]);
