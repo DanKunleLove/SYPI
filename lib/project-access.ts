@@ -53,7 +53,17 @@ type AccessResult =
 export async function getProjectWithAccess(projectId: string): Promise<AccessResult> {
   const dbUser = await getDbUser();
   if (!dbUser) return { project: null, role: null, reason: "unauthenticated" };
+  return getProjectAccessForUser(projectId, dbUser);
+}
 
+/**
+ * The same check for a user resolved some other way than a Clerk session — an
+ * MCP request authenticates with a personal access token, not a cookie.
+ */
+export async function getProjectAccessForUser(
+  projectId: string,
+  dbUser: { id: string; email: string }
+): Promise<AccessResult> {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
   });

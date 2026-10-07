@@ -6,6 +6,22 @@ Update this file after every meaningful implementation change.
 
 **2026-09-13: Units 0-5 of the USS programme shipped — live at https://sypi-dev.vercel.app**
 
+### 2026-10-08 — MCP endpoint: agents can read the spec and answer decisions
+
+- `POST /api/mcp` (stateless streamable HTTP, `@modelcontextprotocol/sdk` web-standard
+  transport). Auth is a personal access token (`Authorization: Bearer sypi_…`), so `/api/mcp`
+  is public in `proxy.ts` and the token check is the gate. Suspended users' tokens fail.
+- Tools (`lib/mcp/server.ts`): `list_projects`, `get_spec`, `list_open_decisions`,
+  `answer_decision`, `get_tasks`. Each re-checks project access per call
+  (`getProjectAccessForUser`); `answer_decision` refuses viewers and spends the `intent`
+  quota. Answers go through the shared `applyAnswer`, so they're recorded exactly like UI answers.
+- Tokens: `ApiToken` (SHA-256 hash only, raw shown once), max 10/user. `GET/POST/DELETE
+  /api/settings/tokens` + "Agent access (MCP)" card on `/settings`.
+- Gates: `tsc` clean, `uss:test` 214/214, `next build` exit 0.
+- **Not done:** migration `20260928090000_api_tokens` NOT applied — Neon dev branch was
+  unreachable (P1001) when tried. Run `prisma migrate deploy` against dev, then prod via
+  `PROD_DATABASE_URL`. Endpoint not exercised end-to-end with a real MCP client yet.
+
 ### 2026-09-23 — Reachability plan Phase 1 finished (Steps 7, 9, 10, 11-prompt, 12)
 
 Commits c16c01c / fb5501c / 45bbe2f shipped Steps 1-6 and 8 (pipeline route, client

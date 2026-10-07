@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ModelSettings } from "@/components/settings/model-settings";
 import { InstructionsSettings } from "@/components/settings/instructions-settings";
+import { TokenSettings } from "@/components/settings/token-settings";
 
 export default function SettingsPage() {
   return (
@@ -23,6 +24,7 @@ export default function SettingsPage() {
       <div className="mt-8 space-y-6">
         <InstructionsSettings />
         <ModelSettings />
+        <TokenSettings />
       </div>
     </div>
   );

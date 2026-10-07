@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/share/(.*)",
   "/api/webhooks(.*)",
+  "/api/mcp", // authenticates with its own bearer token (lib/mcp/tokens.ts), not a Clerk session
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

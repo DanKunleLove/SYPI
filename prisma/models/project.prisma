@@ -18,6 +18,7 @@ model User {
   ownedProjects  Project[]
   collaborations Collaborator[]
   apiKeys        UserApiKey[]
+  apiTokens      ApiToken[]
   templates      CanvasTemplate[]
   feedback       Feedback[]
   createdAt      DateTime       @default(now())
@@ -35,6 +36,21 @@ model UserApiKey {
   updatedAt    DateTime @updatedAt
 
   @@unique([userId, provider])
+  @@index([userId])
+}
+
+/// Personal access token for the MCP endpoint and other programmatic access.
+/// Only a SHA-256 hash is stored; the token itself is shown once, at creation.
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique
+  prefix     String // first characters, so a user can tell tokens apart
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
   @@index([userId])
 }
 
