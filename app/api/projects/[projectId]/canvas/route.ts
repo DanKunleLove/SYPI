@@ -1,6 +1,7 @@
-import { put } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
+import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { getProjectWithAccess } from "@/lib/project-access";
+import { canEditProject, getProjectWithAccess } from "@/lib/project-access";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 // Guardrails on what a save may write to Blob — autosave is debounced 3s
@@ -8,6 +9,11 @@ import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 const MAX_NODES = 1_000;
 const MAX_EDGES = 2_000;
 const MAX_CANVAS_BYTES = 2_000_000; // ~2MB serialized
+
+/** Where saves lived before per-save paths: same store, deterministic public URL. */
+function legacyBlobUrl(currentUrl: string, projectId: string): string {
+  return `${new URL(currentUrl).origin}/canvas/${projectId}.json`;
+}
 
 /**
  * PUT /api/projects/[projectId]/canvas
@@ -20,9 +26,12 @@ export async function PUT(
   const { projectId } = await params;
 
   try {
-    const { project } = await getProjectWithAccess(projectId);
+    const { project, role } = await getProjectWithAccess(projectId);
     if (!project) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (!canEditProject(role)) {
+      return Response.json({ error: "Read-only collaborators cannot save canvas changes" }, { status: 403 });
     }
 
     const burst = checkRateLimit(`canvas:${projectId}`, 30, 60_000);
@@ -57,22 +66,39 @@ export async function PUT(
     }
 
     const blob = await put(
-      `canvas/${projectId}.json`,
+      `canvas/${projectId}/${randomBytes(16).toString("hex")}.json`,
       canvasJson,
       {
         access: "public",
         contentType: "application/json",
         addRandomSuffix: false,
-        allowOverwrite: true,
+        allowOverwrite: false,
         token,
       }
     );
 
     // Store blob URL on project record
+    const previous = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { canvasJsonPath: true },
+    });
     await prisma.project.update({
       where: { id: projectId },
       data: { canvasJsonPath: blob.url },
     });
+
+    // Every save writes a fresh path, so the one it replaces is now garbage — and, for
+    // projects saved before per-save paths existed, a stale copy at a public,
+    // guessable URL (canvas/{projectId}.json). Best effort: a failed delete must not
+    // fail a save that succeeded.
+    const stale = [previous?.canvasJsonPath, legacyBlobUrl(blob.url, projectId)].filter(
+      (u): u is string => !!u && u !== blob.url
+    );
+    if (stale.length) {
+      await del(stale, { token }).catch((err) =>
+        console.warn("[canvas/save] Could not delete replaced blob:", err)
+      );
+    }
 
     return Response.json({ success: true, url: blob.url });
   } catch (error) {
