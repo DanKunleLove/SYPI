@@ -21,6 +21,7 @@ export type GenerationStatus =
   | "generating"
   | "placing"
   | "done"
+  | "paused"
   | "error";
 
 interface GenerationState {
@@ -38,6 +39,7 @@ export interface ResumableRun {
   runId: string;
   brief: string;
   step: PipelineStepId;
+  steps: PipelineStepState[];
 }
 
 /** The spec numbers a step returns, so the health bar moves as the run proceeds. */
@@ -98,6 +100,9 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
   const [spec, setSpec] = useState<SpecSnapshot | null>(null);
   const [lastGeneration, setLastGeneration] = useState<LastGeneration | null>(null);
   const rateLimitRef = useRef(false);
+  const activeRunRef = useRef(false);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const pauseRequestedRef = useRef(false);
 
   const placeArchitectureOnCanvas = useCallback(
     async (architecture: ArchitectureOutput) => {
@@ -258,12 +263,17 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
    * step rather than the whole run, and a closed tab can be resumed.
    */
   const runPipeline = useCallback(
-    async (brief: string, options?: { url?: string; runId?: string; fromStep?: PipelineStepId }) => {
+    async (brief: string, options?: { url?: string; runId?: string; fromStep?: PipelineStepId; savedSteps?: PipelineStepState[] }) => {
+      if (activeRunRef.current) return;
       if (rateLimitRef.current) {
         toast.error("Please wait a moment before generating again");
         return;
       }
       rateLimitRef.current = true;
+      activeRunRef.current = true;
+      pauseRequestedRef.current = false;
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
       setTimeout(() => {
         rateLimitRef.current = false;
       }, 3000);
@@ -275,7 +285,7 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
         status: "generating",
         generationId: options?.runId ?? null,
         step: "",
-        steps: initialSteps(),
+        steps: options?.savedSteps ?? initialSteps(),
         failedStep: null,
       });
 
@@ -303,7 +313,7 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
             // The client owns the timeout. The platform kills the function at 60s
             // with no usable error, so we give up at 55 and can at least name the
             // step that ran out of time.
-            signal: AbortSignal.timeout(STEP_TIMEOUT_MS),
+            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(STEP_TIMEOUT_MS)]),
             body: JSON.stringify({
               projectId,
               step: current,
@@ -314,6 +324,7 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
               edges,
             }),
           }).catch((e: unknown) => {
+            if (controller.signal.aborted) throw e;
             const timedOut = e instanceof DOMException && e.name === "TimeoutError";
             throw new Error(
               timedOut
@@ -357,10 +368,27 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
           }
 
           step = data.nextStep;
+          if (pauseRequestedRef.current && step) {
+            const resumeStep = step;
+            setState((prev) => ({
+              ...prev, status: "paused", step: "Paused. Completed stages are saved.",
+              failedStep: runId ? { runId, step: resumeStep } : null,
+            }));
+            return;
+          }
         }
 
         setState((prev) => ({ ...prev, status: "done", step: "Done" }));
       } catch (error) {
+        if (controller.signal.aborted) {
+          setState((prev) => ({
+            ...prev,
+            status: "paused",
+            step: "Paused. Completed stages are saved.",
+            failedStep: runId && step ? { runId, step } : null,
+          }));
+          return;
+        }
         const msg = error instanceof Error ? error.message : "The run failed";
         setState((prev) => ({
           ...prev,
@@ -370,6 +398,9 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
           failedStep: runId && step ? { runId, step } : null,
         }));
         toast.error(msg);
+      } finally {
+        activeRunRef.current = false;
+        requestControllerRef.current = null;
       }
     },
     [projectId, getNodes, getEdges, placeOrMerge]
@@ -387,8 +418,8 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
     rateLimitRef.current = false;
     // The brief is not passed: it lives on the run record server-side, and a
     // retry never re-runs `start`, which is the only step that reads it.
-    await runPipeline("", { runId: failed.runId, fromStep: failed.step });
-  }, [state.failedStep, runPipeline]);
+    await runPipeline("", { runId: failed.runId, fromStep: failed.step, savedSteps: state.steps });
+  }, [state.failedStep, state.steps, runPipeline]);
 
   /** Is there a run this project abandoned mid-way? Answers the closed-tab case. */
   const findResumable = useCallback(async (): Promise<ResumableRun | null> => {
@@ -400,9 +431,14 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
         runId?: string;
         brief?: string;
         step?: PipelineStepId | null;
+        steps?: Record<string, Partial<PipelineStepState>>;
       };
       if (!data.resumable || !data.runId || !data.brief || !data.step) return null;
-      return { runId: data.runId, brief: data.brief, step: data.step };
+      if (data.step === "start") return null;
+      return {
+        runId: data.runId, brief: data.brief, step: data.step,
+        steps: initialSteps().map((step) => ({ ...step, ...data.steps?.[step.id], id: step.id, label: step.label })),
+      };
     } catch {
       return null;
     }
@@ -481,6 +517,10 @@ export function useGeneration({ projectId, getNodes, getEdges }: UseGenerationOp
     runPipeline,
     retryStep,
     findResumable,
+    pauseRun: () => {
+      pauseRequestedRef.current = true;
+      setState((prev) => ({ ...prev, step: "Pausing after the current stage finishes..." }));
+    },
     reset,
     placeArchitectureOnCanvas,
     lastGeneration,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   FileText,
   HelpCircle,
@@ -62,19 +62,16 @@ export function AiPanel({
   initialTab, initialPrompt,
   suggestions, onDismissSuggestion, onApplySuggestion,
 }: AiPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("chat");
+  const [selection, setSelection] = useState<{
+    tab: TabId; open: boolean; initialTab?: TabId; initialPrompt?: string;
+  }>({ tab: initialPrompt ? "chat" : initialTab ?? "chat", open, initialTab, initialPrompt });
+  const sameRequest = selection.open === open && selection.initialTab === initialTab && selection.initialPrompt === initialPrompt;
+  const activeTab = sameRequest ? selection.tab : initialPrompt ? "chat" : initialTab ?? selection.tab;
+  const setActiveTab = (tab: TabId) => setSelection({ tab, open, initialTab, initialPrompt });
+  const reducedMotion = useReducedMotion();
   const [decisionsSignal, setDecisionsSignal] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { spec, refresh: refreshSpec } = useSystemSpec(projectId);
-
-  useEffect(() => {
-    if (open && initialTab) setActiveTab(initialTab);
-  }, [open, initialTab]);
-
-  // When a prompt is pushed in (e.g. from suggestion/critique), always show chat tab
-  useEffect(() => {
-    if (open && initialPrompt) setActiveTab("chat");
-  }, [open, initialPrompt]);
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -83,13 +80,12 @@ export function AiPanel({
   }, [open]);
 
   return (
-    <AnimatePresence>
-      {open && (
         <motion.aside
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 380, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.25, ease: "easeOut" }}
+          initial={false}
+          animate={{ width: open ? "min(440px, 100vw)" : "0px", opacity: open ? 1 : 0 }}
+          transition={{ duration: reducedMotion ? 0 : 0.2, ease: "easeOut" }}
+          aria-hidden={!open}
+          inert={!open}
           className="flex h-full shrink-0 flex-col overflow-hidden border-l border-[var(--border-default)] bg-[var(--bg-surface)]"
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-default)] px-4">
@@ -173,8 +169,9 @@ export function AiPanel({
           {/* Content — min-h-0 so a tall tab scrolls inside the panel instead of
               overflowing past the bottom of it. */}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {activeTab === "chat" ? (
+            <div className={activeTab === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
               <ChatTab
+                key={projectId}
                 projectId={projectId}
                 inputRef={inputRef}
                 initialPrompt={initialPrompt}
@@ -182,7 +179,8 @@ export function AiPanel({
                 onSpecChanged={refreshSpec}
                 decisionsSignal={decisionsSignal}
               />
-            ) : activeTab === "suggestions" ? (
+            </div>
+            {activeTab === "chat" ? null : activeTab === "suggestions" ? (
               <SuggestionsTab
                 suggestions={suggestions ?? []}
                 onDismiss={onDismissSuggestion ?? (() => {})}
@@ -207,7 +205,5 @@ export function AiPanel({
             )}
           </div>
         </motion.aside>
-      )}
-    </AnimatePresence>
   );
 }

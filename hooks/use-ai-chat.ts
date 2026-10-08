@@ -1,13 +1,14 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, isToolUIPart } from "ai";
+import { DefaultChatTransport, generateId, isToolUIPart } from "ai";
 import {
   useCreateFeed,
   useCreateFeedMessage,
   useFeedMessages,
 } from "@liveblocks/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { mergeChatMessages, restoreChatMessages, type ChatMessage } from "@/lib/ai/chat-history";
 import { serializeCanvasForAI } from "@/lib/ai/canvas-context";
 import type { CanvasNode, CanvasEdge } from "@/types/canvas";
 
@@ -23,10 +24,18 @@ export function useAiChat({ projectId, getNodes, getEdges }: UseAiChatOptions) {
   const createFeed = useCreateFeed();
   const createFeedMessage = useCreateFeedMessage();
   const feedResult = useFeedMessages(feedId);
-  const feedMessages = feedResult.isLoading ? [] : (feedResult.messages ?? []);
+  const feedMessages = useMemo(() => feedResult.messages ?? [], [feedResult.messages]);
 
   // Input state — AI SDK v6 useChat no longer manages this
   const [input, setInput] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const sendingRef = useRef(false);
+  const hydratedRef = useRef(false);
+  const savedMessages = useMemo(
+    () => restoreChatMessages(feedMessages),
+    [feedMessages]
+  );
 
   // Create the feed once if it doesn't exist
   useEffect(() => {
@@ -43,10 +52,12 @@ export function useAiChat({ projectId, getNodes, getEdges }: UseAiChatOptions) {
     sendMessage: sdkSendMessage,
     status,
     error,
-  } = useChat({
+    setMessages,
+    stop,
+  } = useChat<ChatMessage>({
+    id: projectId,
     transport: new DefaultChatTransport({ api: "/api/ai/chat" }),
-    onFinish: ({ message }) => {
-      // Flatten text parts into the persisted feed message
+    onFinish: ({ message, isAbort, isError }) => {
       const text = message.parts
         .filter((p) => p.type === "text")
         .map((p) => p.text)
@@ -55,32 +66,59 @@ export function useAiChat({ projectId, getNodes, getEdges }: UseAiChatOptions) {
         role: "assistant",
         content: text,
         sender: "AI Twin",
-      }).catch(() => {});
+        messageId: message.id,
+        partsJson: JSON.stringify(message.parts),
+        toolSummary: message.parts.filter(isToolUIPart)
+          .map((part) => `${part.type.replace(/^tool-/, "")}: ${part.state}`).join("\n"),
+        interrupted: isAbort || isError,
+      }).catch(() => setSaveError("Your reply could not be saved. Keep this project open and check your connection."));
     },
   });
+
+  useEffect(() => {
+    if (feedResult.isLoading || feedResult.error || hydratedRef.current) return;
+    hydratedRef.current = true;
+    // Bound model context independently of the paginated visible transcript.
+    setMessages(savedMessages.slice(-40));
+  }, [feedResult.isLoading, feedResult.error, savedMessages, setMessages]);
 
   // Wrap sendMessage to also push user message to feed and include canvas context
   const sendMessage = useCallback(
     async (content: string) => {
-      // Push user message to feed for all collaborators to see
-      await createFeedMessage(feedId, {
-        role: "user",
-        content,
-        sender: "You",
-      }).catch(() => {});
+      if (!hydratedRef.current || sendingRef.current || status === "submitted" || status === "streaming") return;
+      sendingRef.current = true;
+      setIsSaving(true);
+      try {
+        setSaveError(null);
+        const messageId = generateId();
+        // Persist before dispatch, so a failed save leaves the draft intact.
+        await createFeedMessage(feedId, {
+          role: "user",
+          content,
+          sender: "You",
+          messageId,
+        }).catch(() => {
+          setSaveError("Your message could not be saved. Check your connection and send it again.");
+          throw new Error("Message not saved");
+        });
+        setInput("");
+        setIsSaving(false);
 
-      // Get current canvas context
-      const nodes = getNodes();
-      const edges = getEdges();
-      const canvasContext = serializeCanvasForAI(nodes, edges);
+        const nodes = getNodes();
+        const edges = getEdges();
+        const canvasContext = serializeCanvasForAI(nodes, edges);
+        setMessages((current) => current.slice(-40));
 
-      // Send to AI with canvas context (per-request body)
-      await sdkSendMessage(
-        { text: content },
-        { body: { projectId, canvasContext } }
-      );
+        await sdkSendMessage(
+          { id: messageId, role: "user", parts: [{ type: "text", text: content }] },
+          { body: { projectId, canvasContext } }
+        );
+      } finally {
+        sendingRef.current = false;
+        setIsSaving(false);
+      }
     },
-    [sdkSendMessage, createFeedMessage, projectId, getNodes, getEdges]
+    [sdkSendMessage, createFeedMessage, projectId, getNodes, getEdges, status, setMessages]
   );
 
   const isLoading = status === "submitted" || status === "streaming";
@@ -88,6 +126,15 @@ export function useAiChat({ projectId, getNodes, getEdges }: UseAiChatOptions) {
   return {
     /** All messages from the Vercel AI SDK (includes streaming) */
     messages,
+    displayMessages: mergeChatMessages(savedMessages, messages),
+    historyLoading: feedResult.isLoading,
+    historyError: feedResult.error,
+    hasMoreHistory: !feedResult.isLoading && !feedResult.hasFetchedAll,
+    loadingMoreHistory: feedResult.isFetchingMore,
+    loadMoreHistory: feedResult.fetchMore,
+    saveError,
+    isSaving,
+    stop,
     /** Persistent feed messages visible to all collaborators */
     feedMessages,
     /** Send a message to the AI */

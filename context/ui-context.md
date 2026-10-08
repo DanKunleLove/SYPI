@@ -58,6 +58,13 @@ shadcn/ui on top of Tailwind CSS 4. Components live in `components/ui/`. Use the
 
 ## Layout Patterns
 
+Chat continuity increment: the AI panel is 440px wide on desktop, capped by the
+viewport. Chat remains mounted behind output tabs. Replies use safe Markdown
+with 14px body text and 1.65 line height, wrapping warnings and scrollable tables
+and code. Earlier conversation pages, saved run Resume, Pause Run, Stop Reply
+and Jump to Latest controls expose continuity without introducing a new history
+or version drawer yet. Panel and progress transitions respect reduced motion.
+
 - **Dashboard**: Full-viewport with top navbar and content area below. Project grid with cards.
 - **Workspace/Editor**: Full-viewport with collapsible left sidebar (project info, templates), center canvas (takes remaining space), and collapsible right sidebar (AI chat, suggestions, spec preview).
 - **Sidebars**: Fixed width (280px default), collapsible, with border separator on the canvas-facing edge.

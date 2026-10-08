@@ -49,6 +49,10 @@ declare global {
       content: string;
       sender?: string;
       step?: string;
+      messageId?: string;
+      partsJson?: string;
+      toolSummary?: string;
+      interrupted?: boolean;
     };
 
     // Custom room info set with resolveRoomsInfo
