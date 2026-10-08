@@ -56,7 +56,7 @@ export function SpecHealthBar({
 
           <div className="mt-1 h-1 overflow-hidden rounded-full bg-[var(--bg-surface-raised)]">
             <div
-              className="h-full rounded-full transition-all duration-500"
+              className="h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
               style={{ width: `${coverage}%`, backgroundColor: tone }}
             />
           </div>
@@ -110,7 +110,7 @@ export function SpecHealthBar({
           )}
         >
           {blocking.length > 0 && <AlertTriangle className="h-3 w-3 shrink-0" />}
-          <span className="truncate">
+          <span className="min-w-0 whitespace-normal break-words leading-relaxed">
             {blocking.length > 0
               ? blocking[0].message
               : `${material} ${material === 1 ? "decision affects" : "decisions affect"} this design`}

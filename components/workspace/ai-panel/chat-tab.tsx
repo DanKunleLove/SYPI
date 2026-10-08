@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { isToolUIPart } from "ai";
 import { useReactFlow } from "@xyflow/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,6 +10,9 @@ import {
   Check,
   Loader2,
   RotateCcw,
+  History,
+  Pause,
+  Square,
   SendHorizonal,
   Sparkles,
   ThumbsDown,
@@ -19,7 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/use-ai-chat";
-import { useGeneration } from "@/hooks/use-generation";
+import { useGeneration, type ResumableRun } from "@/hooks/use-generation";
 import { createNodeData, generateNodeId } from "@/lib/canvas-utils";
 import { applyDiffOperations } from "@/lib/ai/canvas-diff";
 import type { ArchitectureOutput, DiffOperation } from "@/lib/ai/schemas";
@@ -27,6 +31,7 @@ import type { CanvasNode, CanvasEdge, NodeCategory } from "@/types/canvas";
 import { ToolActionCard } from "./tool-action-card";
 import { OpenDecisionsTray } from "./open-decisions-tray";
 import { PipelineSteps } from "./pipeline-steps";
+import { ChatMarkdown } from "./chat-markdown";
 import type { SpecDecision, SpecHead } from "@/hooks/use-system-spec";
 
 const QUICK_PROMPTS = [
@@ -88,7 +93,7 @@ export function ChatTab({
         }
         onSpecChanged?.();
       } catch {
-        // Answering is an enhancement; a failure must not disturb the conversation.
+        toast.error("Your answer could not be saved. Try again.");
       } finally {
         setAnswering(null);
       }
@@ -100,6 +105,15 @@ export function ChatTab({
 
   const {
     messages,
+    displayMessages,
+    historyLoading,
+    historyError,
+    hasMoreHistory,
+    loadingMoreHistory,
+    loadMoreHistory,
+    saveError,
+    isSaving,
+    stop,
     sendMessage,
     input,
     setInput,
@@ -129,12 +143,29 @@ export function ChatTab({
     dismissLastGeneration,
     registerPlacement,
     placeArchitectureOnCanvas,
+    findResumable,
+    pauseRun,
   } = useGeneration({
     projectId,
     getNodes,
     getEdges,
   });
   const isPlacing = genStatus === "placing";
+  const [resumable, setResumable] = useState<ResumableRun | null>(null);
+  const nearBottomRef = useRef(true);
+  const [showLatest, setShowLatest] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void findResumable().then((run) => {
+      if (!cancelled) setResumable(run);
+    });
+    return () => { cancelled = true; };
+  }, [findResumable]);
+
+  useEffect(() => {
+    if (genStatus === "done" || genStatus === "error") onSpecChanged?.();
+  }, [genStatus, onSpecChanged]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   // Track tool calls already applied to the canvas so we don't re-run them
@@ -142,33 +173,39 @@ export function ChatTab({
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (scrollRef.current) {
+    if (scrollRef.current && nearBottomRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    } else if (scrollRef.current) {
+      setShowLatest(true);
     }
-  }, [messages]);
+  }, [displayMessages]);
 
-  const busy = isLoading || isPlacing;
+  const runBusy = genStatus === "generating" || genStatus === "submitting" || isPlacing;
+  const busy = isLoading || isSaving || runBusy || historyLoading || Boolean(historyError);
 
   // Auto-trigger when a prompt is pushed in from suggestions / critique handoff.
   const lastAutoPromptRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!initialPrompt || initialPrompt === lastAutoPromptRef.current) return;
-    lastAutoPromptRef.current = initialPrompt;
-    const t = setTimeout(() => sendMessage(initialPrompt), 150);
+    if (busy) return;
+    const t = setTimeout(() => {
+      lastAutoPromptRef.current = initialPrompt;
+      void sendMessage(initialPrompt).catch(() => {});
+    }, 150);
     return () => clearTimeout(t);
-  }, [initialPrompt, sendMessage]);
+  }, [initialPrompt, sendMessage, busy]);
 
   const handleSend = useCallback(() => {
     if (busy) return;
     const text = input.trim();
     if (!text) return;
-    sendMessage(text);
-    setInput("");
-  }, [busy, input, sendMessage, setInput]);
+    void sendMessage(text).catch(() => {});
+  }, [busy, input, sendMessage]);
 
   // Handle tool call results — modify canvas
   useEffect(() => {
     for (const msg of messages) {
+      if (msg.metadata?.restored) continue;
       if (!msg.parts) continue;
       for (const part of msg.parts) {
         if (!isToolUIPart(part)) continue;
@@ -236,13 +273,34 @@ export function ChatTab({
     }
   }, [messages, reactFlow, placeArchitectureOnCanvas, registerPlacement, runPipeline]);
 
-  const hasMessages = messages.length > 0;
+  const hasMessages = displayMessages.length > 0;
 
   return (
     <>
+      {resumable && !runBusy && genStatus === "idle" && (
+        <div className="mx-3 my-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface-raised)] p-3" role="status">
+          <p className="text-sm font-medium text-[var(--text-primary)]">Unfinished work is saved</p>
+          <p className="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">{resumable.brief}</p>
+          <Button className="mt-3" size="sm" onClick={() => {
+            const run = resumable;
+            setResumable(null);
+            void runPipeline(run.brief, { runId: run.runId, fromStep: run.step, savedSteps: run.steps });
+          }}>Resume Saved Run</Button>
+        </div>
+      )}
+      {(historyError || saveError) && (
+        <p role="alert" className="mx-3 my-2 rounded-md bg-[var(--state-warning)]/10 p-3 text-xs text-[var(--text-primary)]">
+          {saveError ?? "Saved history could not be loaded. Check your connection and reopen this project."}
+        </p>
+      )}
       {/* Messages area */}
-      <div ref={scrollRef} className="flex flex-1 flex-col overflow-y-auto">
-        {!hasMessages ? (
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain" onScroll={() => {
+        const element = scrollRef.current;
+        if (!element) return;
+        nearBottomRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 100;
+        if (nearBottomRef.current) setShowLatest(false);
+      }}>
+        {historyLoading ? <p role="status" className="p-4 text-sm text-[var(--text-secondary)]">Loading saved conversation...</p> : !hasMessages ? (
           <div className="flex flex-1 flex-col items-center justify-center p-6">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-ai)]/10">
@@ -274,7 +332,11 @@ export function ChatTab({
           </div>
         ) : (
           <div className="flex flex-col gap-1 p-3">
-            {messages.map((msg) => (
+            {hasMoreHistory && <Button variant="ghost" size="sm" disabled={loadingMoreHistory} onClick={() => {
+              nearBottomRef.current = false;
+              loadMoreHistory?.();
+            }}><History className="mr-2 h-4 w-4" />{loadingMoreHistory ? "Loading..." : "Load Earlier Messages"}</Button>}
+            {displayMessages.map((msg) => (
               <div
                 key={msg.id}
                 className={cn(
@@ -292,12 +354,14 @@ export function ChatTab({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs leading-relaxed text-[var(--text-primary)] whitespace-pre-wrap">
+                  <ChatMarkdown>
                     {(msg.parts ?? [])
                       .filter((p) => p.type === "text")
                       .map((p) => p.text)
                       .join("")}
-                  </p>
+                  </ChatMarkdown>
+                  {msg.metadata?.toolSummary && <details className="mt-2 text-xs text-[var(--text-secondary)]"><summary className="cursor-pointer">Saved activity</summary><p className="mt-2 whitespace-pre-wrap">{msg.metadata.toolSummary}</p></details>}
+                  {msg.metadata?.interrupted && <p className="mt-2 text-xs text-[var(--state-warning)]">Reply interrupted. Partial text was saved.</p>}
                   {/* Tool invocations → action cards */}
                   {msg.parts?.map((part, i) => {
                     if (!isToolUIPart(part)) return null;
@@ -315,6 +379,17 @@ export function ChatTab({
           </div>
         )}
       </div>
+      {showLatest && <Button size="sm" variant="ghost" className="mx-auto my-2" onClick={() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        nearBottomRef.current = true;
+        setShowLatest(false);
+      }}>Jump to Latest</Button>}
+
+      {runBusy && <Button size="sm" variant="ghost" className="mx-3 mb-2" onClick={pauseRun}><Pause className="mr-2 h-4 w-4" />Pause Run</Button>}
+      {genStatus === "paused" && <div className="mx-3 mb-2 text-sm text-[var(--text-secondary)]" role="status">
+        {genStep}
+        {failedStep && <Button size="sm" variant="ghost" onClick={() => void retryStep()}>Resume Run</Button>}
+      </div>}
 
       {/* The run, step by step */}
       <AnimatePresence>
@@ -452,15 +527,16 @@ export function ChatTab({
       <div className="border-t border-[var(--border-default)] p-3 shrink-0">
         <div className="flex items-end gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-2">
           <textarea
+            aria-label="Message your AI Twin"
             ref={inputRef}
             rows={2}
             placeholder="Describe a system, paste a URL, or ask anything…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={busy}
-            className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:opacity-50"
+            className="min-w-0 flex-1 resize-none rounded-md bg-transparent px-2 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-ai)] disabled:opacity-50"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 handleSend();
               }
@@ -468,12 +544,12 @@ export function ChatTab({
           />
           <Button
             size="icon"
-            disabled={busy || !input.trim()}
-            onClick={handleSend}
-            aria-label="Send message"
+            disabled={runBusy || isSaving || historyLoading || Boolean(historyError) || (!isLoading && !input.trim())}
+            onClick={isLoading ? () => void stop() : handleSend}
+            aria-label={isLoading ? "Stop reply" : "Send message"}
             className="h-8 w-8 shrink-0 rounded-lg bg-[var(--accent-ai)] text-white hover:bg-[var(--accent-ai)]/90 disabled:opacity-40"
           >
-            {busy ? (
+            {isLoading ? <Square className="h-4 w-4" /> : busy ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <SendHorizonal className="h-4 w-4" />

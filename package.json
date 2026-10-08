@@ -18,6 +18,7 @@
     "eval": "tsx evals/run.ts",
     "uss:test": "tsx lib/uss/selftest.ts",
     "mcp:test": "tsx lib/mcp/selftest.ts",
+    "ui:test": "vitest run",
     "eval:sweep": "tsx evals/sweep.ts",
     "eval:ab": "tsx evals/ab.ts"
   },
@@ -55,6 +56,8 @@
     "pg": "^8.20.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "resend": "^6.12.4",
     "shadcn": "^4.7.0",
     "sonner": "^2.0.7",
@@ -67,15 +70,18 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^22.20.5",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "jsdom": "^26.1.0",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }

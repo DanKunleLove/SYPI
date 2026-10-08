@@ -101,6 +101,23 @@ review — never for bookkeeping.
 
 ## Storage Model
 
+### Chat Continuity (Current Increment)
+
+The existing Liveblocks `ai-chat` feed stores conversation text. Optional stable
+message IDs, serialized parts, tool summaries and interruption flags now support
+restoration. Restored messages enter the model context as text only; historical
+tool results are never executed. Visible history is paginated independently of
+the bounded model context. Feed writes are still client-originated, so this is
+not a canonical, server-verified log of agent actions. A server-authoritative
+history service remains planned.
+
+The chat and browser pipeline controller remain mounted for the lifetime of the
+workspace, including when their panel is closed or another output tab is active.
+Closing the browser still interrupts client-driven orchestration. A returning
+editor can explicitly resume an eligible run within the existing run window.
+Pause completes the current stage before stopping the loop; it does not promise
+provider-side cancellation or autonomous background completion.
+
 - **Database (PostgreSQL via Prisma)**: User records (synced from Clerk), project metadata (name, owner, timestamps, collaborators), project references
 - **Liveblocks Storage**: Canvas state (nodes, connections, positions, labels) — this is the real-time source of truth for the canvas
 - **Vercel Blob**: Generated Markdown spec files, project thumbnail images
