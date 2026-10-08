@@ -1,5 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { userFromToken } from "@/lib/mcp/tokens";
+import { resourceMetadataUrl } from "@/lib/mcp/oauth";
 import { createMcpServer } from "@/lib/mcp/server";
 
 /**
@@ -14,9 +15,18 @@ export const maxDuration = 60;
 async function handle(request: Request) {
   const user = await userFromToken(request.headers.get("authorization"));
   if (!user) {
+    // The resource_metadata pointer is what lets ChatGPT / Claude discover OAuth
+    // on their own: without it a 401 is a dead end for a client that cannot send
+    // a hand-made header.
+    const origin = new URL(request.url).origin;
     return Response.json(
       { jsonrpc: "2.0", error: { code: -32001, message: "Missing or invalid token" }, id: null },
-      { status: 401, headers: { "WWW-Authenticate": "Bearer" } }
+      {
+        status: 401,
+        headers: {
+          "WWW-Authenticate": `Bearer resource_metadata="${resourceMetadataUrl(origin)}"`,
+        },
+      }
     );
   }
 

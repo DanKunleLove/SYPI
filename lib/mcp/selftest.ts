@@ -23,6 +23,7 @@ function check(name: string, ok: boolean, detail = "") {
 }
 
 async function main() {
+  process.env.ENCRYPTION_SECRET = "selftest-secret";
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
   const { createMcpServer } = await import("@/lib/mcp/server");
@@ -167,6 +168,134 @@ async function main() {
       .map((s) => [s, { status: "done" as const }])
   );
   check("a complete run has no next step", firstIncompleteStep(all) === null);
+
+  // ── OAuth ───────────────────────────────────────────────────────────────────
+  const oauth = await import("@/lib/mcp/oauth");
+  const { createHash } = await import("node:crypto");
+
+  const signed = oauth.sign("code", { u: "user_1" }, 60);
+  check("a signed value verifies", oauth.verify("code", signed)?.u === "user_1");
+  check("a value of another kind is refused", oauth.verify("ticket", signed) === null);
+  const [body, sig] = signed.split(".");
+  const forged = Buffer.from(JSON.stringify({ k: "code", e: 9999999999, d: { u: "attacker" } })).toString("base64url");
+  check("a tampered payload is refused", oauth.verify("code", `${forged}.${sig}`) === null);
+  check("a tampered signature is refused", oauth.verify("code", `${body}.${sig.slice(0, -2)}xx`) === null);
+  check("an expired value is refused", oauth.verify("code", oauth.sign("code", { u: "x" }, -5)) === null);
+  check("garbage and empty values are refused",
+    oauth.verify("code", "nope") === null && oauth.verify("code", "") === null && oauth.verify("code", null) === null);
+  check("extra segments are refused", oauth.verify("code", `${signed}.extra`) === null);
+
+  process.env.ENCRYPTION_SECRET = "a-different-secret";
+  check("a value signed under another secret is refused", oauth.verify("code", signed) === null);
+  process.env.ENCRYPTION_SECRET = "selftest-secret";
+
+  const saved = process.env.ENCRYPTION_SECRET;
+  delete process.env.ENCRYPTION_SECRET;
+  let threw = false;
+  try { oauth.sign("code", {}, 5); } catch (err) { threw = err instanceof oauth.OAuthConfigError; }
+  check("signing without a secret fails loudly, not silently", threw);
+  process.env.ENCRYPTION_SECRET = saved;
+
+  // Redirect validation is the whole defence against sending a code to an attacker.
+  const cid = oauth.registerClient("My App", ["https://app.example.com/cb"]);
+  check("a registered client may use its exact redirect", oauth.resolveClient(cid, "https://app.example.com/cb")?.registered === true);
+  const spoof = oauth.registerClient("ChatGPT", ["https://evil.example.com/cb"]);
+  check("a registered client cannot borrow a trusted name for an untrusted host",
+    oauth.resolveClient(spoof, "https://evil.example.com/cb")?.name === "evil.example.com");
+  const real = oauth.registerClient("ChatGPT", ["https://chatgpt.com/connector/oauth/zz"]);
+  check("a registered client on a trusted host keeps its name",
+    oauth.resolveClient(real, "https://chatgpt.com/connector/oauth/zz")?.name === "ChatGPT");
+  check("a registered client may NOT use another redirect", oauth.resolveClient(cid, "https://app.example.com/other") === null);
+  check("a registered client may NOT use another host", oauth.resolveClient(cid, "https://evil.example.com/cb") === null);
+  check("ChatGPT's connector callback is accepted",
+    oauth.resolveClient("any-id", "https://chatgpt.com/connector/oauth/Bf_1l1t1CeVP")?.name === "ChatGPT");
+  check("Claude's callback is accepted", oauth.resolveClient("any-id", "https://claude.ai/api/mcp/auth_callback")?.name === "Claude");
+  check("an unknown host is refused for an unregistered client", oauth.resolveClient("any-id", "https://evil.example.com/cb") === null);
+  check("a look-alike host is refused", oauth.resolveClient("any-id", "https://chatgpt.com.evil.com/cb") === null);
+  check("a suffix trick is refused", oauth.resolveClient("any-id", "https://notchatgpt.com/cb") === null);
+  check("plain http is refused off loopback", oauth.resolveClient("any-id", "http://chatgpt.com/cb") === null);
+  check("loopback http is allowed (Claude Code)", oauth.resolveClient("any-id", "http://localhost:53682/callback") !== null);
+  check("a fragment is refused", oauth.resolveClient("any-id", "https://chatgpt.com/cb#x") === null);
+  check("javascript: and data: URIs are refused",
+    oauth.resolveClient("any-id", "javascript:alert(1)") === null && oauth.resolveClient("any-id", "data:text/html,x") === null);
+  check("a forged client id is not trusted as registered",
+    oauth.resolveClient(`${cid.slice(0, -3)}abc`, "https://app.example.com/cb") === null);
+  check("registration refuses unusable redirect URIs",
+    oauth.isAcceptableRedirect("https://a.example.com/cb") && !oauth.isAcceptableRedirect("http://a.example.com/cb") && !oauth.isAcceptableRedirect("ftp://a/b"));
+
+  const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  check("PKCE matches the right verifier", oauth.pkceMatches(verifier, challenge));
+  check("PKCE rejects a wrong verifier", !oauth.pkceMatches(`${verifier.slice(0, -1)}X`, challenge));
+  check("PKCE rejects a too-short verifier even if it hashes to the challenge",
+    !oauth.pkceMatches("short", createHash("sha256").update("short").digest("base64url")));
+  check("PKCE matches the RFC 7636 appendix B vector",
+    oauth.pkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk") === "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+
+  const origin = "https://sypi.example.com";
+  const prm = oauth.protectedResourceMetadata(origin);
+  const asm = oauth.authorizationServerMetadata(origin);
+  check("resource metadata names the MCP endpoint and this issuer",
+    prm.resource === `${origin}/api/mcp` && prm.authorization_servers[0] === origin);
+  check("server metadata requires PKCE S256 and a public client",
+    asm.code_challenge_methods_supported[0] === "S256" && asm.token_endpoint_auth_methods_supported[0] === "none");
+  check("server metadata advertises registration, authorize and token endpoints",
+    asm.registration_endpoint.endsWith("/api/oauth/register") && asm.authorization_endpoint.endsWith("/oauth/authorize") && asm.token_endpoint.endsWith("/api/oauth/token"));
+  check("the 401 hint points at the path-suffixed metadata", oauth.resourceMetadataUrl(origin) === `${origin}/.well-known/oauth-protected-resource/api/mcp`);
+  check("a foreign resource indicator is refused", !oauth.resourceIsOurs("https://other.example.com/api/mcp", origin));
+  check("our resource indicator, or none, is accepted",
+    oauth.resourceIsOurs(`${origin}/api/mcp`, origin) && oauth.resourceIsOurs(null, origin));
+
+  // The real route handlers, called with real Requests. Everything asserted here
+  // returns before any database call.
+  const reg = await import("@/app/api/oauth/register/route");
+  const tok = await import("@/app/api/oauth/token/route");
+  const prmRoute = await import("@/app/.well-known/oauth-protected-resource/[[...path]]/route");
+  const asmRoute = await import("@/app/.well-known/oauth-authorization-server/[[...path]]/route");
+  const mcpRoute = await import("@/app/api/mcp/route");
+  const H = "https://sypi.example.com";
+  const post = (path: string, body: string, type: string) =>
+    new Request(`${H}${path}`, { method: "POST", headers: { "content-type": type }, body });
+
+  const metaRes = await prmRoute.GET(new Request(`${H}/.well-known/oauth-protected-resource/api/mcp`));
+  const metaJson = await metaRes.json();
+  check("resource metadata route serves JSON for the request's own origin", metaRes.status === 200 && metaJson.resource === `${H}/api/mcp`);
+  const asRes = await asmRoute.GET(new Request(`${H}/.well-known/oauth-authorization-server`));
+  check("server metadata route serves JSON", (await asRes.json()).issuer === H);
+
+  const unauth = await mcpRoute.POST(new Request(`${H}/api/mcp`, { method: "POST", body: "{}" }));
+  const hint = unauth.headers.get("www-authenticate") ?? "";
+  check("an unauthenticated MCP call is 401", unauth.status === 401);
+  check("…and tells the client where to discover OAuth",
+    hint.includes(`resource_metadata="${H}/.well-known/oauth-protected-resource/api/mcp"`), hint);
+
+  const regRes = await reg.POST(post("/api/oauth/register", JSON.stringify({ client_name: "ChatGPT", redirect_uris: ["https://chatgpt.com/connector/oauth/abc"] }), "application/json"));
+  const regJson = await regRes.json();
+  check("registration returns a client id", regRes.status === 201 && typeof regJson.client_id === "string");
+  check("the registered client id resolves to its own redirect",
+    oauth.resolveClient(regJson.client_id, "https://chatgpt.com/connector/oauth/abc")?.registered === true);
+  const badReg = await reg.POST(post("/api/oauth/register", JSON.stringify({ redirect_uris: ["http://evil.example.com/cb"] }), "application/json"));
+  check("registration refuses an insecure redirect", badReg.status === 400 && (await badReg.json()).error === "invalid_redirect_uri");
+  const noReg = await reg.POST(post("/api/oauth/register", "{}", "application/json"));
+  check("registration requires redirect URIs", noReg.status === 400);
+
+  const goodCode = oauth.sign("code", { u: "user_1", cid: "c", ru: "https://chatgpt.com/cb", cc: challenge, n: "ChatGPT" }, 60);
+  const form = (o: Record<string, string>) => post("/api/oauth/token", new URLSearchParams(o).toString(), "application/x-www-form-urlencoded");
+  const t1 = await tok.POST(form({ grant_type: "refresh_token", refresh_token: "x" }));
+  check("token endpoint refuses grants it does not support", t1.status === 400 && (await t1.json()).error === "unsupported_grant_type");
+  const t2 = await tok.POST(form({ grant_type: "authorization_code", code: "garbage", redirect_uri: "https://chatgpt.com/cb", code_verifier: verifier }));
+  check("token endpoint refuses a forged code", t2.status === 400 && (await t2.json()).error === "invalid_grant");
+  const t3 = await tok.POST(form({ grant_type: "authorization_code", code: goodCode, redirect_uri: "https://evil.example.com/cb", code_verifier: verifier }));
+  check("token endpoint refuses a different redirect_uri", t3.status === 400 && (await t3.json()).error === "invalid_grant");
+  const t4 = await tok.POST(form({ grant_type: "authorization_code", code: goodCode, redirect_uri: "https://chatgpt.com/cb", code_verifier: `${verifier.slice(0, -1)}X` }));
+  check("token endpoint refuses a wrong PKCE verifier", t4.status === 400 && (await t4.json()).error === "invalid_grant");
+  const t5 = await tok.POST(form({ grant_type: "authorization_code", code: goodCode, redirect_uri: "https://chatgpt.com/cb" }));
+  check("token endpoint requires a verifier", t5.status === 400);
+  const t6 = await tok.POST(form({ grant_type: "authorization_code", code: goodCode, redirect_uri: "https://chatgpt.com/cb", client_id: "someone-else", code_verifier: verifier }));
+  check("token endpoint refuses a different client_id", t6.status === 400 && (await t6.json()).error === "invalid_grant");
+  const t7 = await tok.POST(form({ grant_type: "authorization_code", code: oauth.sign("code", { u: "u", cid: "c", ru: "https://chatgpt.com/cb", cc: challenge }, -5), redirect_uri: "https://chatgpt.com/cb", code_verifier: verifier }));
+  check("token endpoint refuses an expired code", t7.status === 400);
+  check("token responses are never cacheable", t1.headers.get("cache-control") === "no-store");
 
   // ── tokens (only the paths that never reach the database) ───────────────────
   check("no Authorization header is rejected", (await userFromToken(null)) === null);
