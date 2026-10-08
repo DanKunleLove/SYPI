@@ -115,24 +115,85 @@ export async function startRun(params: {
  * calls: a finished run, another project's run, or one old enough that its
  * single quota charge no longer plausibly covers the work being asked for.
  */
+export type LoadRunFailure = "NOT_FOUND" | "WRONG_PROJECT" | "FINISHED" | "EXPIRED";
+
 export async function loadRun(
   runId: string,
   projectId: string
-): Promise<{ ok: true; run: RunRecord } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; run: RunRecord } | { ok: false; error: string; code: LoadRunFailure }
+> {
   const row = await prisma.aIGeneration.findUnique({ where: { id: runId } });
 
-  if (!row) return { ok: false, error: "That run no longer exists — start again." };
+  if (!row) return { ok: false, code: "NOT_FOUND", error: "That run no longer exists — start again." };
   if (row.projectId !== projectId) {
-    return { ok: false, error: "That run belongs to a different project." };
+    return { ok: false, code: "WRONG_PROJECT", error: "That run belongs to a different project." };
   }
   if (row.status !== "running") {
-    return { ok: false, error: "That run has already finished — start a new one." };
+    return { ok: false, code: "FINISHED", error: "That run has already finished — start a new one." };
   }
   if (Date.now() - row.createdAt.getTime() > RUN_WINDOW_MS) {
-    return { ok: false, error: "That run timed out. Start again." };
+    return { ok: false, code: "EXPIRED", error: "That run timed out. Start again." };
   }
 
   return { ok: true, run: shape(row) };
+}
+
+/**
+ * Read a run for display, whatever its state. `loadRun` refuses finished or
+ * expired runs because continuing them would be unmetered; observing one is
+ * harmless, so progress queries use this instead.
+ */
+export async function readRun(
+  runId: string,
+  projectId: string
+): Promise<{ run: RunRecord; status: string; error: string | null; createdAt: Date } | null> {
+  const row = await prisma.aIGeneration.findUnique({ where: { id: runId } });
+  if (!row || row.projectId !== projectId) return null;
+  return { run: shape(row), status: row.status, error: row.error, createdAt: row.createdAt };
+}
+
+/** How long one claimed step may run before another caller may take it over. */
+export const STEP_LEASE_MS = 90_000;
+
+/**
+ * Claim a step for execution — atomically.
+ *
+ * `markStep` is read-modify-write, which is fine while ONE client walks a run
+ * in order, as the browser does. An MCP host is different: a chat client can
+ * retry a tool call, or issue two at once, and two executors on the same step
+ * would each spend a model call and each commit to the spec.
+ *
+ * The claim is a single conditional UPDATE, so exactly one caller wins. A step
+ * that is already done or skipped is never re-claimed (the caller replays its
+ * stored result instead), and a step another caller is running stays theirs until
+ * the lease lapses — which is what lets a crashed function be retried at all.
+ */
+export async function claimStep(
+  runId: string,
+  stepId: string,
+  leaseMs: number = STEP_LEASE_MS
+): Promise<boolean> {
+  const now = Date.now();
+  const staleBefore = now - leaseMs;
+  const claimed = JSON.stringify({ status: "running", claimedAt: now });
+
+  const updated = await prisma.$executeRaw`
+    UPDATE "AIGeneration"
+    SET "result" = jsonb_set(
+      jsonb_set(COALESCE("result", '{}'::jsonb), '{steps}', COALESCE("result"->'steps', '{}'::jsonb)),
+      ARRAY['steps', ${stepId}::text],
+      ${claimed}::jsonb
+    )
+    WHERE "id" = ${runId}
+      AND "status" = 'running'
+      AND COALESCE("result"->'steps'->${stepId}::text->>'status', '') NOT IN ('done', 'skipped')
+      AND NOT (
+        COALESCE("result"->'steps'->${stepId}::text->>'status', '') = 'running'
+        AND COALESCE(("result"->'steps'->${stepId}::text->>'claimedAt')::bigint, 0) > ${staleBefore}
+      )
+  `;
+  return updated === 1;
 }
 
 /** Record what happened in one step. Merges, never replaces. */

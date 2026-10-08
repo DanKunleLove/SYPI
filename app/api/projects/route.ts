@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getDbUser } from "@/lib/project-access";
+import { createProjectForUser } from "@/lib/project-create";
 
 export async function GET() {
   const user = await getDbUser();
@@ -55,22 +56,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Malformed JSON" }, { status: 400 });
   }
 
-  const name =
-    typeof body.name === "string"
-      ? body.name.trim().slice(0, 120) || "Untitled Project"
-      : "Untitled Project";
-  const description =
-    typeof body.description === "string"
-      ? body.description.trim().slice(0, 500) || null
-      : null;
-
-  const project = await prisma.project.create({
-    data: {
-      userId: user.id,
-      name,
-      description,
-    },
-  });
+  const { project } = await createProjectForUser(user.id, body);
 
   return Response.json({ project }, { status: 201 });
 }

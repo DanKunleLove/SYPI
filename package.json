@@ -17,6 +17,7 @@
     "postinstall": "prisma generate",
     "eval": "tsx evals/run.ts",
     "uss:test": "tsx lib/uss/selftest.ts",
+    "mcp:test": "tsx lib/mcp/selftest.ts",
     "eval:sweep": "tsx evals/sweep.ts",
     "eval:ab": "tsx evals/ab.ts"
   },

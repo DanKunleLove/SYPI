@@ -4,7 +4,72 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
+### 2026-10-08 - MCP expansion plan prepared
+
+- Added `context/mcp-platform-plan.md`: an implementation plan for creating,
+  reviewing, revising and handing off SYPI projects from external AI clients.
+- Audited the five existing MCP tools, token model and step-based pipeline.
+- Sequenced connectivity tests, external planning, canvas consistency, OAuth
+  and connection UX, revision/review, then implementation evidence.
+- Plan only: no application code, migration or production changes in this unit.
+- First implementation unit: verify endpoint exposure and authenticated
+  Codex/Claude Code round-trips, with access and revocation contract tests.
+
+### 2026-10-08 - Production release completed
+
+- Applied `20260928090000_api_tokens` to production using its unpooled
+  connection. Prisma reports the schema is up to date; a direct read-only
+  check confirms the `ApiToken` table exists.
+- Fast-forwarded and pushed `main` to `db4959f`.
+- Vercel production deployment `dpl_7THCVQEZrRcU3K9VvMvdSULcnMcg` is Ready;
+  `https://sypi-dev.vercel.app` aliases the new deployment.
+- Verification: local TypeScript, 214/214 USS tests, production build, and
+  GitHub CI all passed. Temporary production environment file was deleted.
+- Follow-up: signed-in token creation and generation, plus a real signed-out
+  share link still need smoke tests. `NEXT_PUBLIC_APP_URL` is masked by Vercel
+  and its value could not be independently confirmed.
+- The stray `spi` project has a production deployment now, contrary to the
+  earlier empty-project report; it was left intact for separate review.
+
 **2026-09-13: Units 0-5 of the USS programme shipped — live at https://sypi-dev.vercel.app**
+
+### 2026-10-08 — MCP platform plan: Units 1–2 in code, Unit 3 partial
+
+Implements `context/mcp-platform-plan.md` as far as can be verified without live clients.
+**No schema changes** — nothing here needs a migration.
+
+- **Shared actor-based services.** `lib/ai/pipeline-run.ts` (`beginPipelineRun`,
+  `executeStep`) and `lib/project-create.ts` now hold what the browser routes did inline;
+  `/api/ai/pipeline` and `/api/projects` call them. MCP never impersonates a session.
+- **Atomic step claims.** `claimStep` in `lib/ai/run.ts` is one conditional UPDATE with an
+  expiring 90s lease; done/skipped steps are never re-claimed, failed ones are. Verified
+  against real Postgres semantics (PGlite): 13 checks, 12 concurrent claims → 1 winner.
+  `loadRun` now returns a failure `code`; `readRun` observes any run.
+- **Tools (11):** existing five + `create_project`, `get_spec_section`, `start_plan`,
+  `continue_plan`, `get_run`, `get_handoff`. Annotations set accurately; stable error codes
+  (`lib/mcp/errors.ts`); `projectId` + `version` on every response; sections paged (max 25).
+  `start_plan` resumes an identical live run rather than charging twice; `create_project`
+  reuses an identical project from the last 10 minutes; `continue_plan` is bound to the user
+  who started the run. `get_handoff` serves deterministic files from a pinned version and
+  refuses AI-generated ones (those stay in the app's quota-accounted per-file run).
+- **Execution is client-driven:** `continue_plan` does one step; `get_run` never advances.
+- Gates: `tsc` clean, `uss:test` 214/214, new `mcp:test` 42/42 (real in-memory MCP client:
+  discovery, annotations, validation, error contract, paging, hand-off, step ordering),
+  `next build` exit 0, no lint errors in changed files.
+
+**Not done — and not claimed:**
+- **Unit 1 real-client gate:** no Codex / Claude Code round-trip yet (needs a token against
+  the deployed endpoint). **Production endpoint exposure** (Vercel Deployment Protection vs
+  `/api/mcp`) is unaudited — a signed-out request to the deployed URL must be tried.
+- **DB-backed tests:** token revocation, viewer and cross-project isolation, and a full
+  planning run are untested (the dev Neon credentials are rejected). `mcp:test` says so.
+- **Unit 3 canvas projection:** an MCP-created plan lives in the USS only. Nothing projects
+  it onto the canvas when a browser opens (`specDiffersFromCanvas` exists but no client calls
+  it), and writing the canvas blob server-side would race with open Liveblocks rooms.
+  Needs its own design: projection must preserve layout and manual edits.
+- **Unit 4 (OAuth, scopes, PAT expiry, Connected agents UI), Unit 5 (proposals, review),
+  Unit 6 (progress reports, drift, docs):** not started. PATs have no scopes or expiry yet.
+- Error classification of model failures is a regex on provider text (best effort).
 
 ### 2026-10-08 — Codex slice validated; canvas Blob cleanup
 
