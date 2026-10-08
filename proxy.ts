@@ -8,6 +8,9 @@ const isPublicRoute = createRouteMatcher([
   "/share/(.*)",
   "/api/share/(.*)",
   "/api/webhooks(.*)",
+  "/.well-known/(.*)", // OAuth discovery metadata for MCP clients
+  "/api/oauth/register",
+  "/api/oauth/token", // authenticated by PKCE + a signed code, not a session
   "/api/mcp", // authenticates with its own bearer token (lib/mcp/tokens.ts), not a Clerk session
 ]);
 

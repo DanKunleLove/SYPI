@@ -33,6 +33,21 @@ export async function createToken(userId: string, name: string) {
 }
 
 /**
+ * Keep only the newest `keep` tokens with this exact name. Reconnecting a client
+ * through OAuth mints a fresh token each time; without this the ten-token cap
+ * fills with "ChatGPT (OAuth)" and the user is locked out of making their own.
+ */
+export async function pruneTokensNamed(userId: string, name: string, keep: number) {
+  const same = await prisma.apiToken.findMany({
+    where: { userId, name },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  const stale = same.slice(keep).map((t) => t.id);
+  if (stale.length) await prisma.apiToken.deleteMany({ where: { userId, id: { in: stale } } });
+}
+
+/**
  * Resolve a bearer token to its user. Null for anything invalid — including a
  * suspended account, so suspension reaches programmatic access too.
  */
